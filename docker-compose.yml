@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Future: PostgreSQL database
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: omen
+  #     POSTGRES_USER: omen
+  #     POSTGRES_PASSWORD: omen
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+  # Future: Kafka for event streaming
+  # kafka:
+  #   image: confluentinc/cp-kafka:latest
+  #   ports:
+  #     - "9092:9092"
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+
+volumes:
+  postgres_data:

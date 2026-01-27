@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# Testing / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.hypothesis/
+.tox/
+coverage.xml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Node (omen-demo)
+omen-demo/node_modules/
+omen-demo/dist/
+
+# Logs
+*.log
+logs/

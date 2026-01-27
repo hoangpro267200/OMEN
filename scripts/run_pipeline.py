@@ -1,0 +1,72 @@
+"""
+CLI runner for OMEN pipeline.
+
+Usage: python -m scripts.run_pipeline [--source stub|polymarket] [--limit N]
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+# Ensure package is on path when run as script
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from omen.application.pipeline import OmenPipeline, PipelineConfig
+from omen.domain.services.signal_validator import SignalValidator
+from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
+from omen.domain.rules.translation.logistics.red_sea_disruption import RedSeaDisruptionRule
+from omen.adapters.inbound.stub_source import StubSignalSource
+from omen.adapters.persistence.in_memory_repository import InMemorySignalRepository
+from omen.adapters.outbound.console_publisher import ConsolePublisher
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run OMEN pipeline")
+    parser.add_argument(
+        "--source",
+        choices=["stub", "polymarket"],
+        default="stub",
+        help="Signal source (default: stub)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Max events to process (default: 10)",
+    )
+    args = parser.parse_args()
+
+    # Build components
+    validator = SignalValidator(rules=[LiquidityValidationRule()])
+    translator = ImpactTranslator(rules=[RedSeaDisruptionRule()])
+    repository = InMemorySignalRepository()
+    publisher = ConsolePublisher()
+
+    pipeline = OmenPipeline(
+        validator=validator,
+        translator=translator,
+        repository=repository,
+        publisher=publisher,
+        config=PipelineConfig.default(),
+    )
+
+    # Fetch and process
+    if args.source == "stub":
+        source = StubSignalSource()
+    else:
+        print("Only stub source is implemented.", file=sys.stderr)
+        sys.exit(1)
+
+    print("OMEN Pipeline")
+    print("=" * 50)
+    for event in source.fetch_events(limit=args.limit):
+        result = pipeline.process_single(event)
+        n = len(result.signals)
+        status = "cached" if result.cached else ("ok" if n else "rejected")
+        print(f"  {event.event_id}: {n} signals ({status})")
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
