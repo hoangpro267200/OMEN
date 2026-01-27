@@ -1,179 +1,236 @@
-import { useState, useCallback } from 'react';
+/**
+ * OMEN Dashboard — live backend integration with mock fallback.
+ */
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Loader2, Zap, AlertTriangle } from 'lucide-react';
-import { Header } from './components/Layout/Header';
-import { DataFlowSection } from './components/DataFlow/DataFlowSection';
-import { SignalCard } from './components/SignalDetail/SignalCard';
-import { ExplanationChain } from './components/Explanation/ExplanationChain';
-import { RouteMap } from './components/Map/RouteMap';
-import { useDemoMode } from './hooks/useDemoMode';
-import {
-  useProcessEvents,
-  type ProcessedSignal,
-} from './hooks/useOmenApi';
 
-const delay = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+import { Header } from './components/Layout/Header';
+import { Sidebar } from './components/Layout/Sidebar';
+import { MainPanel } from './components/Layout/MainPanel';
+import { BottomPanel } from './components/Layout/BottomPanel';
+import { KPIStatsRow } from './components/dashboard/KPIStatsRow';
+import { ProbabilityGauge } from './components/analysis/ProbabilityGauge';
+import { ConfidenceRadar } from './components/analysis/ConfidenceRadar';
+import { ImpactMetricsGrid } from './components/analysis/ImpactMetricsGrid';
+import { ExplanationChain } from './components/analysis/ExplanationChain';
+import { ProbabilityChart } from './components/charts/ProbabilityChart';
+import { SeverityDonut } from './components/charts/SeverityDonut';
+import { ProcessingFunnel } from './components/charts/ProcessingFunnel';
+import { ImpactProjectionChart } from './components/charts/ImpactProjectionChart';
+import { ActivityFeed } from './components/dashboard/ActivityFeed';
+import { Card } from './components/common/Card';
+
+import {
+  useProcessLiveSignals,
+  useSystemStats,
+  useActivityFeed,
+} from './hooks/useOmenApi';
+import { useRealtimePrices } from './hooks/useRealtimePrices';
+
+import { mockSignals, systemStats, activityFeed } from './data/mockSignals';
+import { last24hProbabilityHistory } from './data/mockTimeSeries';
+import type { ProcessedSignal, SystemStats } from './types/omen';
+
+const WorldMap = lazy(() =>
+  import('./components/visualization/WorldMap').then((m) => ({ default: m.WorldMap }))
+);
 
 function App() {
-  const { isProcessing, currentStage, signal, runDemo } = useDemoMode();
-  const processEvents = useProcessEvents();
-  const [liveStage, setLiveStage] = useState(0);
-  const [liveSignal, setLiveSignal] = useState<ProcessedSignal | null>(null);
+  const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
 
-  const runLiveAnalysis = useCallback(async () => {
-    setLiveSignal(null);
-    setLiveStage(1);
-    await delay(500);
-    setLiveStage(2);
-    await delay(500);
-    setLiveStage(3);
-    await delay(500);
-    setLiveStage(4);
-    try {
-      const results = await processEvents.mutateAsync({
-        limit: 10,
-        min_liquidity: 1000,
-      });
-      setLiveSignal(results[0] ?? null);
-    } catch {
-      setLiveSignal(null);
-    } finally {
-      setLiveStage(0);
+  const {
+    data: liveSignals,
+    isLoading: signalsLoading,
+    error: signalsError,
+  } = useProcessLiveSignals({ enabled: true });
+
+  const { data: liveStats } = useSystemStats();
+  const { data: liveActivity } = useActivityFeed(20);
+  const signals: ProcessedSignal[] = useMemo(() => {
+    if (liveSignals && liveSignals.length > 0) return liveSignals;
+    return mockSignals;
+  }, [liveSignals]);
+
+  const signalIds = useMemo(() => signals.map((s) => s.signal_id), [signals]);
+  useRealtimePrices(signalIds);
+
+  const stats: SystemStats = useMemo(() => {
+    if (liveStats) return liveStats;
+    return systemStats;
+  }, [liveStats]);
+
+  const activity = useMemo(() => {
+    if (liveActivity && liveActivity.length > 0) return liveActivity;
+    return activityFeed;
+  }, [liveActivity]);
+
+  const selectedSignal = useMemo(() => {
+    if (selectedSignalId) {
+      const s = signals.find((s) => s.signal_id === selectedSignalId);
+      if (s) return s;
     }
-  }, [processEvents]);
+    return signals[0] ?? null;
+  }, [selectedSignalId, signals]);
 
-  const isLiveRunning = liveStage > 0 || processEvents.isPending;
-  const hasLiveResult = liveSignal != null;
-  const showLiveNoResults =
-    processEvents.isSuccess && !liveSignal && !isLiveRunning;
+  useEffect(() => {
+    if (signals.length > 0 && !selectedSignalId) {
+      setSelectedSignalId(signals[0].signal_id);
+    }
+  }, [signals, selectedSignalId]);
+
+  const probabilityChartData = useMemo(() => {
+    if (!selectedSignal?.probability_history?.length) return [];
+    return last24hProbabilityHistory(selectedSignal.probability_history);
+  }, [selectedSignal]);
+
+  const histMin = selectedSignal?.probability_history?.length
+    ? Math.min(...selectedSignal.probability_history)
+    : 0;
+  const histMax = selectedSignal?.probability_history?.length
+    ? Math.max(...selectedSignal.probability_history)
+    : 1;
+
+  const severityDistribution = useMemo(() => {
+    const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+    signals.forEach((s) => {
+      if (s.severity >= 0.75) counts.Critical++;
+      else if (s.severity >= 0.5) counts.High++;
+      else if (s.severity >= 0.25) counts.Medium++;
+      else counts.Low++;
+    });
+    return [
+      { name: 'Critical', value: counts.Critical, fill: '#ef4444' },
+      { name: 'High', value: counts.High, fill: '#f97316' },
+      { name: 'Medium', value: counts.Medium, fill: '#f59e0b' },
+      { name: 'Low', value: counts.Low, fill: '#10b981' },
+    ];
+  }, [signals]);
+
+  const funnelData = useMemo(
+    () => [
+      { stage: 'Raw events', value: stats.events_processed, fill: '#3b82f6' },
+      { stage: 'Validated', value: stats.events_validated, fill: '#06b6d4' },
+      { stage: 'Translated', value: Math.round(stats.events_validated * 0.7), fill: '#10b981' },
+      { stage: 'Signals', value: stats.signals_generated, fill: '#8b5cf6' },
+    ],
+    [stats]
+  );
+
+  if (signalsLoading && (!signals || signals.length === 0)) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[var(--text-secondary)]">Đang tải dữ liệu từ Polymarket...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="h-full min-h-0 flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)]">
       <Header
-        isProcessing={isProcessing || isLiveRunning}
-        hasSignal={signal != null || hasLiveResult}
+        systemStatus="OPERATIONAL"
+        isLive={!signalsError}
+        connectionStatus={signalsError ? 'disconnected' : 'connected'}
+        latencyMs={stats.system_latency_ms}
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-10">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white">
-              Signal intelligence demo
-            </h1>
-            <p className="text-zinc-400 mt-1">
-              Run the pipeline to see OMEN process a Red Sea disruption signal.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <motion.button
-              onClick={runDemo}
-              disabled={isProcessing}
-              whileHover={{ scale: isProcessing ? 1 : 1.02 }}
-              whileTap={{ scale: isProcessing ? 1 : 0.98 }}
-              className={`
-                shrink-0 px-6 py-4 rounded-xl font-semibold text-lg flex items-center gap-2
-                transition-all duration-200
-                ${
-                  isProcessing
-                    ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white'
-                }
-              `}
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing…
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5" />
-                  Run OMEN demo
-                </>
-              )}
-            </motion.button>
-            <motion.button
-              onClick={runLiveAnalysis}
-              disabled={isLiveRunning}
-              whileHover={{ scale: isLiveRunning ? 1 : 1.02 }}
-              whileTap={{ scale: isLiveRunning ? 0.98 : 1 }}
-              className={`
-                shrink-0 px-6 py-4 rounded-xl font-semibold text-lg flex items-center gap-2
-                transition-all duration-200
-                ${
-                  isLiveRunning
-                    ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white'
-                }
-              `}
-            >
-              {isLiveRunning ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {liveStage > 0 ? `Stage ${liveStage}/4` : 'Processing…'}
-                </>
-              ) : (
-                <>
-                  <Zap className="w-5 h-5" />
-                  Run OMEN Analysis (Live)
-                </>
-              )}
-            </motion.button>
-          </div>
-        </div>
-
-        <DataFlowSection
-          currentStage={isLiveRunning ? liveStage : currentStage}
-          isProcessing={isProcessing || isLiveRunning}
-          hasResult={signal != null || hasLiveResult}
+      <div className="flex-1 flex min-h-0 overflow-hidden pt-16 pb-12">
+        <Sidebar
+          signals={signals}
+          selectedSignalId={selectedSignalId}
+          onSelectSignal={setSelectedSignalId}
         />
 
-        {(signal != null || hasLiveResult) && (
-          <>
-            <section className="mb-12">
-              <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                <span className="w-1 h-6 bg-blue-500 rounded-full" />
-                {hasLiveResult ? 'Live signal' : 'Signal'}
-              </h2>
-              <SignalCard signal={(liveSignal ?? signal)!} />
-            </section>
-            <ExplanationChain
-              chain={(liveSignal ?? signal)!.explanation_chain}
-            />
-            <RouteMap routes={(liveSignal ?? signal)!.affected_routes} />
-          </>
-        )}
+        <MainPanel>
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-thin-scroll p-6 pb-12 space-y-6 bg-[var(--bg-primary)]">
+            {signalsError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400"
+              >
+                <p className="font-medium">Không thể kết nối đến backend</p>
+                <p className="text-sm opacity-80">
+                  Đang hiển thị dữ liệu demo. Kiểm tra backend tại localhost:8000
+                </p>
+              </motion.div>
+            )}
 
-        {showLiveNoResults && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-8 flex items-center gap-4"
-          >
-            <AlertTriangle className="w-8 h-8 text-amber-400 shrink-0" />
-            <p className="text-zinc-300">
-              No signals generated. Events may have been filtered by validation
-              rules or had insufficient liquidity. Try “Run OMEN demo” for a
-              simulated result.
-            </p>
-          </motion.div>
-        )}
+            <KPIStatsRow stats={stats} />
 
-        {!signal && !hasLiveResult && !isProcessing && !isLiveRunning && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-12 text-center"
-          >
-            <p className="text-zinc-500">
-              Click “Run OMEN demo” to simulate processing, or “Run OMEN
-              Analysis (Live)” to fetch real Polymarket events and process them
-              (requires backend at <code className="text-zinc-400">localhost:8000</code>).
-            </p>
-          </motion.div>
-        )}
-      </main>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-4">
+                {selectedSignal && (
+                  <ProbabilityGauge
+                    probability={selectedSignal.probability}
+                    momentum={selectedSignal.probability_momentum}
+                    historyMin={histMin}
+                    historyMax={histMax}
+                    isCritical={selectedSignal.severity_label === 'CRITICAL'}
+                  />
+                )}
+              </div>
+              <div className="lg:col-span-4">
+                {selectedSignal && (
+                  <ConfidenceRadar
+                    breakdown={selectedSignal.confidence_breakdown}
+                    overall={selectedSignal.confidence_score}
+                  />
+                )}
+              </div>
+              <div className="lg:col-span-4">
+                <SeverityDonut data={severityDistribution} />
+              </div>
+            </div>
+
+            {probabilityChartData.length > 0 && <ProbabilityChart data={probabilityChartData} />}
+
+            {selectedSignal && selectedSignal.metrics?.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                  Chỉ số tác động
+                </h2>
+                <ImpactMetricsGrid metrics={selectedSignal.metrics} />
+                <ImpactProjectionChart metrics={selectedSignal.metrics} />
+              </div>
+            )}
+
+            {selectedSignal &&
+              (selectedSignal.affected_routes?.length > 0 ||
+                selectedSignal.affected_chokepoints?.length > 0) && (
+                <Suspense
+                  fallback={
+                    <Card className="p-6 min-h-[320px] flex items-center justify-center text-[var(--text-tertiary)]">
+                      Đang tải bản đồ…
+                    </Card>
+                  }
+                >
+                  <WorldMap
+                    routes={selectedSignal.affected_routes ?? []}
+                    chokepoints={selectedSignal.affected_chokepoints ?? []}
+                  />
+                </Suspense>
+              )}
+
+            {selectedSignal && selectedSignal.explanation_steps?.length > 0 && (
+              <ExplanationChain steps={selectedSignal.explanation_steps} />
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-1">
+                <ProcessingFunnel data={funnelData} />
+              </div>
+              <div className="lg:col-span-2">
+                <ActivityFeed items={activity} />
+              </div>
+            </div>
+          </div>
+        </MainPanel>
+      </div>
+
+      <BottomPanel stats={stats} />
     </div>
   );
 }

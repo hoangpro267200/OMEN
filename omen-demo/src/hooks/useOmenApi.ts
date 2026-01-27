@@ -1,11 +1,18 @@
 /**
- * OMEN Live API hooks — fetch Polymarket data and process via backend.
- * Demo stub remains for backward compatibility; use the hooks below for live mode.
+ * OMEN Live API hooks — connected to real backend.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import type { OmenSignal } from '../types/omen';
+import {
+  type ApiSignalResponse,
+  type ApiSystemStats,
+  type ApiActivityItem,
+  mapApiSignalToUi,
+  mapApiStatsToUi,
+  mapApiActivityToUi,
+} from '../lib/mapApiToUi';
+import type { ProcessedSignal } from '../types/omen';
 
 const API_BASE =
   (import.meta.env.VITE_OMEN_API_URL as string) || 'http://localhost:8000/api/v1';
@@ -22,18 +29,100 @@ export interface LiveEvent {
   observed_at: string;
 }
 
-/** Processed signal returned by POST /live/process — matches OmenSignal for UI. */
-export type ProcessedSignal = OmenSignal;
-
 /** Stub for components that only need a no-op API. */
 export function useOmenApi() {
   return {
-    fetchSignal: async () => null as OmenSignal | null,
+    fetchSignal: async () => null as ProcessedSignal | null,
     isConnected: false,
   };
 }
 
-/** Fetch live events from Polymarket. */
+/** Fetch and process live Polymarket events through OMEN. Populates live-signals cache. */
+export function useProcessLiveSignals(options?: { enabled?: boolean }) {
+  return useQuery<ProcessedSignal[]>({
+    queryKey: ['live-signals'],
+    queryFn: async () => {
+      const { data } = await axios.post<ApiSignalResponse[]>(
+        `${API_BASE}/live/process`,
+        null,
+        { params: { limit: 20, min_liquidity: 1000 } }
+      );
+      return (data ?? []).map(mapApiSignalToUi);
+    },
+    enabled: options?.enabled ?? true,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+}
+
+/** System statistics for dashboard KPIs. */
+export function useSystemStats() {
+  return useQuery({
+    queryKey: ['system-stats'],
+    queryFn: async () => {
+      const { data } = await axios.get<ApiSystemStats>(`${API_BASE}/stats`);
+      return mapApiStatsToUi(data);
+    },
+    refetchInterval: 5_000,
+  });
+}
+
+/** Activity feed for the dashboard. */
+export function useActivityFeed(limit = 20) {
+  return useQuery({
+    queryKey: ['activity-feed', limit],
+    queryFn: async () => {
+      const { data } = await axios.get<ApiActivityItem[]>(`${API_BASE}/activity`, {
+        params: { limit },
+      });
+      return (data ?? []).map(mapApiActivityToUi);
+    },
+    refetchInterval: 10_000,
+  });
+}
+
+/** Manually trigger signal processing and update live-signals cache. */
+export function useProcessSignals() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { limit?: number; min_liquidity?: number }) => {
+      const { data } = await axios.post<ApiSignalResponse[]>(
+        `${API_BASE}/live/process`,
+        null,
+        { params: { limit: params.limit ?? 10, min_liquidity: params.min_liquidity ?? 1000 } }
+      );
+      return (data ?? []).map(mapApiSignalToUi);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['live-signals'], data);
+    },
+  });
+}
+
+/** Process a single event by ID. */
+export function useProcessSingleSignal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (eventId: string) => {
+      const { data } = await axios.post<{
+        signal: ApiSignalResponse | null;
+        rejection_reason?: string;
+        stats?: Record<string, number>;
+      }>(`${API_BASE}/live/process-single`, null, {
+        params: { event_id: eventId },
+      });
+      if (data.signal) {
+        return { signal: mapApiSignalToUi(data.signal), rejected: false as const };
+      }
+      return { signal: null, rejected: true as const, reason: data.rejection_reason };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['live-signals'] });
+    },
+  });
+}
+
+/** Fetch live events from Polymarket (raw). */
 export function useLiveEvents(limit = 20) {
   return useQuery({
     queryKey: ['live-events', limit],
@@ -49,40 +138,12 @@ export function useLiveEvents(limit = 20) {
 
 /** Process events through OMEN pipeline. */
 export function useProcessEvents() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (params: { limit?: number; min_liquidity?: number }) => {
-      const { data } = await axios.post<ProcessedSignal[]>(
-        `${API_BASE}/live/process`,
-        null,
-        { params: { limit: params.limit ?? 10, min_liquidity: params.min_liquidity ?? 1000 } }
-      );
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['live-events'] });
-    },
-  });
+  return useProcessSignals();
 }
 
 /** Process a single event by ID. */
 export function useProcessSingleEvent() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (eventId: string) => {
-      const { data } = await axios.post<{
-        signal: ProcessedSignal | null;
-        rejection_reason?: string;
-        stats?: Record<string, number>;
-      }>(`${API_BASE}/live/process-single`, null, {
-        params: { event_id: eventId },
-      });
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['live-events'] });
-    },
-  });
+  return useProcessSingleSignal();
 }
 
 /** Search Polymarket events by keyword. */
@@ -90,10 +151,9 @@ export function useSearchEvents(query: string, limit = 10) {
   return useQuery({
     queryKey: ['search-events', query, limit],
     queryFn: async () => {
-      const { data } = await axios.get<LiveEvent[]>(
-        `${API_BASE}/live/events/search`,
-        { params: { query, limit } }
-      );
+      const { data } = await axios.get<LiveEvent[]>(`${API_BASE}/live/events/search`, {
+        params: { query, limit },
+      });
       return data;
     },
     enabled: query.length >= 2,

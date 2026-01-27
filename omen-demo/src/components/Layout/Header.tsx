@@ -1,35 +1,120 @@
-import { Shield, Circle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Shield, Wifi, WifiOff, User } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { cn } from '../../lib/utils';
+
+type SystemStatus = 'OPERATIONAL' | 'DEGRADED' | 'DOWN';
 
 interface HeaderProps {
-  isProcessing: boolean;
-  hasSignal: boolean;
+  systemStatus?: SystemStatus;
+  isLive?: boolean;
+  connectionStatus?: 'connected' | 'disconnected';
+  latencyMs?: number;
+  className?: string;
 }
 
-export function Header({ isProcessing, hasSignal }: HeaderProps) {
+function LiveClock() {
+  const [time, setTime] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
   return (
-    <header className="border-b border-white/10 bg-black/20 backdrop-blur-xl sticky top-0 z-10">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-blue-400" />
+    <span className="font-mono text-sm tabular-nums text-[var(--text-secondary)]">
+      {time.toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+    </span>
+  );
+}
+
+export function Header({
+  systemStatus = 'OPERATIONAL',
+  isLive = true,
+  connectionStatus = 'connected',
+  latencyMs,
+  className,
+}: HeaderProps) {
+  const statusConfig = {
+    OPERATIONAL: {
+      label: 'VẬN HÀNH',
+      dotClass: 'bg-[var(--success)] shadow-[var(--glow-success)]',
+    },
+    DEGRADED: {
+      label: 'SUY GIẢM',
+      dotClass: 'bg-[var(--warning)] animate-pulse',
+    },
+    DOWN: {
+      label: 'NGƯNG',
+      dotClass: 'bg-[var(--danger)]',
+    },
+  };
+  const config = statusConfig[systemStatus];
+
+  return (
+    <header
+      className={cn(
+        'fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-xl',
+        'border-[var(--border-subtle)]',
+        systemStatus === 'OPERATIONAL' && 'border-b-[var(--success)]/20',
+        className
+      )}
+      style={{ background: 'rgba(5, 5, 7, 0.8)', height: 64 }}
+    >
+      <div className="h-16 px-6 flex items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <motion.div
+            className="flex items-center gap-3"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="w-9 h-9 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center shadow-[var(--glow-blue)]">
+              <Shield className="w-5 h-5 text-[var(--accent-blue)]" />
+            </div>
+            <span className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
+              OMEN
+            </span>
+          </motion.div>
+          <div className="h-6 w-px bg-[var(--border-medium)] hidden sm:block" />
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full shrink-0',
+                config.dotClass
+              )}
+            />
+            <span className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+              {config.label}
+            </span>
           </div>
-          <span className="text-xl font-bold text-white tracking-tight">
-            OMEN
-          </span>
+          {isLive && (
+            <span className="text-xs font-medium text-[var(--success)] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] animate-pulse" />
+              SỐNG
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <Circle
-            className={`w-2.5 h-2.5 ${
-              isProcessing
-                ? 'text-amber-400 animate-pulse'
-                : hasSignal
-                  ? 'text-emerald-400 fill-emerald-400'
-                  : 'text-zinc-500'
-            }`}
-          />
-          <span className="text-zinc-400">
-            {isProcessing ? 'Processing…' : hasSignal ? 'Signal ready' : 'Demo mode'}
-          </span>
+
+        <div className="flex items-center gap-6">
+          <LiveClock />
+          {latencyMs != null && (
+            <span className="font-mono text-sm tabular-nums text-[var(--success)]">
+              {latencyMs} ms
+            </span>
+          )}
+          <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
+            {connectionStatus === 'connected' ? (
+              <Wifi className="w-4 h-4 text-[var(--success)]" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-[var(--danger)]" />
+            )}
+            <span className="text-xs uppercase tracking-wider">
+              {connectionStatus === 'connected' ? 'ĐÃ KẾT NỐI' : 'Ngắt kết nối'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 pl-4 border-l border-[var(--border-subtle)]">
+            <User className="w-4 h-4 text-[var(--text-tertiary)]" />
+            <span className="text-sm text-[var(--text-secondary)]">Hệ thống</span>
+          </div>
         </div>
       </div>
     </header>

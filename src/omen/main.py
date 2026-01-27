@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from omen.api.routes import explanations, health, live, signals
+from omen.api.routes import explanations, health, live, realtime, signals
 from omen.infrastructure.security.auth import verify_api_key
 from omen.infrastructure.security.config import get_security_config
 from omen.infrastructure.security.rate_limit import rate_limit_middleware
@@ -73,6 +73,9 @@ def create_app() -> FastAPI:
         dependencies=[Depends(verify_api_key)],
     )
     app.include_router(live.router, prefix="/api/v1")
+    app.include_router(stats.router, prefix="/api/v1")
+    app.include_router(activity.router, prefix="/api/v1")
+    app.include_router(realtime.router, prefix="/api/v1")
 
     @app.get("/")
     async def root():
