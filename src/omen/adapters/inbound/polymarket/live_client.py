@@ -5,6 +5,7 @@ Base URL: https://gamma-api.polymarket.com
 No API key required for public read endpoints.
 """
 
+import re
 import time
 from typing import Any
 
@@ -177,31 +178,19 @@ class PolymarketLiveClient:
             raise SourceUnavailableError(f"Search error: {e}") from e
 
     def get_logistics_events(self, limit: int = 20) -> list[dict[str, Any]]:
-        """Return events relevant to logistics/supply chain (client-side filter)."""
+        """Return events relevant to logistics/supply chain. Uses whole-word match so 'port'≠'sport', 'strike'≠'striker'."""
         keywords = [
-            "shipping",
-            "ship",
-            "port",
-            "trade",
-            "tariff",
-            "red sea",
-            "suez",
-            "panama",
-            "taiwan",
-            "china",
-            "sanction",
-            "embargo",
-            "strike",
-            "oil",
-            "freight",
+            "shipping", "ship", "port", "trade", "tariff", "red sea", "suez",
+            "panama", "taiwan", "china", "sanction", "embargo", "strike", "oil", "freight",
         ]
-        all_events = self.fetch_events(limit=200, active=True)
+        fetch_limit = max(limit, 200, min(limit * 3, 2000))
+        all_events = self.fetch_events(limit=fetch_limit, active=True)
         relevant = []
         for event in all_events:
             title = (event.get("title") or "").lower()
             desc = (event.get("description") or "").lower()
             text = f"{title} {desc}"
-            if any(kw in text for kw in keywords):
+            if any(re.search(r"\b" + re.escape(kw) + r"\b", text) for kw in keywords):
                 relevant.append(event)
         return relevant[:limit]
 

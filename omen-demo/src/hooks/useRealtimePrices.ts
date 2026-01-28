@@ -7,9 +7,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ProcessedSignal } from '../types/omen';
+import { OMEN_API_BASE } from '../lib/apiBase';
 
-const API_BASE =
-  (import.meta.env.VITE_OMEN_API_URL as string) || 'http://localhost:8000/api/v1';
+const API_BASE = OMEN_API_BASE;
 
 interface PriceUpdate {
   signal_id: string;

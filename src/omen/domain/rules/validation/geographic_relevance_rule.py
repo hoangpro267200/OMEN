@@ -2,8 +2,11 @@
 Geographic Relevance Validation.
 
 Validates that a signal is relevant to logistics chokepoints or regions.
+Uses both chokepoint keywords and expanded logistics keyword database.
+Logistics keywords use word-boundary matching (see keywords.get_matched_keywords).
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from math import atan2, cos, radians, sin, sqrt
@@ -13,6 +16,7 @@ from ...models.validated_signal import ValidationResult
 from ...models.common import ValidationStatus, GeoLocation
 from ...models.explanation import ExplanationStep
 from ..base import Rule
+from .keywords import get_matched_keywords, calculate_relevance_score
 
 
 # Known logistics chokepoints with coordinates
@@ -77,26 +81,27 @@ class GeographicRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
 
     @property
     def version(self) -> str:
-        return "2.0.0"  # Major version bump from broken v1
+        return "3.0.0"  # Expanded: use logistics keyword database; pass on 1+ match
 
     def apply(self, input_data: RawSignalEvent) -> ValidationResult:
-        """Check geographic relevance."""
+        """Check geographic relevance via chokepoints and/or logistics keywords."""
         matched_chokepoints: list[str] = []
         match_reasons: list[str] = []
-
-        # Check keyword matches
-        event_keywords = set(k.lower() for k in input_data.keywords)
         event_text = f"{input_data.title} {input_data.description or ''}".lower()
+        event_keywords = set(k.lower() for k in input_data.keywords)
 
+        # Chokepoint keyword matches (whole-word in text to avoid "sport" matching "port")
         for chokepoint, keywords in GEO_KEYWORDS.items():
             for kw in keywords:
-                if kw in event_keywords or kw in event_text:
+                in_keywords = kw in event_keywords
+                in_text = bool(re.search(r"\b" + re.escape(kw) + r"\b", event_text))
+                if in_keywords or in_text:
                     if chokepoint not in matched_chokepoints:
                         matched_chokepoints.append(chokepoint)
                         match_reasons.append(f"keyword '{kw}' → {chokepoint}")
                     break
 
-        # Check location proximity
+        # Location proximity
         for loc in input_data.inferred_locations:
             for cp_name, cp_loc in CHOKEPOINTS.items():
                 distance = self._haversine_distance(loc, cp_loc)
@@ -107,7 +112,8 @@ class GeographicRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
                             f"location within {distance:.0f}km of {cp_name}"
                         )
 
-        # Determine result
+        # Expanded: any logistics keyword match counts as relevant
+        logistics_matched = get_matched_keywords(event_text)
         if matched_chokepoints:
             score = min(1.0, len(matched_chokepoints) * 0.3 + 0.4)
             return ValidationResult(
@@ -117,14 +123,22 @@ class GeographicRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
                 score=score,
                 reason=f"Relevant to {len(matched_chokepoints)} chokepoint(s): {', '.join(matched_chokepoints)}",
             )
-        else:
+        if logistics_matched:
+            score = calculate_relevance_score(logistics_matched)
             return ValidationResult(
                 rule_name=self.name,
                 rule_version=self.version,
-                status=ValidationStatus.REJECTED_IRRELEVANT_GEOGRAPHY,
-                score=0.1,
-                reason="No geographic relevance to known logistics chokepoints",
+                status=ValidationStatus.PASSED,
+                score=score,
+                reason=f"Found {len(logistics_matched)} logistics keyword(s): {', '.join(logistics_matched[:5])}{'...' if len(logistics_matched) > 5 else ''}",
             )
+        return ValidationResult(
+            rule_name=self.name,
+            rule_version=self.version,
+            status=ValidationStatus.REJECTED_IRRELEVANT_GEOGRAPHY,
+            score=0.1,
+            reason="No geographic relevance to known logistics chokepoints or keywords",
+        )
 
     def _haversine_distance(self, loc1: GeoLocation, loc2: GeoLocation) -> float:
         """Calculate distance between two points in kilometers."""

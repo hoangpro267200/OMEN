@@ -33,6 +33,24 @@ interface KPIStatsRowProps {
 }
 
 export function KPIStatsRow({ stats, className }: KPIStatsRowProps) {
+  if ((stats as SystemStats & { _unavailable?: boolean })._unavailable) {
+    return (
+      <div
+        className={cn(
+          'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3',
+          className
+        )}
+      >
+        {[...Array(8)].map((_, i) => (
+          <Card key={i} className="p-4" hover={false}>
+            <div className="h-4 w-20 animate-pulse rounded bg-[var(--bg-hover)] mb-2" />
+            <div className="h-8 w-16 animate-pulse rounded bg-[var(--bg-hover)]" />
+            <p className="mt-2 text-xs text-[var(--text-muted)]">Không khả dụng</p>
+          </Card>
+        ))}
+      </div>
+    );
+  }
   const items: KPIItem[] = [
     {
       label: 'Tín hiệu chủ động',

@@ -78,6 +78,8 @@ export interface ApiSignalResponse {
   category?: string;
   subcategory?: string;
   affected_systems?: string[];
+  probability_is_fallback?: boolean;
+  data_quality?: string;
 }
 
 /** API system stats. events_translated optional until backend exposes it. */
@@ -211,6 +213,7 @@ export function mapApiSignalToUi(api: ApiSignalResponse): ProcessedSignal {
     source_market: api.source_market,
     market_url: api.market_url ?? undefined,
     affected_systems: api.affected_systems?.length ? api.affected_systems : undefined,
+    probability_is_fallback: api.probability_is_fallback ?? false,
   };
 }
 
@@ -223,6 +226,10 @@ export function mapApiStatsToUi(api: ApiSystemStats): SystemStats {
       : processed > 0
         ? validated / processed
         : undefined;
+  const rejected = (api.events_rejected ?? null) != null
+    ? Number(api.events_rejected)
+    : Math.max(0, processed - validated);
+
   return {
     active_signals: api.active_signals,
     critical_alerts: api.critical_alerts,
@@ -231,7 +238,7 @@ export function mapApiStatsToUi(api: ApiSystemStats): SystemStats {
     events_processed: processed,
     events_validated: validated,
     signals_generated: api.signals_generated,
-    events_rejected: api.events_rejected,
+    events_rejected: rejected,
     system_latency_ms: api.system_latency_ms,
     events_per_second: Math.round((api.events_per_minute ?? 0) / 60),
     uptime_percent: api.uptime_seconds > 0 ? 99.97 : 100,

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from omen.api.routes import (
     activity,
+    debug,
     explanations,
     health,
     live,
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(activity.router, prefix="/api/v1")
     app.include_router(realtime.router, prefix="/api/v1")
     app.include_router(methodology.router, prefix="/api/v1")
+    app.include_router(debug.router, prefix="/api/v1")
 
     @app.get("/")
     async def root():

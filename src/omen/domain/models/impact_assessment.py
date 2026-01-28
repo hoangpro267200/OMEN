@@ -271,7 +271,21 @@ class ImpactAssessment(BaseModel):
     ruleset_version: RulesetVersion
     translation_rules_applied: list[str] = Field(default_factory=list)
     assessed_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
+    # Fallback / review flags (production visibility)
+    is_fallback: bool = Field(
+        default=False,
+        description="True if no specific translation rule matched; assessment from generic fallback.",
+    )
+    requires_review: bool = Field(
+        default=False,
+        description="True if this assessment should be manually reviewed.",
+    )
+    fallback_reason: str | None = Field(
+        default=None,
+        description="Reason fallback was used, when is_fallback=True.",
+    )
+
     @computed_field
     @property
     def deterministic_trace_id(self) -> str:

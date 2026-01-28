@@ -1,0 +1,9 @@
+{
+  "name": "omen",
+  "private": true,
+  "description": "OMEN — Động cơ Trí tuệ Tín hiệu. Chạy frontend từ thư mục gốc.",
+  "scripts": {
+    "dev": "npm run dev --prefix omen-demo",
+    "build": "npm run build --prefix omen-demo"
+  }
+}

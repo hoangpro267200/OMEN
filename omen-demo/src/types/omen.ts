@@ -160,6 +160,8 @@ export interface ProcessedSignal {
   market_url?: string | null;
   /** Layer 3: affected systems (names or identifiers) */
   affected_systems?: string[];
+  /** True when probability is fallback (e.g. 0.5) because market data was missing */
+  probability_is_fallback?: boolean;
 }
 
 export type SeverityLabel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
@@ -180,6 +182,8 @@ export interface SystemStats {
   validation_rate?: number;
   /** Translated events count (Layer 3). Undefined if backend does not expose it. */
   events_translated?: number;
+  /** True when in live mode but stats API has not returned data yet. */
+  _unavailable?: boolean;
 }
 
 export interface ActivityFeedItem {

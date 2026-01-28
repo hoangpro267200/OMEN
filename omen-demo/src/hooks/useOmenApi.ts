@@ -13,9 +13,9 @@ import {
   mapApiActivityToUi,
 } from '../lib/mapApiToUi';
 import type { ProcessedSignal } from '../types/omen';
+import { OMEN_API_BASE } from '../lib/apiBase';
 
-const API_BASE =
-  (import.meta.env.VITE_OMEN_API_URL as string) || 'http://localhost:8000/api/v1';
+const API_BASE = OMEN_API_BASE;
 
 /** Raw live event from Polymarket (before OMEN processing). */
 export interface LiveEvent {
@@ -37,15 +37,19 @@ export function useOmenApi() {
   };
 }
 
+/** Số tín hiệu mặc định khi gọi /live/process — tải nhiều để danh sách đầy đủ. */
+const DEFAULT_LIVE_PROCESS_LIMIT = 500;
+
 /** Fetch and process live Polymarket events through OMEN. Populates live-signals cache. */
-export function useProcessLiveSignals(options?: { enabled?: boolean }) {
+export function useProcessLiveSignals(options?: { enabled?: boolean; limit?: number }) {
+  const limit = options?.limit ?? DEFAULT_LIVE_PROCESS_LIMIT;
   return useQuery<ProcessedSignal[]>({
-    queryKey: ['live-signals'],
+    queryKey: ['live-signals', limit],
     queryFn: async () => {
       const { data } = await axios.post<ApiSignalResponse[]>(
         `${API_BASE}/live/process`,
         null,
-        { params: { limit: 20, min_liquidity: 1000 } }
+        { params: { limit, min_liquidity: 1000 } }
       );
       return (data ?? []).map(mapApiSignalToUi);
     },

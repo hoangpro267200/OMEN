@@ -60,6 +60,10 @@ class OmenSignal(BaseModel):
         le=1,
         description="Change in probability over last 24 hours"
     )
+    probability_is_fallback: bool = Field(
+        default=False,
+        description="True if probability came from fallback (e.g. 0.5) when market data was missing.",
+    )
     
     # === CONFIDENCE (EXPLICIT, NOT IMPLIED) ===
     confidence_level: ConfidenceLevel
@@ -224,6 +228,7 @@ class OmenSignal(BaseModel):
             current_probability=original.probability,
             probability_momentum=momentum,
             probability_change_24h=prob_change,
+            probability_is_fallback=getattr(original, "probability_is_fallback", False),
             confidence_level=ConfidenceLevel.from_score(confidence_score),
             confidence_score=confidence_score,
             confidence_factors=confidence_factors,

@@ -15,6 +15,8 @@ interface HeaderProps {
   className?: string;
   /** When provided, header shows honest data-source badge (live vs demo). */
   dataSource?: DataSourceInfo;
+  /** Total signal count from backend (stats.signals_generated). Used for badge when live so it shows real count, not loaded-page size. */
+  signalsCount?: number;
 }
 
 function LiveClock() {
@@ -30,7 +32,7 @@ function LiveClock() {
   );
 }
 
-function DataSourceBadge({ source }: { source: DataSourceInfo }) {
+function DataSourceBadge({ source, displayCount }: { source: DataSourceInfo; displayCount?: number }) {
   const c = (
     {
       live: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', dot: 'bg-green-500', label: 'TRỰC TIẾP', pulse: true },
@@ -39,11 +41,12 @@ function DataSourceBadge({ source }: { source: DataSourceInfo }) {
       error: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-500', label: 'LỖI', pulse: false },
     } as const
   )[source.type];
+  const n = displayCount ?? source.signalCount;
   return (
     <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-full border', c.bg, c.border, c.text)} title={source.message}>
       <span className={cn('w-2 h-2 rounded-full', c.dot, c.pulse && 'animate-pulse')} />
       <span className="text-xs font-medium">{c.label}</span>
-      {source.signalCount > 0 ? <span className="text-xs opacity-60">({source.signalCount})</span> : null}
+      {n > 0 ? <span className="text-xs opacity-60">({n})</span> : null}
     </div>
   );
 }
@@ -55,6 +58,7 @@ export function Header({
   latencyMs,
   className,
   dataSource,
+  signalsCount,
 }: HeaderProps) {
   const realtimeStatus = useRealtimeStatus();
   const statusConfig = {
@@ -106,7 +110,10 @@ export function Header({
             </span>
           </div>
           {dataSource ? (
-            <DataSourceBadge source={dataSource} />
+            <DataSourceBadge
+              source={dataSource}
+              displayCount={dataSource.type === 'live' && signalsCount != null ? signalsCount : undefined}
+            />
           ) : isLive ? (
             <span className="text-xs font-medium text-[var(--success)] flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] animate-pulse" />

@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from omen.application.container import get_container
 from omen.domain.errors import SourceUnavailableError
@@ -162,6 +162,15 @@ class FullProcessedSignalResponse(BaseModel):
     subcategory: str | None = None
     # Layer 3: affected systems (system names)
     affected_systems: list[str] = []
+    # Data quality (probability source)
+    probability_is_fallback: bool = Field(
+        default=False,
+        description="True if probability is estimated/fallback, not from actual market data",
+    )
+    data_quality: str = Field(
+        default="complete",
+        description="Data quality indicator: 'complete', 'partial', 'estimated'",
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -469,6 +478,8 @@ def _signal_to_full_response(s: Any) -> FullProcessedSignalResponse:
         category=category_str,
         subcategory=getattr(s, "subcategory", None),
         affected_systems=affected_sys,
+        probability_is_fallback=getattr(s, "probability_is_fallback", False),
+        data_quality="estimated" if getattr(s, "probability_is_fallback", False) else "complete",
     )
 
 
@@ -530,7 +541,7 @@ async def search_events(
 
 @router.post("/process", response_model=list[FullProcessedSignalResponse])
 async def process_live_events(
-    limit: int = Query(default=10, le=50),
+    limit: int = Query(default=500, le=2000),
     min_liquidity: float = Query(default=1000),
 ):
     """
@@ -541,7 +552,7 @@ async def process_live_events(
         container = get_container()
         pipeline = container.pipeline
         source = PolymarketSignalSource(logistics_only=True)
-        raw_list = list(source.fetch_events(limit=limit * 2))
+        raw_list = list(source.fetch_events(limit=min(limit * 2, 4000)))
         filtered = [
             e for e in raw_list
             if e.market.current_liquidity_usd >= min_liquidity

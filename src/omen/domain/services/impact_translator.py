@@ -1,6 +1,7 @@
 """Layer 3 orchestration: Impact translation service."""
 
 import logging
+from datetime import datetime
 from typing import List
 
 from omen.domain.models.validated_signal import ValidatedSignal
@@ -9,6 +10,7 @@ from omen.domain.models.impact_assessment import (
     ImpactMetric,
     AffectedRoute,
     AffectedSystem,
+    UncertaintyBounds,
 )
 from omen.domain.models.common import ImpactDomain, RulesetVersion
 from omen.domain.models.context import ProcessingContext
@@ -20,17 +22,50 @@ from omen.domain.methodology.red_sea_impact import TIMING_METHODOLOGY
 logger = logging.getLogger(__name__)
 
 
+def _extract_regions_from_title(title: str) -> list[str]:
+    """Extract region/location hints from title for fallback assessment."""
+    regions: list[str] = []
+    title_lower = (title or "").lower()
+    region_keywords = {
+        "red sea": "Red Sea",
+        "suez": "Suez",
+        "panama": "Panama",
+        "asia": "Asia",
+        "europe": "Europe",
+        "china": "China",
+        "middle east": "Middle East",
+        "africa": "Africa",
+        "america": "America",
+        "pacific": "Pacific",
+        "atlantic": "Atlantic",
+        "mediterranean": "Mediterranean",
+        "gulf": "Gulf",
+        "strait": "Strait",
+    }
+    for keyword, region in region_keywords.items():
+        if keyword in title_lower and region not in regions:
+            regions.append(region)
+    return regions[:2]
+
+
 class ImpactTranslator:
     """Orchestrates translation rules to produce ImpactAssessment."""
 
-    def __init__(self, rules: List[ImpactTranslationRule]):
+    def __init__(
+        self,
+        rules: List[ImpactTranslationRule],
+        fallback_enabled: bool = True,
+    ):
         """
         Initialize impact translator.
 
         Args:
             rules: List of translation rules to try
+            fallback_enabled: If True, when no rule matches for LOGISTICS,
+                return a generic "Potential Warning" assessment.
         """
         self.rules = rules
+        self._fallback_enabled = fallback_enabled
 
     def translate(
         self,
@@ -43,13 +78,16 @@ class ImpactTranslator:
 
         Catches rule errors and continues with other rules.
         Returns None if no rules produced results.
-        All timestamps derive from context for deterministic replay.
+        When fallback_enabled and domain is LOGISTICS, returns a generic
+        "Potential Warning" assessment if no rule matches.
         """
         applicable_rules = [
             r for r in self.rules
             if r.domain == domain and r.is_applicable(signal)
         ]
         if not applicable_rules:
+            if self._fallback_enabled and domain == ImpactDomain.LOGISTICS:
+                return self._create_fallback_assessment(signal, domain, context)
             return None
 
         applicable_results_with_names: List[tuple[str, TranslationResult]] = []
@@ -153,6 +191,125 @@ class ImpactTranslator:
             ruleset_version=context.ruleset_version,
             translation_rules_applied=applied_rule_names,
             assessed_at=context.processing_time,
+        )
+
+    def _create_fallback_assessment(
+        self,
+        signal: ValidatedSignal,
+        domain: ImpactDomain,
+        context: ProcessingContext,
+    ) -> ImpactAssessment:
+        """
+        Create a generic "Potential Warning" assessment when no rule matches.
+
+        Used for LOGISTICS when fallback_enabled and event passed validation
+        but no Red Sea / Panama / Strike etc. rule applied.
+        """
+        prob = signal.original_event.probability
+        val = round(prob * 100, 1)
+        low = round(prob * 80, 1)
+        up = min(100.0, round(prob * 120, 1))
+
+        generic_metric = ImpactMetric(
+            name="potential_disruption_level",
+            value=val,
+            unit="percent",
+            uncertainty=UncertaintyBounds(lower=low, upper=up, confidence_interval=0.8),
+            confidence=0.5,
+            baseline=0,
+            evidence_type="assumption",
+            evidence_source="Probability-based estimate (no specific model)",
+            methodology_name="generic_probability_scaling",
+            methodology_version="1.0.0",
+        )
+
+        if prob >= 0.7:
+            severity = 0.8
+            severity_label = "HIGH"
+        elif prob >= 0.5:
+            severity = 0.6
+            severity_label = "MEDIUM"
+        else:
+            severity = 0.4
+            severity_label = "LOW"
+
+        regions = _extract_regions_from_title(signal.original_event.title)
+        routes: List[AffectedRoute] = []
+        if regions:
+            origin = regions[0]
+            dest = regions[1] if len(regions) > 1 else "Multiple"
+            routes = [
+                AffectedRoute(
+                    route_id="generic-impact",
+                    route_name="Potential Impact Zone",
+                    origin_region=origin,
+                    destination_region=dest,
+                    impact_severity=severity,
+                    alternative_routes=[],
+                    estimated_delay_days=None,
+                    delay_uncertainty=None,
+                )
+            ]
+
+        reasoning = (
+            f"No specific translation rule matched. Generated generic assessment "
+            f"based on probability ({prob:.0%}) and logistics relevance. "
+            f"Manual review recommended."
+        )
+        step = ExplanationStep.create(
+            step_id=1,
+            rule_name="fallback_translation",
+            rule_version="1.0.0",
+            reasoning=reasoning,
+            confidence_contribution=0.5,
+            processing_time=context.processing_time,
+            input_summary={
+                "event_probability": prob,
+                "category": signal.category.value,
+            },
+            output_summary={
+                "potential_disruption_level": val,
+                "severity": severity,
+                "severity_label": severity_label,
+            },
+        )
+        chain = ExplanationChain.create(context).add_step(step).finalize(context)
+
+        tp = TIMING_METHODOLOGY.parameters
+        base_onset = int(tp["base_onset_hours"][0])
+        urgency_factor = float(tp["urgency_factor"][0])
+        base_duration = int(tp["base_duration_hours"][0])
+        onset_hours = max(1, int(base_onset * (1.0 - prob * urgency_factor)))
+
+        summary = (
+            f"Signal indicates {prob:.0%} probability. Generic logistics impact "
+            f"(potential disruption level {val}%). No specific model applied; review recommended."
+        )
+
+        return ImpactAssessment(
+            event_id=signal.event_id,
+            source_signal=signal,
+            domain=domain,
+            metrics=[generic_metric],
+            affected_routes=routes,
+            affected_systems=[],
+            overall_severity=severity,
+            severity_label=severity_label,
+            expected_onset_hours=onset_hours,
+            expected_duration_hours=base_duration,
+            explanation_steps=[step],
+            explanation_chain=chain,
+            impact_summary=summary,
+            assumptions=[
+                "No specific translation rule matched; generic probability-based assessment.",
+                "Manual review recommended for operational decisions.",
+            ],
+            ruleset_version=context.ruleset_version,
+            translation_rules_applied=[],
+            assessed_at=context.processing_time,
+            is_fallback=True,
+            requires_review=True,
+            fallback_reason="No applicable translation rule matched for this event.",
         )
 
     def _build_impact_summary(

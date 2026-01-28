@@ -7,6 +7,7 @@ from typing import Any
 from omen.adapters.inbound.polymarket.schemas import PolymarketEvent
 from omen.domain.models.common import EventId, GeoLocation, MarketId
 from omen.domain.models.raw_signal import MarketMetadata, RawSignalEvent
+from omen.domain.rules.validation.keywords import get_matched_keywords
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -42,7 +43,7 @@ class PolymarketMapper:
         if description is not None:
             description = str(description)[:5000]
 
-        probability = self._extract_probability(raw)
+        probability, probability_is_fallback = self._extract_probability(raw)
         condition_id = raw.get("conditionId") or raw.get("condition_id")
         clob_token_ids = self._parse_clob_token_ids(
             raw.get("clobTokenIds") or raw.get("clob_token_ids")
@@ -70,6 +71,7 @@ class PolymarketMapper:
             title=title,
             description=description,
             probability=probability,
+            probability_is_fallback=probability_is_fallback,
             movement=None,
             keywords=keywords,
             inferred_locations=locations,
@@ -94,44 +96,45 @@ class PolymarketMapper:
         }
         return self.map_market(raw)
 
-    def _extract_probability(self, raw: dict[str, Any]) -> float:
-        """Extract YES probability from Polymarket response (CLOB or Gamma)."""
+    def _extract_probability(self, raw: dict[str, Any]) -> tuple[float, bool]:
+        """
+        Extract YES probability from Polymarket response (CLOB or Gamma).
+
+        Returns:
+            (probability, is_fallback). is_fallback is True only when no
+            price data was found and 0.5 was used.
+        """
         prices = raw.get("outcomePrices") or raw.get("outcome_prices")
         if isinstance(prices, str):
             try:
                 parsed = json.loads(prices)
                 if isinstance(parsed, (list, tuple)) and len(parsed) >= 1:
-                    return max(0.0, min(1.0, float(parsed[0])))
+                    return max(0.0, min(1.0, float(parsed[0]))), False
             except (json.JSONDecodeError, TypeError, ValueError):
                 pass
             if "," in prices:
                 try:
                     yes_price = float(prices.split(",")[0].strip())
-                    return max(0.0, min(1.0, yes_price))
+                    return max(0.0, min(1.0, yes_price)), False
                 except (ValueError, IndexError):
                     pass
         if isinstance(prices, (list, tuple)) and len(prices) >= 1:
             try:
-                return max(0.0, min(1.0, float(prices[0])))
+                return max(0.0, min(1.0, float(prices[0]))), False
             except (TypeError, ValueError):
                 pass
         p = raw.get("probability") or raw.get("bestAsk") or raw.get("price")
         if p is not None:
             try:
-                return max(0.0, min(1.0, float(p)))
+                return max(0.0, min(1.0, float(p))), False
             except (TypeError, ValueError):
                 pass
-        return 0.5
+        return 0.5, True
 
     def _extract_keywords(self, title: str, description: str | None) -> list[str]:
-        """Extract logistics-relevant keywords from text."""
-        logistics_keywords = {
-            "shipping", "port", "canal", "freight", "container",
-            "trade", "tariff", "sanction", "strike", "closure",
-            "red sea", "suez", "panama", "malacca", "taiwan",
-        }
-        text = f"{title} {description or ''}".lower()
-        return [kw for kw in logistics_keywords if kw in text]
+        """Extract logistics-relevant keywords from text using shared keyword database."""
+        text = f"{title} {description or ''}"
+        return get_matched_keywords(text)
 
     def _infer_locations(self, title: str, description: str | None) -> list[GeoLocation]:
         """Infer geographic locations from text."""
@@ -202,7 +205,7 @@ class PolymarketMapper:
         description = market.get("description") or event.get("description")
         if description is not None:
             description = str(description)[:5000]
-        probability = self._extract_probability(market)
+        probability, probability_is_fallback = self._extract_probability(market)
         volume = _safe_float(
             market.get("volumeNum") or market.get("volume"), 0.0
         )
@@ -246,6 +249,7 @@ class PolymarketMapper:
             title=title,
             description=description or None,
             probability=probability,
+            probability_is_fallback=probability_is_fallback,
             movement=None,
             keywords=keywords,
             inferred_locations=locations,

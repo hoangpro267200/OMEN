@@ -31,6 +31,7 @@ from ..infrastructure.storage.signal_history import get_signal_history_store
 from ..infrastructure.metrics.pipeline_metrics import get_metrics_collector
 from ..infrastructure.activity.activity_logger import get_activity_logger
 from ..infrastructure.realtime.price_streamer import get_price_streamer
+from ..infrastructure.debug.rejection_tracker import get_rejection_tracker
 
 from .ports.signal_source import SignalSource
 from .ports.signal_repository import SignalRepository
@@ -170,6 +171,22 @@ class OmenPipeline:
         # === LAYER 2: VALIDATION ===
         outcome = self._validator.validate(event, context=ctx)
         if not outcome.passed:
+            try:
+                tracker = get_rejection_tracker()
+                first_result = outcome.results[0] if outcome.results else None
+                tracker.record_rejection(
+                    event_id=str(event.event_id),
+                    stage="validation",
+                    reason=outcome.rejection_reason or "unknown",
+                    title=event.title,
+                    probability=event.probability,
+                    liquidity=event.market.current_liquidity_usd,
+                    keywords_found=list(event.keywords) if event.keywords else [],
+                    rule_name=first_result.rule_name if first_result else None,
+                    rule_version=first_result.rule_version if first_result else None,
+                )
+            except Exception as e:
+                logger.warning("Failed to record validation rejection: %s", e)
             logger.info(
                 "Event %s rejected at validation: %s",
                 event.event_id,
@@ -231,6 +248,23 @@ class OmenPipeline:
                 )
 
         if not assessments:
+            try:
+                tracker = get_rejection_tracker()
+                tracker.record_rejection(
+                    event_id=str(event.event_id),
+                    stage="translation",
+                    reason="No applicable translation rule or insufficient data for impact calculation",
+                    title=event.title,
+                    probability=event.probability,
+                    liquidity=event.market.current_liquidity_usd,
+                    keywords_found=list(event.keywords) if event.keywords else [],
+                    details={
+                        "available_rules": [getattr(r, "name", str(r)) for r in self._translator.rules],
+                        "event_keywords": list(event.keywords) if event.keywords else [],
+                    },
+                )
+            except Exception as e:
+                logger.warning("Failed to record translation rejection: %s", e)
             logger.info("Event %s produced no impact assessments", event.event_id)
             stats.events_no_impact = 1
             stats.processing_time_ms = (
@@ -251,6 +285,17 @@ class OmenPipeline:
                 generated_at=ctx.processing_time,
             )
             if signal.confidence_score < self._config.min_confidence_for_output:
+                try:
+                    get_rejection_tracker().record_rejection(
+                        event_id=str(event.event_id),
+                        stage="generation",
+                        reason=f"Below confidence threshold ({signal.confidence_score:.2f} < {self._config.min_confidence_for_output})",
+                        title=event.title,
+                        probability=event.probability,
+                        details={"confidence_score": signal.confidence_score},
+                    )
+                except Exception as e:
+                    logger.warning("Failed to record generation rejection: %s", e)
                 logger.info(
                     "Signal %s below confidence threshold (%.2f < %s)",
                     signal.signal_id,
@@ -258,6 +303,19 @@ class OmenPipeline:
                     self._config.min_confidence_for_output,
                 )
                 continue
+            try:
+                get_rejection_tracker().record_passed(
+                    signal_id=signal.signal_id,
+                    event_id=str(event.event_id),
+                    title=signal.title,
+                    probability=signal.current_probability,
+                    confidence=signal.confidence_score,
+                    severity=signal.severity_label,
+                    metrics_count=len(signal.key_metrics) if signal.key_metrics else 0,
+                    routes_count=len(signal.affected_routes) if signal.affected_routes else 0,
+                )
+            except Exception as e:
+                logger.warning("Failed to record passed signal: %s", e)
             signals.append(signal)
             try:
                 history_store = get_signal_history_store()

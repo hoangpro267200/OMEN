@@ -15,6 +15,8 @@ interface SignalFeedProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   className?: string;
+  /** Tổng số tín hiệu (từ backend/stats). Khi có thì dùng thay vì signals.length để caption đúng theo dữ liệu đã lọc. */
+  totalSignalsCount?: number;
 }
 
 function MiniSparkline({ points }: { points: number[] }) {
@@ -46,7 +48,8 @@ function MiniSparkline({ points }: { points: number[] }) {
   );
 }
 
-export function SignalFeed({ signals, selectedId, onSelect, className }: SignalFeedProps) {
+export function SignalFeed({ signals, selectedId, onSelect, className, totalSignalsCount }: SignalFeedProps) {
+  const count = totalSignalsCount ?? signals.length;
   return (
     <div
       className={cn(
@@ -59,7 +62,7 @@ export function SignalFeed({ signals, selectedId, onSelect, className }: SignalF
           Nguồn cấp tín hiệu
         </h2>
         <p className="text-[var(--text-muted)] text-xs mt-0.5">
-          {signals.length} nguồn đang hoạt động
+          {count.toLocaleString()} tín hiệu
         </p>
       </div>
       <div className="flex-1 overflow-y-auto overflow-thin-scroll">

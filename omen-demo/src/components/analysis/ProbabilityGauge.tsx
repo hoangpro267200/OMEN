@@ -9,6 +9,8 @@ interface ProbabilityGaugeProps {
   historyMin?: number;
   historyMax?: number;
   isCritical?: boolean;
+  /** When true, probability is estimated/fallback (e.g. 0.5) — show warning */
+  isFallback?: boolean;
   className?: string;
 }
 
@@ -28,6 +30,7 @@ export function ProbabilityGauge({
   historyMin: _historyMin = 0,
   historyMax: _historyMax = 1,
   isCritical,
+  isFallback,
   className,
 }: ProbabilityGaugeProps) {
   const pct = probability * 100;
@@ -99,6 +102,13 @@ export function ProbabilityGauge({
             {config.label}
           </motion.span>
         </div>
+        {isFallback && (
+          <div className="relative z-10 mt-2">
+            <span className="px-2 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded whitespace-nowrap">
+              ⚠ Ước tính
+            </span>
+          </div>
+        )}
       </div>
     </Card>
   );

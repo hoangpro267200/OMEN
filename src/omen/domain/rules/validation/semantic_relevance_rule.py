@@ -2,8 +2,11 @@
 Semantic Relevance Validation.
 
 Validates that a signal's content is semantically relevant to logistics risk.
+Uses word-boundary matching so "port"≠"sport", "strike"≠"striker".
+Rejects obvious sports/entertainment content via blocklist.
 """
 
+import re
 from datetime import datetime
 
 from ...models.raw_signal import RawSignalEvent
@@ -13,7 +16,14 @@ from ...models.explanation import ExplanationStep
 from ..base import Rule
 
 
-# Semantic categories and their keywords
+# Cụm từ thể thao/giải trí — nếu có trong text thì loại ngay (không phải logistics)
+OFF_TOPIC_BLOCKLIST: set[str] = {
+    "ligue 1", "serie a", "premier league", "la liga", "bundesliga",
+    "vua phá lưới", "top scorer", "relegation", "xuống hạng",
+    "championship", "world cup", "euro", "uefa", "fifa",
+}
+
+# Semantic categories and their keywords (whole-word match)
 RISK_CATEGORIES: dict[str, set[str]] = {
     "conflict": {
         "war", "attack", "military", "missile", "bomb", "strike", "combat",
@@ -58,19 +68,32 @@ class SemanticRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
     def version(self) -> str:
         return "2.0.0"
 
+    def _word_match(self, keyword: str, text: str) -> bool:
+        """True if keyword appears as whole word in text."""
+        return bool(re.search(r"\b" + re.escape(keyword) + r"\b", text))
+
     def apply(self, input_data: RawSignalEvent) -> ValidationResult:
-        """Check semantic relevance."""
-        # Combine all text
+        """Check semantic relevance. Reject off-topic (sports) first; then require whole-word risk keywords."""
         text = (
             f"{input_data.title} {input_data.description or ''} "
             f"{' '.join(input_data.keywords)}"
         ).lower()
 
-        # Find matching categories
-        category_matches: dict[str, list[str]] = {}
+        # Chặn thể thao / giải trí
+        for phrase in OFF_TOPIC_BLOCKLIST:
+            if phrase in text:
+                return ValidationResult(
+                    rule_name=self.name,
+                    rule_version=self.version,
+                    status=ValidationStatus.REJECTED_IRRELEVANT_SEMANTIC,
+                    score=0.0,
+                    reason=f"Off-topic (sports/entertainment): '{phrase}'",
+                )
 
+        # Find matching categories (whole-word only)
+        category_matches: dict[str, list[str]] = {}
         for category, keywords in RISK_CATEGORIES.items():
-            matched = [kw for kw in keywords if kw in text]
+            matched = [kw for kw in keywords if self._word_match(kw, text)]
             if matched:
                 category_matches[category] = matched
 

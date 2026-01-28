@@ -60,6 +60,10 @@ class RawSignalEvent(BaseModel):
     
     # Probability data
     probability: float = Field(..., ge=0, le=1, description="Current YES probability")
+    probability_is_fallback: bool = Field(
+        default=False,
+        description="True if probability is a fallback value (e.g. 0.5) when market data was missing",
+    )
     movement: ProbabilityMovement | None = None
     
     # Classification hints (may be refined in Layer 2)

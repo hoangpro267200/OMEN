@@ -19,7 +19,6 @@ import { ProcessingFunnel } from './components/charts/ProcessingFunnel';
 import { ImpactProjectionChart } from './components/charts/ImpactProjectionChart';
 import { ActivityFeed } from './components/dashboard/ActivityFeed';
 import { Card } from './components/common/Card';
-import { DataFlowSection } from './components/DataFlow/DataFlowSection';
 import {
   SignalMetadataRow,
   SignalSummaryCard,
@@ -41,6 +40,7 @@ import { useDataSource } from './hooks/useDataSource';
 import { DataSourceBanner } from './components/common/DataSourceBanner';
 import { EmptyState } from './components/common/EmptyState';
 import { DataCompletenessIndicator } from './components/common/DataCompletenessIndicator';
+import { PipelineDebugPanel } from './components/debug/PipelineDebugPanel';
 
 import { systemStats, activityFeed } from './data/mockSignals';
 import { last24hProbabilityHistory } from './data/mockTimeSeries';
@@ -59,7 +59,7 @@ function App() {
     isLoading: signalsLoading,
     error: signalsError,
     dataUpdatedAt,
-  } = useProcessLiveSignals({ enabled: useLiveData });
+  } = useProcessLiveSignals({ enabled: useLiveData, limit: 500 });
 
   const lastFetchTime = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
   const { data: signals, source: dataSource } = useDataSource(
@@ -76,14 +76,31 @@ function App() {
   const realtimeStatus = useRealtimePrices(signalIds);
 
   const stats: SystemStats = useMemo(() => {
+    if (dataSource.type === 'demo') return systemStats;
     if (liveStats) return liveStats;
-    return systemStats;
-  }, [liveStats]);
+    return {
+      active_signals: 0,
+      critical_alerts: 0,
+      avg_confidence: 0,
+      total_risk_exposure: 0,
+      events_processed: 0,
+      events_validated: 0,
+      signals_generated: 0,
+      events_rejected: 0,
+      system_latency_ms: 0,
+      events_per_second: 0,
+      uptime_percent: 0,
+      validation_rate: undefined,
+      events_translated: undefined,
+      _unavailable: true,
+    };
+  }, [dataSource.type, liveStats]);
 
   const activity = useMemo(() => {
+    if (dataSource.type === 'demo') return activityFeed;
     if (liveActivity && liveActivity.length > 0) return liveActivity;
-    return activityFeed;
-  }, [liveActivity]);
+    return [];
+  }, [dataSource.type, liveActivity]);
 
   const selectedSignal = useMemo(() => {
     if (selectedSignalId) {
@@ -138,11 +155,6 @@ function App() {
     ];
   }, [stats]);
 
-  const dataFlowStage = useMemo(() => {
-    if (!selectedSignal) return 0;
-    return 4;
-  }, [selectedSignal]);
-
   if (signalsLoading && (!signals || signals.length === 0)) {
     return (
       <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center">
@@ -162,6 +174,7 @@ function App() {
         connectionStatus={signalsError ? 'disconnected' : 'connected'}
         latencyMs={stats.system_latency_ms}
         dataSource={dataSource}
+        signalsCount={dataSource.type === 'live' ? (stats.signals_generated ?? signals.length) : undefined}
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden pt-16 pb-12">
@@ -169,6 +182,7 @@ function App() {
           signals={signals}
           selectedSignalId={selectedSignalId}
           onSelectSignal={setSelectedSignalId}
+          totalSignalsCount={dataSource.type === 'live' ? (stats.signals_generated ?? signals.length) : signals.length}
         />
 
         <MainPanel>
@@ -240,6 +254,7 @@ function App() {
                     historyMin={histMin}
                     historyMax={histMax}
                     isCritical={selectedSignal.severity_label === 'CRITICAL'}
+                    isFallback={!!selectedSignal.probability_is_fallback}
                   />
                 )}
               </div>
@@ -300,14 +315,6 @@ function App() {
               />
             )}
 
-            {selectedSignal && (
-              <DataFlowSection
-                currentStage={dataFlowStage}
-                isProcessing={false}
-                hasResult={!!selectedSignal}
-              />
-            )}
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-1">
                 <ProcessingFunnel data={funnelData} />
@@ -322,6 +329,7 @@ function App() {
         </MainPanel>
       </div>
 
+      <PipelineDebugPanel />
       <BottomPanel stats={stats} />
     </div>
   );

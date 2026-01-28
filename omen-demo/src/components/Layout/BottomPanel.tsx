@@ -8,10 +8,13 @@ interface BottomPanelProps {
 }
 
 export function BottomPanel({ stats, className }: BottomPanelProps) {
-  const validatedPct = stats.events_processed
-    ? Math.round((stats.events_validated / stats.events_processed) * 100)
-    : 0;
-  const rejectedPct = 100 - validatedPct;
+  const processed = stats.events_processed ?? 0;
+  const validated = stats.events_validated ?? 0;
+  const apiRejected = (stats.events_rejected ?? null) != null ? Number(stats.events_rejected) : null;
+  const derivedRejected = Math.max(0, processed - validated);
+  const rejected = apiRejected != null && apiRejected > 0 ? apiRejected : derivedRejected;
+  const validatedPct = processed ? Math.round((validated / processed) * 100) : 0;
+  const rejectedPct = processed ? Math.round((rejected / processed) * 100) : 0;
 
   return (
     <footer
@@ -65,8 +68,8 @@ export function BottomPanel({ stats, className }: BottomPanelProps) {
             Tín hiệu: <span className="font-mono text-[var(--accent-cyan)]">{stats.signals_generated.toLocaleString()}</span>
           </span>
           <span className="flex items-center gap-1 text-[var(--danger)]">
-            <XCircle className="w-4 h-4" />
-            Từ chối: <span className="font-mono">{stats.events_rejected.toLocaleString()}</span>
+            <XCircle className="w-4 h-4 flex-shrink-0" />
+            Từ chối: <span className="font-mono text-[var(--danger)]">{rejected.toLocaleString()}</span>
             <span className="text-[var(--text-muted)]">({rejectedPct}%)</span>
           </span>
         </div>

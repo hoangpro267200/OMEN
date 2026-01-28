@@ -32,13 +32,13 @@ def red_sea_event() -> RawSignalEvent:
 
 @pytest.fixture
 def irrelevant_geo_event() -> RawSignalEvent:
-    """Event with no logistics chokepoint relevance."""
+    """Event with no logistics/chokepoint relevance (sports, no logistics keywords)."""
     return RawSignalEvent(
         event_id=EventId("geo-irr-1"),
-        title="Will it rain in Tokyo next week?",
-        description="Weather prediction.",
+        title="Will Joaquin Panichelli become top scorer in Ligue 1 2025-26?",
+        description="Sports prediction.",
         probability=0.3,
-        keywords=["weather", "rain", "tokyo"],
+        keywords=["ligue 1", "scorer", "football"],
         market=MarketMetadata(
             source="t", market_id=MarketId("m2"),
             total_volume_usd=10000.0, current_liquidity_usd=5000.0,
@@ -95,7 +95,7 @@ def test_explanation_has_required_fields(red_sea_event):
     app_result = rule.apply(red_sea_event)
     step = rule.explain(red_sea_event, app_result)
     assert step.rule_name == "geographic_relevance"
-    assert step.rule_version == "2.0.0"
+    assert step.rule_version == "3.0.0"
     assert "keyword_count" in step.input_summary or "location_count" in step.input_summary
     assert step.output_summary.get("status") == app_result.status.value
     assert step.reasoning == app_result.reason
