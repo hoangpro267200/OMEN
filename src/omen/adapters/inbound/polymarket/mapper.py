@@ -43,6 +43,10 @@ class PolymarketMapper:
             description = str(description)[:5000]
 
         probability = self._extract_probability(raw)
+        condition_id = raw.get("conditionId") or raw.get("condition_id")
+        clob_token_ids = self._parse_clob_token_ids(
+            raw.get("clobTokenIds") or raw.get("clob_token_ids")
+        )
         market = MarketMetadata(
             source="polymarket",
             market_id=MarketId(str(raw.get("id", ""))),
@@ -55,6 +59,8 @@ class PolymarketMapper:
             total_volume_usd=float(raw.get("volume") or 0),
             current_liquidity_usd=float(raw.get("liquidity") or 0),
             num_traders=int(raw["numTraders"]) if raw.get("numTraders") is not None else None,
+            condition_token_id=condition_id,
+            clob_token_ids=clob_token_ids,
         )
         keywords = self._extract_keywords(title, description)
         locations = self._infer_locations(title, description)
@@ -151,6 +157,21 @@ class PolymarketMapper:
         except (ValueError, TypeError):
             return None
 
+    def _parse_clob_token_ids(self, value: Any) -> list[str] | None:
+        """Parse CLOB token IDs from API (may be list or JSON string)."""
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [str(x) for x in value if x]
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return [str(x) for x in parsed if x]
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return None
+
     def map_event(self, event: dict[str, Any]) -> list[RawSignalEvent]:
         """
         Map a Polymarket Gamma API event (with nested markets) to RawSignalEvent(s).
@@ -194,6 +215,18 @@ class PolymarketMapper:
                 num_traders = int(num_traders)
             except (TypeError, ValueError):
                 num_traders = None
+        condition_id = (
+            market.get("conditionId")
+            or market.get("condition_id")
+            or event.get("conditionId")
+            or event.get("condition_id")
+        )
+        clob_token_ids = self._parse_clob_token_ids(
+            market.get("clobTokenIds")
+            or market.get("clob_token_ids")
+            or event.get("clobTokenIds")
+            or event.get("clob_token_ids")
+        )
         metadata = MarketMetadata(
             source="polymarket",
             market_id=MarketId(str(market_id)),
@@ -203,6 +236,8 @@ class PolymarketMapper:
             total_volume_usd=volume,
             current_liquidity_usd=liquidity,
             num_traders=num_traders,
+            condition_token_id=condition_id,
+            clob_token_ids=clob_token_ids,
         )
         keywords = self._extract_keywords(title, description)
         locations = self._infer_locations(title, description)

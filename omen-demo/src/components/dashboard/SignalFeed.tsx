@@ -90,17 +90,34 @@ export function SignalFeed({ signals, selectedId, onSelect, className }: SignalF
                   title={severity}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-mono text-[var(--text-muted)] truncate">
-                    {s.signal_id}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-mono text-[var(--text-muted)] truncate">
+                      {s.signal_id}
+                    </span>
+                    {s.domain != null && (
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--accent-cyan)]/20 text-[var(--accent-cyan)]">
+                        {s.domain}
+                      </span>
+                    )}
+                    {s.category != null && (
+                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+                        {s.category}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 mt-0.5">
                     {s.title}
                   </div>
+                  {s.summary != null && s.summary.trim() !== '' && (
+                    <div className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">
+                      {s.summary.trim()}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-2 mt-2">
                     <span className="text-xs font-mono text-[var(--accent-cyan)]">
                       {(s.probability * 100).toFixed(0)}%
                     </span>
-                    <MiniSparkline points={s.probability_history} />
+                    <MiniSparkline points={s.probability_history ?? []} />
                   </div>
                 </div>
               </div>

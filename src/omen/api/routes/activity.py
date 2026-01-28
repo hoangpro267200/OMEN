@@ -1,76 +1,80 @@
 """
-Activity feed endpoint for real-time log.
+Activity feed endpoint — real events from pipeline execution.
+
+No pre-populated demo data. Activity is empty until the pipeline or sources run.
 """
 
-import uuid
-from collections import deque
-from datetime import datetime, timedelta
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
+from omen.infrastructure.activity.activity_logger import get_activity_logger
+
+
 router = APIRouter(prefix="/activity", tags=["Activity"])
 
-_activity_log: deque = deque(maxlen=100)
+ActivityType = Literal["signal", "validation", "rule", "alert", "source", "error", "system"]
 
 
-class ActivityItem(BaseModel):
-    """Single activity item."""
+class ActivityItemResponse(BaseModel):
+    """Single activity item from the system."""
+
     id: str
-    type: Literal["signal", "validation", "rule", "alert", "source", "error"]
+    type: ActivityType
     message: str
-    timestamp: datetime
+    timestamp: str
     details: dict = {}
 
 
-@router.get("", response_model=list[ActivityItem])
-async def get_activity(limit: int = Query(default=20, le=100)) -> list[ActivityItem]:
-    """Get recent activity."""
-    items = list(_activity_log)
-    return items[-limit:]
+@router.get("", response_model=list[ActivityItemResponse])
+async def get_activity(
+    limit: int = Query(default=50, le=200, description="Maximum items to return"),
+    type_filter: Optional[str] = Query(
+        default=None,
+        description="Filter by type: signal, validation, rule, alert, source, error, system",
+    ),
+) -> list[ActivityItemResponse]:
+    """
+    Get recent activity from the OMEN system.
 
+    All activity comes from real pipeline execution and source fetches:
+    - signal: When signals are generated
+    - validation: When events pass or fail validation
+    - rule: When translation rules are applied
+    - alert: When high-severity signals are created
+    - source: When data is fetched from sources
+    - error: When errors occur
 
-def log_activity(
-    activity_type: str,
-    message: str,
-    details: dict | None = None,
-) -> None:
-    """Log an activity item (call from pipeline/services)."""
-    item = ActivityItem(
-        id=str(uuid.uuid4())[:8],
-        type=activity_type,  # type: ignore[arg-type]
-        message=message,
-        timestamp=datetime.utcnow(),
-        details=details or {},
-    )
-    _activity_log.append(item)
+    If the pipeline has not run, the list is empty.
+    """
+    logger = get_activity_logger()
+    events = logger.get_recent(limit=limit)
 
+    if type_filter:
+        events = [e for e in events if e.get("type") == type_filter]
 
-def _init_demo_activity() -> None:
-    """Pre-populate demo activity."""
-    now = datetime.utcnow()
-    demo = [
-        ("signal", "Tín hiệu được tạo: OMEN-RS2024-001"),
-        ("validation", "Sự kiện đã được xác thực: polymarket-0x7b2d..."),
-        ("rule", "Quy tắc được áp dụng: liquidity_validation"),
-        ("alert", "Cảnh báo mức độ nghiêm trọng CAO đã được kích hoạt"),
-        ("source", "Polymarket: Đã nhận được 189 sự kiện mới"),
-        ("signal", "Tín hiệu được tạo: OMEN-PC2024-002"),
-        ("validation", "Sự kiện đã được xác thực: polymarket-0x8c3f..."),
-        ("rule", "Quy tắc được áp dụng: geographic_relevance"),
-        ("alert", "Cảnh báo mức độ nghiêm trọng TRUNG BÌNH đã được kích hoạt"),
-        ("source", "Polymarket: Đã nhận được 234 sự kiện mới"),
-    ]
-    for i, (atype, msg) in enumerate(demo):
-        _activity_log.append(
-            ActivityItem(
-                id=f"demo-{i}",
-                type=atype,  # type: ignore[arg-type]
-                message=msg,
-                timestamp=now - timedelta(minutes=i),
-            )
+    return [
+        ActivityItemResponse(
+            id=e["id"],
+            type=e["type"],  # type: ignore[arg-type]
+            message=e["message"],
+            timestamp=e["timestamp"],
+            details=e.get("details", {}),
         )
+        for e in events
+    ]
 
 
-_init_demo_activity()
+@router.get("/types")
+async def get_activity_types() -> dict[str, str]:
+    """Return available activity types and short descriptions."""
+    return {
+        "signal": "Signal generation events",
+        "validation": "Event validation results",
+        "rule": "Translation rule applications",
+        "alert": "High-severity alerts",
+        "source": "Data source fetch events",
+        "error": "System errors",
+        "system": "General system events",
+    }

@@ -47,7 +47,7 @@ class ImpactMetric(BaseModel):
     A quantified impact metric with optional uncertainty.
 
     Every metric includes point estimate, optional uncertainty bounds,
-    confidence, and evidence basis.
+    confidence, evidence basis, and methodology provenance.
     """
     name: str = Field(..., description="Metric identifier")
     value: float = Field(..., description="Point estimate")
@@ -69,6 +69,24 @@ class ImpactMetric(BaseModel):
     evidence_source: str | None = Field(
         None,
         description="Citation or source for the estimate",
+    )
+
+    # Methodology provenance (Phase 5)
+    methodology_name: str | None = Field(
+        None,
+        description="Name of the methodology used to compute this metric",
+    )
+    methodology_version: str | None = Field(
+        None,
+        description="Version of the methodology",
+    )
+    calculation_inputs: dict[str, Any] | None = Field(
+        None,
+        description="Inputs used in the calculation for reproducibility",
+    )
+    calculated_at: str | None = Field(
+        None,
+        description="When this metric was calculated (ISO timestamp)",
     )
 
     # Sensitivity

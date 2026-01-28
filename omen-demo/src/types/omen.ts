@@ -59,10 +59,16 @@ export interface ProcessedImpactMetric {
   name: string;
   value: number;
   unit: string;
-  uncertainty: { lower: number; upper: number };
+  /** When API does not provide uncertainty, must be null — never fabricated. */
+  uncertainty: { lower: number; upper: number } | null;
   baseline: number;
   projection: number[];
-  evidence_source: string;
+  evidence_source: string | null;
+  methodology_name?: string | null;
+  methodology_version?: string | null;
+  has_uncertainty: boolean;
+  has_projection: boolean;
+  has_evidence: boolean;
 }
 
 export interface ProcessedRoute {
@@ -102,15 +108,29 @@ export interface ConfidenceBreakdown {
   source_reliability: number;
 }
 
+/** Domain for impact translation (Layer 3). */
+export type ImpactDomain = 'LOGISTICS' | 'ENERGY' | 'INSURANCE' | 'FINANCE';
+
+/** Signal category (classification). */
+export type SignalCategory =
+  | 'GEOPOLITICAL'
+  | 'CLIMATE'
+  | 'LABOR'
+  | 'REGULATORY'
+  | 'INFRASTRUCTURE'
+  | 'ECONOMIC'
+  | 'UNKNOWN';
+
 export interface ProcessedSignal {
   signal_id: string;
   title: string;
   probability: number;
   probability_history: number[];
-  probability_momentum: 'INCREASING' | 'DECREASING' | 'STABLE';
+  probability_momentum: 'INCREASING' | 'DECREASING' | 'STABLE' | 'UNKNOWN';
   confidence_level: 'LOW' | 'MEDIUM' | 'HIGH';
   confidence_score: number;
-  confidence_breakdown: ConfidenceBreakdown;
+  confidence_breakdown: ConfidenceBreakdown | null;
+  has_confidence_breakdown?: boolean;
   severity: number;
   severity_label: string;
   is_actionable: boolean;
@@ -120,6 +140,26 @@ export interface ProcessedSignal {
   affected_chokepoints: Chokepoint[];
   explanation_steps: ProcessedExplanationStep[];
   generated_at: string;
+  /** Trace & reproducibility */
+  trace_id?: string;
+  event_id?: string;
+  input_event_hash?: string;
+  ruleset_version?: string;
+  /** Summary & explanation */
+  summary?: string;
+  detailed_explanation?: string;
+  /** Onset / duration (hours) */
+  expected_onset_hours?: number;
+  expected_duration_hours?: number;
+  /** Classification */
+  domain?: ImpactDomain;
+  category?: SignalCategory;
+  subcategory?: string;
+  /** Source market */
+  source_market?: string;
+  market_url?: string | null;
+  /** Layer 3: affected systems (names or identifiers) */
+  affected_systems?: string[];
 }
 
 export type SeverityLabel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
@@ -136,6 +176,10 @@ export interface SystemStats {
   system_latency_ms: number;
   events_per_second: number;
   uptime_percent: number;
+  /** Validation rate = events_validated / events_processed (0–1). Undefined if not available. */
+  validation_rate?: number;
+  /** Translated events count (Layer 3). Undefined if backend does not expose it. */
+  events_translated?: number;
 }
 
 export interface ActivityFeedItem {

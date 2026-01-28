@@ -13,7 +13,7 @@ import type { ConfidenceBreakdown } from '../../types/omen';
 import { cn } from '../../lib/utils';
 
 interface ConfidenceRadarProps {
-  breakdown: ConfidenceBreakdown;
+  breakdown: ConfidenceBreakdown | null;
   overall: number;
   className?: string;
 }
@@ -28,6 +28,46 @@ const AXIS_LABELS: Record<keyof ConfidenceBreakdown, string> = {
 };
 
 export function ConfidenceRadar({ breakdown, overall, className }: ConfidenceRadarProps) {
+  const hasBreakdown = breakdown != null;
+
+  if (!hasBreakdown || !breakdown) {
+    return (
+      <Card className={cn('p-6 flex flex-col', className)} hover={false}>
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)] mb-3">
+          Sự tin cậy
+        </div>
+        <div className="flex flex-col items-center justify-center h-48">
+          <div className="relative w-32 h-32">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg-hover)" strokeWidth="8" />
+              <circle
+                cx="50"
+                cy="50"
+                r="40"
+                fill="none"
+                stroke="var(--accent-cyan)"
+                strokeWidth="8"
+                strokeDasharray={`${Math.min(1, Math.max(0, overall)) * 251.2} 251.2`}
+                strokeLinecap="round"
+                transform="rotate(-90 50 50)"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl font-bold text-[var(--text-primary)]">
+                {Math.round(overall * 100)}%
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-[var(--text-muted)] mt-4 text-center">
+            Chi tiết độ tin cậy không khả dụng.
+            <br />
+            Hiển thị điểm tổng hợp.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   const data = (Object.keys(breakdown) as (keyof ConfidenceBreakdown)[]).map((k) => ({
     axis: AXIS_LABELS[k],
     value: Math.round(breakdown[k] * 100),
@@ -37,7 +77,7 @@ export function ConfidenceRadar({ breakdown, overall, className }: ConfidenceRad
   return (
     <Card className={cn('p-6 flex flex-col', className)} hover={false}>
       <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)] mb-3">
-        Sự suy giảm niềm tin
+        Sự tin cậy — Chi tiết
       </div>
       <ChartContainer height={260} minHeight={200} className="w-full min-w-[200px] flex-shrink-0">
         {({ width, height }) => (

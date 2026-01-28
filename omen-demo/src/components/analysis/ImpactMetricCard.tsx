@@ -50,26 +50,47 @@ export function ImpactMetricCard({ metric, index = 0, className }: ImpactMetricC
           <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
             {label}
           </span>
-          {metric.evidence_source && (
+          {metric.has_evidence && metric.evidence_source ? (
             <a
               href="#"
               className="text-[var(--accent-cyan)] hover:underline flex items-center gap-0.5 text-xs"
               onClick={(e) => e.preventDefault()}
+              title={metric.evidence_source}
             >
               <ExternalLink className="w-3 h-3" />
               ↗ Nguồn
             </a>
+          ) : (
+            <span className="text-xs text-[var(--text-muted)]" title="Không có nguồn">
+              ⚠ Chưa có nguồn
+            </span>
           )}
         </div>
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)]">
-            <AnimatedNumber value={metric.value} decimals={1} />
+            {metric.value != null && typeof metric.value === 'number' ? (
+              <AnimatedNumber value={metric.value} decimals={1} />
+            ) : (
+              <span className="text-[var(--text-muted)]">—</span>
+            )}
           </span>
           <span className="text-sm text-[var(--text-muted)]">{metric.unit}</span>
         </div>
-        <div className="text-xs text-[var(--text-tertiary)] mt-1">
-          Khoảng: {metric.uncertainty.lower.toFixed(1)} – {metric.uncertainty.upper.toFixed(1)} {metric.unit}
-        </div>
+        {metric.has_uncertainty && metric.uncertainty ? (
+          <div className="text-xs text-[var(--text-tertiary)] mt-1">
+            Khoảng: {metric.uncertainty.lower.toFixed(1)} – {metric.uncertainty.upper.toFixed(1)} {metric.unit}
+          </div>
+        ) : (
+          <div className="text-xs text-[var(--text-muted)] italic mt-1">
+            Độ không chắc chắn: Không có dữ liệu
+          </div>
+        )}
+        {(metric.methodology_name ?? metric.methodology_version) ? (
+          <div className="text-xs text-[var(--text-tertiary)] mt-1">
+            Phương pháp: {metric.methodology_name ?? '—'} v{metric.methodology_version ?? '—'}
+          </div>
+        ) : null}
+        {metric.has_projection && chartData.length > 0 ? (
         <ChartContainer height={48} minHeight={48} className="mt-3 w-full min-w-[120px]">
           {({ width, height }) => (
             <ResponsiveContainer width={width} height={height}>
@@ -101,6 +122,7 @@ export function ImpactMetricCard({ metric, index = 0, className }: ImpactMetricC
             </ResponsiveContainer>
           )}
         </ChartContainer>
+        ) : null}
       </Card>
     </motion.div>
   );

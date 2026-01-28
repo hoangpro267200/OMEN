@@ -9,6 +9,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  XCircle,
+  Percent,
 } from 'lucide-react';
 import { Card } from '../common/Card';
 import { AnimatedNumber } from '../common/AnimatedNumber';
@@ -70,6 +72,25 @@ export function KPIStatsRow({ stats, className }: KPIStatsRowProps) {
       trend: 'up',
     },
     {
+      label: 'Sự kiện bị loại',
+      value: stats.events_rejected,
+      icon: XCircle,
+      format: (n) => n.toLocaleString(),
+      trend: 'up',
+      accent: 'text-[var(--text-muted)]',
+    },
+    {
+      label: 'Tỉ lệ validation',
+      value:
+        stats.validation_rate != null
+          ? stats.validation_rate
+          : ('—' as string),
+      icon: Percent,
+      format: (n) => `${(n * 100).toFixed(0)}%`,
+      trend: 'flat',
+      accent: 'text-[var(--accent-green)]',
+    },
+    {
       label: 'Độ trễ',
       value: stats.system_latency_ms,
       icon: Clock,
@@ -84,13 +105,14 @@ export function KPIStatsRow({ stats, className }: KPIStatsRowProps) {
   return (
     <div
       className={cn(
-        'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3',
+        'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3',
         className
       )}
     >
       {items.map((item, i) => {
         const Icon = item.icon;
         const Trend = item.trend ? TrendIcon[item.trend] : Minus;
+        const isNa = typeof item.value === 'string';
         const numVal = typeof item.value === 'number' ? item.value : 0;
         return (
           <motion.div
@@ -112,7 +134,9 @@ export function KPIStatsRow({ stats, className }: KPIStatsRowProps) {
                       item.accent ?? 'text-[var(--text-primary)]'
                     )}
                   >
-                    {typeof item.value === 'number' && (item.format || item.suffix) ? (
+                    {isNa ? (
+                      <span title="Not available">—</span>
+                    ) : typeof item.value === 'number' && (item.format || item.suffix) ? (
                       <AnimatedNumber
                         value={numVal}
                         format={item.format}
@@ -123,7 +147,7 @@ export function KPIStatsRow({ stats, className }: KPIStatsRowProps) {
                     )}
                   </div>
                 </div>
-                {item.trend && (
+                {item.trend && !isNa && (
                   <Trend
                     className={cn(
                       'w-4 h-4 shrink-0',

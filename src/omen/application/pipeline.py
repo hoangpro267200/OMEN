@@ -27,6 +27,10 @@ from ..domain.services.impact_translator import ImpactTranslator
 from ..domain.errors import OmenError, PersistenceError, PublishError
 
 from ..infrastructure.dead_letter import DeadLetterQueue
+from ..infrastructure.storage.signal_history import get_signal_history_store
+from ..infrastructure.metrics.pipeline_metrics import get_metrics_collector
+from ..infrastructure.activity.activity_logger import get_activity_logger
+from ..infrastructure.realtime.price_streamer import get_price_streamer
 
 from .ports.signal_source import SignalSource
 from .ports.signal_repository import SignalRepository
@@ -93,6 +97,21 @@ class OmenPipeline:
             self._config.target_domains,
         )
 
+    def _record_metrics(self, result: PipelineResult) -> None:
+        """Record pipeline result into the metrics collector (real stats)."""
+        try:
+            s = result.stats
+            get_metrics_collector().record_from_pipeline_result(
+                events_received=s.events_received,
+                events_validated=s.events_validated,
+                events_rejected=s.events_rejected_validation,
+                signals_generated=s.signals_generated,
+                processing_time_ms=s.processing_time_ms,
+                signals=result.signals,
+            )
+        except Exception as e:
+            logger.warning("Failed to record pipeline metrics: %s", e)
+
     def process_single(
         self,
         event: RawSignalEvent,
@@ -139,12 +158,14 @@ class OmenPipeline:
                 stats.processing_time_ms = (
                     (datetime.utcnow() - started_at).total_seconds() * 1000
                 )
-                return PipelineResult(
+                result = PipelineResult(
                     success=True,
                     signals=[existing],
                     stats=stats,
                     cached=True,
                 )
+                self._record_metrics(result)
+                return result
 
         # === LAYER 2: VALIDATION ===
         outcome = self._validator.validate(event, context=ctx)
@@ -156,17 +177,42 @@ class OmenPipeline:
             )
             stats.events_rejected_validation = 1
             stats.processing_time_ms = (
-                datetime.utcnow() - started_at
-            ).total_seconds() * 1000
-            return PipelineResult(
+                (datetime.utcnow() - started_at).total_seconds() * 1000
+            )
+            result = PipelineResult(
                 success=True,
                 signals=[],
                 validation_failures=outcome.results or [],
                 stats=stats,
             )
+            try:
+                activity = get_activity_logger()
+                rule_name = outcome.results[0].rule_name if outcome.results else "validation"
+                activity.log_event_validated(
+                    event_id=str(event.event_id),
+                    market_id=str(event.market.market_id),
+                    rule_name=rule_name,
+                    passed=False,
+                    reason=outcome.rejection_reason,
+                )
+            except Exception as e:
+                logger.warning("Failed to log validation activity: %s", e)
+            self._record_metrics(result)
+            return result
         validated_signal = outcome.signal
         assert validated_signal is not None
         stats.events_validated = 1
+        try:
+            activity = get_activity_logger()
+            rule_name = outcome.results[-1].rule_name if outcome.results else "validation"
+            activity.log_event_validated(
+                event_id=str(event.event_id),
+                market_id=str(event.market.market_id),
+                rule_name=rule_name,
+                passed=True,
+            )
+        except Exception as e:
+            logger.warning("Failed to log validation activity: %s", e)
 
         # === LAYER 3: IMPACT TRANSLATION ===
         assessments: list[ImpactAssessment] = []
@@ -190,7 +236,9 @@ class OmenPipeline:
             stats.processing_time_ms = (
                 (datetime.utcnow() - started_at).total_seconds() * 1000
             )
-            return PipelineResult(success=True, signals=[], stats=stats)
+            result = PipelineResult(success=True, signals=[], stats=stats)
+            self._record_metrics(result)
+            return result
 
         stats.assessments_generated = len(assessments)
 
@@ -211,6 +259,34 @@ class OmenPipeline:
                 )
                 continue
             signals.append(signal)
+            try:
+                history_store = get_signal_history_store()
+                history_store.record(
+                    signal_id=signal.signal_id,
+                    probability=signal.current_probability,
+                    source="polymarket_gamma",
+                    market_id=str(event.market.market_id),
+                )
+            except Exception as e:
+                logger.warning("Failed to record signal history: %s", e)
+            if signal.market_token_id:
+                try:
+                    get_price_streamer().register_signal(
+                        signal_id=signal.signal_id,
+                        token_id=signal.market_token_id,
+                        initial_price=signal.current_probability,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to register signal for real-time: %s", e)
+            try:
+                get_activity_logger().log_signal_generated(
+                    signal_id=signal.signal_id,
+                    title=signal.title,
+                    severity_label=signal.severity_label,
+                    confidence_level=getattr(signal.confidence_level, "value", str(signal.confidence_level)),
+                )
+            except Exception as e:
+                logger.warning("Failed to log signal activity: %s", e)
             logger.info(
                 "Generated OMEN signal: %s [%s] severity=%.2f",
                 signal.signal_id,
@@ -219,6 +295,15 @@ class OmenPipeline:
             )
 
         stats.signals_generated = len(signals)
+
+        # Log translation rules applied (first assessment only to avoid duplicates)
+        try:
+            activity = get_activity_logger()
+            first = assessments[0]
+            for rule_name in getattr(first, "translation_rules_applied", None) or []:
+                activity.log_rule_applied(rule_name=rule_name, rule_version="1.0", signal_id=signals[0].signal_id if signals else None)
+        except Exception as e:
+            logger.warning("Failed to log rule activity: %s", e)
 
         # === PERSIST & PUBLISH (with error handling) ===
         if not self._config.enable_dry_run:
@@ -259,7 +344,9 @@ class OmenPipeline:
         stats.processing_time_ms = (
             (datetime.utcnow() - started_at).total_seconds() * 1000
         )
-        return PipelineResult(success=True, signals=signals, stats=stats)
+        result = PipelineResult(success=True, signals=signals, stats=stats)
+        self._record_metrics(result)
+        return result
 
     def _handle_omen_error(
         self,
@@ -281,11 +368,13 @@ class OmenPipeline:
         stats.processing_time_ms = (
             (datetime.utcnow() - ctx.processing_time).total_seconds() * 1000
         )
-        return PipelineResult(
+        result = PipelineResult(
             success=False,
             error=error.message,
             stats=stats,
         )
+        self._record_metrics(result)
+        return result
 
     def _handle_unexpected_error(
         self,
@@ -306,11 +395,13 @@ class OmenPipeline:
         stats.processing_time_ms = (
             (datetime.utcnow() - ctx.processing_time).total_seconds() * 1000
         )
-        return PipelineResult(
+        result = PipelineResult(
             success=False,
             error=str(error),
             stats=stats,
         )
+        self._record_metrics(result)
+        return result
 
     def reprocess_dlq(self, max_items: int = 100) -> list[PipelineResult]:
         """Reprocess items from the dead letter queue."""

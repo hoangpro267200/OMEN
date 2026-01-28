@@ -119,7 +119,15 @@ class OmenSignal(BaseModel):
     source_market: str = Field(..., description="Original market source")
     market_url: str | None = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+    market_token_id: str | None = Field(
+        default=None,
+        description="Market/condition token ID for real-time price tracking via WebSocket.",
+    )
+    clob_token_ids: list[str] | None = Field(
+        default=None,
+        description="CLOB token IDs for orderbook-based price updates.",
+    )
+
     # === INTERNAL REFERENCES (for debugging, excluded from API) ===
     _source_assessment: ImpactAssessment | None = None
     
@@ -168,13 +176,27 @@ class OmenSignal(BaseModel):
         source = assessment.source_signal
         original = source.original_event
 
-        # Calculate confidence
-        confidence_factors = {
+        # Build confidence factors from validation results (real scores, no synthesis)
+        confidence_factors: dict[str, float] = {
             "signal_strength": source.signal_strength,
             "liquidity_score": source.liquidity_score,
             "validation_score": source.overall_validation_score,
         }
-        confidence_score = sum(confidence_factors.values()) / len(confidence_factors)
+        for r in source.validation_results:
+            if r.rule_name == "liquidity_validation":
+                confidence_factors["liquidity_score"] = r.score
+            elif r.rule_name == "geographic_relevance":
+                confidence_factors["geographic_score"] = r.score
+            elif r.rule_name == "semantic_relevance":
+                confidence_factors["semantic_score"] = r.score
+            elif r.rule_name == "anomaly_detection":
+                confidence_factors["anomaly_score"] = r.score
+        confidence_factors.setdefault("source_reliability_score", 0.85)
+        confidence_score = (
+            confidence_factors["signal_strength"]
+            + confidence_factors["liquidity_score"]
+            + confidence_factors["validation_score"]
+        ) / 3
 
         # Determine momentum
         momentum = "STABLE"
@@ -227,6 +249,11 @@ class OmenSignal(BaseModel):
             source_market=original.market.source,
             market_url=original.market.market_url,
             generated_at=gen_at,
+            market_token_id=(
+                original.market.condition_token_id
+                or (original.market.clob_token_ids[0] if original.market.clob_token_ids else None)
+            ),
+            clob_token_ids=original.market.clob_token_ids,
             _source_assessment=assessment,
         )
     

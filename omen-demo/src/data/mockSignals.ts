@@ -17,6 +17,7 @@ export const mockSignals: ProcessedSignal[] = [
       market_depth: 0.8,
       source_reliability: 0.85,
     },
+    has_confidence_breakdown: true,
     severity: 0.75,
     severity_label: 'HIGH',
     is_actionable: true,
@@ -30,6 +31,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 2.5, 5.0, 7.5, 8.0, 7.8, 7.5],
         evidence_source: 'Drewry Maritime Research Q1 2024',
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
       {
         name: 'fuel_consumption_increase',
@@ -39,6 +43,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 8, 15, 22.5, 23, 22.8, 22.5],
         evidence_source: "Lloyd's List Intelligence 2024",
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
       {
         name: 'freight_rate_pressure',
@@ -48,6 +55,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 20, 40, 56.3, 65, 60, 55],
         evidence_source: 'Freightos Baltic Index',
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
       {
         name: 'insurance_premium_increase',
@@ -57,6 +67,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 15, 28, 37.5, 40, 38, 37],
         evidence_source: "Lloyd's of London War Risk 2024",
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
     ],
     affected_routes: [
@@ -154,6 +167,7 @@ export const mockSignals: ProcessedSignal[] = [
       market_depth: 0.8,
       source_reliability: 0.72,
     },
+    has_confidence_breakdown: true,
     severity: 0.55,
     severity_label: 'MEDIUM',
     is_actionable: true,
@@ -167,6 +181,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 1, 2, 3.2, 3.5, 3.2],
         evidence_source: 'ACP Operational Bulletin 2024',
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
     ],
     affected_routes: [
@@ -235,6 +252,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 30, 60, 85],
         evidence_source: 'Lloyd\'s War Risk Committee',
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
     ],
     affected_routes: [
@@ -290,6 +310,7 @@ export const mockSignals: ProcessedSignal[] = [
       market_depth: 0.5,
       source_reliability: 0.6,
     },
+    has_confidence_breakdown: true,
     severity: 0.4,
     severity_label: 'LOW',
     is_actionable: false,
@@ -326,6 +347,7 @@ export const mockSignals: ProcessedSignal[] = [
       market_depth: 0.82,
       source_reliability: 0.78,
     },
+    has_confidence_breakdown: true,
     severity: 0.5,
     severity_label: 'MEDIUM',
     is_actionable: true,
@@ -339,6 +361,9 @@ export const mockSignals: ProcessedSignal[] = [
         baseline: 0,
         projection: [0, 0.5, 1.5, 2.0],
         evidence_source: 'Suez Canal Authority',
+        has_uncertainty: true,
+        has_projection: true,
+        has_evidence: true,
       },
     ],
     affected_routes: [
@@ -390,6 +415,7 @@ export const systemStats = {
   system_latency_ms: 12,
   events_per_second: 847,
   uptime_percent: 99.97,
+  validation_rate: 8_234 / 12_847,
 };
 
 export const activityFeed = [

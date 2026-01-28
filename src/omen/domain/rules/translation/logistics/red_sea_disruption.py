@@ -3,6 +3,7 @@ Red Sea Disruption Translation Rule.
 
 Translates Red Sea/Suez disruption signals into logistics impacts
 with evidence-based parameters and uncertainty bounds.
+All calculations reference documented methodologies (Phase 5).
 """
 
 from datetime import datetime
@@ -16,6 +17,12 @@ from ....models.impact_assessment import (
     AffectedSystem,
 )
 from ....models.explanation import ExplanationStep
+from ....methodology.red_sea_impact import (
+    TRANSIT_TIME_METHODOLOGY,
+    FUEL_COST_METHODOLOGY,
+    FREIGHT_RATE_METHODOLOGY,
+    INSURANCE_METHODOLOGY,
+)
 from ..base import BaseTranslationRule, TranslationResult
 from .parameters import RED_SEA_PARAMS, get_param
 
@@ -231,6 +238,34 @@ class RedSeaDisruptionRule(BaseTranslationRule):
         ]
 
         ts = processing_time if processing_time is not None else datetime.utcnow()
+
+        # Attach methodology provenance to each metric
+        methodology_by_index = [
+            (TRANSIT_TIME_METHODOLOGY, "transit_time_increase"),
+            (FUEL_COST_METHODOLOGY, "fuel_consumption_increase"),
+            (FREIGHT_RATE_METHODOLOGY, "freight_rate_pressure"),
+            (INSURANCE_METHODOLOGY, "insurance_premium_increase"),
+        ]
+        for i, (method, _) in enumerate(methodology_by_index):
+            if i < len(metrics):
+                m = metrics[i]
+                metrics[i] = m.model_copy(
+                    update={
+                        "methodology_name": method.name,
+                        "methodology_version": method.version,
+                        "evidence_source": (
+                            method.primary_source.to_string()
+                            if method.primary_source
+                            else m.evidence_source
+                        ),
+                        "calculation_inputs": {
+                            "probability": prob,
+                            "value_before_rounding": m.value,
+                        },
+                        "calculated_at": ts.isoformat(),
+                    }
+                )
+
         explanation = self._build_explanation(signal, metrics, base_severity, ts)
 
         return TranslationResult(

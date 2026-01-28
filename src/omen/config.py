@@ -74,7 +74,8 @@ class OmenConfig(BaseSettings):
     model_config = {
         "env_prefix": "OMEN_",
         "env_file": ".env",
-        "env_file_encoding": "utf-8"
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",  # Ignore security config vars with nested prefix
     }
     
     @property

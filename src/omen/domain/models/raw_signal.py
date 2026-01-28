@@ -20,7 +20,7 @@ from .common import (
 class MarketMetadata(BaseModel):
     """
     Metadata about the source prediction market.
-    
+
     OMEN is market-agnostic; this captures source-specific details.
     """
     source: str = Field(..., description="Market source identifier (e.g., 'polymarket')")
@@ -31,7 +31,16 @@ class MarketMetadata(BaseModel):
     total_volume_usd: float = Field(..., ge=0)
     current_liquidity_usd: float = Field(..., ge=0)
     num_traders: int | None = Field(None, ge=0)
-    
+    condition_token_id: str | None = Field(
+        default=None,
+        description="Polymarket condition token ID for CLOB/WebSocket price tracking. "
+        "Required for real-time price updates.",
+    )
+    clob_token_ids: list[str] | None = Field(
+        default=None,
+        description="CLOB token IDs (YES and NO tokens) for orderbook access.",
+    )
+
     model_config = {"frozen": True}
 
 

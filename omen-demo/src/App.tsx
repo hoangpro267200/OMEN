@@ -19,6 +19,16 @@ import { ProcessingFunnel } from './components/charts/ProcessingFunnel';
 import { ImpactProjectionChart } from './components/charts/ImpactProjectionChart';
 import { ActivityFeed } from './components/dashboard/ActivityFeed';
 import { Card } from './components/common/Card';
+import { DataFlowSection } from './components/DataFlow/DataFlowSection';
+import {
+  SignalMetadataRow,
+  SignalSummaryCard,
+  SignalDetailedExplanation,
+  SignalOnsetDuration,
+  SignalBadges,
+  SignalSourceMarket,
+  SignalAffectedSystems,
+} from './components/SignalDetail/SignalDetailBlocks';
 
 import {
   useProcessLiveSignals,
@@ -26,10 +36,15 @@ import {
   useActivityFeed,
 } from './hooks/useOmenApi';
 import { useRealtimePrices } from './hooks/useRealtimePrices';
+import { useDataSource } from './hooks/useDataSource';
 
-import { mockSignals, systemStats, activityFeed } from './data/mockSignals';
+import { DataSourceBanner } from './components/common/DataSourceBanner';
+import { EmptyState } from './components/common/EmptyState';
+import { DataCompletenessIndicator } from './components/common/DataCompletenessIndicator';
+
+import { systemStats, activityFeed } from './data/mockSignals';
 import { last24hProbabilityHistory } from './data/mockTimeSeries';
-import type { ProcessedSignal, SystemStats } from './types/omen';
+import type { SystemStats } from './types/omen';
 
 const WorldMap = lazy(() =>
   import('./components/visualization/WorldMap').then((m) => ({ default: m.WorldMap }))
@@ -37,22 +52,28 @@ const WorldMap = lazy(() =>
 
 function App() {
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
+  const [useLiveData, setUseLiveData] = useState(true);
 
   const {
     data: liveSignals,
     isLoading: signalsLoading,
     error: signalsError,
-  } = useProcessLiveSignals({ enabled: true });
+    dataUpdatedAt,
+  } = useProcessLiveSignals({ enabled: useLiveData });
+
+  const lastFetchTime = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const { data: signals, source: dataSource } = useDataSource(
+    useLiveData ? liveSignals : undefined,
+    useLiveData ? signalsLoading : false,
+    useLiveData ? (signalsError ?? null) : null,
+    useLiveData ? lastFetchTime : null
+  );
 
   const { data: liveStats } = useSystemStats();
   const { data: liveActivity } = useActivityFeed(20);
-  const signals: ProcessedSignal[] = useMemo(() => {
-    if (liveSignals && liveSignals.length > 0) return liveSignals;
-    return mockSignals;
-  }, [liveSignals]);
 
   const signalIds = useMemo(() => signals.map((s) => s.signal_id), [signals]);
-  useRealtimePrices(signalIds);
+  const realtimeStatus = useRealtimePrices(signalIds);
 
   const stats: SystemStats = useMemo(() => {
     if (liveStats) return liveStats;
@@ -106,15 +127,21 @@ function App() {
     ];
   }, [signals]);
 
-  const funnelData = useMemo(
-    () => [
+  const funnelData = useMemo(() => {
+    const translated =
+      stats.events_translated != null ? stats.events_translated : null;
+    return [
       { stage: 'Raw events', value: stats.events_processed, fill: '#3b82f6' },
       { stage: 'Validated', value: stats.events_validated, fill: '#06b6d4' },
-      { stage: 'Translated', value: Math.round(stats.events_validated * 0.7), fill: '#10b981' },
+      { stage: 'Translated', value: translated, fill: '#10b981' },
       { stage: 'Signals', value: stats.signals_generated, fill: '#8b5cf6' },
-    ],
-    [stats]
-  );
+    ];
+  }, [stats]);
+
+  const dataFlowStage = useMemo(() => {
+    if (!selectedSignal) return 0;
+    return 4;
+  }, [selectedSignal]);
 
   if (signalsLoading && (!signals || signals.length === 0)) {
     return (
@@ -131,9 +158,10 @@ function App() {
     <div className="h-full min-h-0 flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)]">
       <Header
         systemStatus="OPERATIONAL"
-        isLive={!signalsError}
+        isLive={dataSource.type === 'live'}
         connectionStatus={signalsError ? 'disconnected' : 'connected'}
         latencyMs={stats.system_latency_ms}
+        dataSource={dataSource}
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden pt-16 pb-12">
@@ -145,20 +173,63 @@ function App() {
 
         <MainPanel>
           <div className="flex-1 min-h-0 overflow-y-auto overflow-thin-scroll p-6 pb-12 space-y-6 bg-[var(--bg-primary)]">
-            {signalsError && (
+            {dataSource.type !== 'live' ? <DataSourceBanner source={dataSource} /> : null}
+            {realtimeStatus.error ? (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400"
+                className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm"
               >
-                <p className="font-medium">Không thể kết nối đến backend</p>
-                <p className="text-sm opacity-80">
-                  Đang hiển thị dữ liệu demo. Kiểm tra backend tại localhost:8000
-                </p>
+                Real-time: {realtimeStatus.error}
               </motion.div>
+            ) : null}
+
+            {signals.length === 0 && !signalsLoading ? (
+              <EmptyState message={dataSource.message} onLoadDemo={() => setUseLiveData(false)} />
+            ) : null}
+
+            {signals.length > 0 ? (
+              <>
+            <KPIStatsRow stats={stats} />
+
+            {selectedSignal && (
+              <>
+                <Card className="p-4 space-y-3" hover={false}>
+                  <SignalMetadataRow signal={selectedSignal} />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <SignalBadges
+                      domain={selectedSignal.domain}
+                      category={selectedSignal.category}
+                      subcategory={selectedSignal.subcategory}
+                    />
+                    <SignalOnsetDuration
+                      expected_onset_hours={selectedSignal.expected_onset_hours}
+                      expected_duration_hours={selectedSignal.expected_duration_hours}
+                    />
+                    <SignalSourceMarket
+                      source_market={selectedSignal.source_market}
+                      market_url={selectedSignal.market_url}
+                    />
+                  </div>
+                </Card>
+                <DataCompletenessIndicator
+                  fields={[
+                    { name: 'Probability', hasData: selectedSignal.probability != null, importance: 'critical' },
+                    { name: 'Confidence', hasData: selectedSignal.confidence_score != null, importance: 'critical' },
+                    { name: 'Confidence Breakdown', hasData: !!(selectedSignal.has_confidence_breakdown ?? selectedSignal.confidence_breakdown != null), importance: 'important' },
+                    { name: 'Uncertainty', hasData: (selectedSignal.metrics ?? []).some((m) => m.has_uncertainty), importance: 'important' },
+                    { name: 'Evidence', hasData: (selectedSignal.metrics ?? []).some((m) => m.has_evidence), importance: 'important' },
+                    { name: 'Routes', hasData: (selectedSignal.affected_routes?.length ?? 0) > 0, importance: 'optional' },
+                    { name: 'Chokepoints', hasData: (selectedSignal.affected_chokepoints?.length ?? 0) > 0, importance: 'optional' },
+                    { name: 'History', hasData: (selectedSignal.probability_history?.length ?? 0) > 0, importance: 'optional' },
+                  ]}
+                />
+              </>
             )}
 
-            <KPIStatsRow stats={stats} />
+            {selectedSignal && (
+              <SignalSummaryCard summary={selectedSignal.summary} />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
               <div className="lg:col-span-4">
@@ -197,6 +268,10 @@ function App() {
               </div>
             )}
 
+            {selectedSignal && (selectedSignal.affected_systems?.length ?? 0) > 0 && (
+              <SignalAffectedSystems affected_systems={selectedSignal.affected_systems} />
+            )}
+
             {selectedSignal &&
               (selectedSignal.affected_routes?.length > 0 ||
                 selectedSignal.affected_chokepoints?.length > 0) && (
@@ -214,8 +289,23 @@ function App() {
                 </Suspense>
               )}
 
+            {selectedSignal && (
+              <SignalDetailedExplanation detailed_explanation={selectedSignal.detailed_explanation} />
+            )}
+
             {selectedSignal && selectedSignal.explanation_steps?.length > 0 && (
-              <ExplanationChain steps={selectedSignal.explanation_steps} />
+              <ExplanationChain
+                steps={selectedSignal.explanation_steps}
+                traceId={selectedSignal.trace_id}
+              />
+            )}
+
+            {selectedSignal && (
+              <DataFlowSection
+                currentStage={dataFlowStage}
+                isProcessing={false}
+                hasResult={!!selectedSignal}
+              />
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -226,6 +316,8 @@ function App() {
                 <ActivityFeed items={activity} />
               </div>
             </div>
+              </>
+            ) : null}
           </div>
         </MainPanel>
       </div>

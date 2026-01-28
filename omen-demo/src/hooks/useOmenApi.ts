@@ -63,7 +63,8 @@ export function useSystemStats() {
       const { data } = await axios.get<ApiSystemStats>(`${API_BASE}/stats`);
       return mapApiStatsToUi(data);
     },
-    refetchInterval: 5_000,
+    refetchInterval: 15_000,  // Reduced from 5s to 15s
+    staleTime: 10_000,
   });
 }
 
@@ -77,7 +78,8 @@ export function useActivityFeed(limit = 20) {
       });
       return (data ?? []).map(mapApiActivityToUi);
     },
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,  // Reduced from 10s to 30s
+    staleTime: 15_000,
   });
 }
 

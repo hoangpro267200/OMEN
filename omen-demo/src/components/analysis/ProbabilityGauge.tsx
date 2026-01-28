@@ -5,17 +5,21 @@ import { cn } from '../../lib/utils';
 
 interface ProbabilityGaugeProps {
   probability: number;
-  momentum: 'INCREASING' | 'DECREASING' | 'STABLE';
+  momentum: 'INCREASING' | 'DECREASING' | 'STABLE' | 'UNKNOWN';
   historyMin?: number;
   historyMax?: number;
   isCritical?: boolean;
   className?: string;
 }
 
-const MOMENTUM_CONFIG = {
+const MOMENTUM_CONFIG: Record<
+  'INCREASING' | 'DECREASING' | 'STABLE' | 'UNKNOWN',
+  { label: string; className: string }
+> = {
   INCREASING: { label: 'TĂNG DẦN', className: 'bg-[var(--danger)]/20 text-[var(--danger)]' },
   DECREASING: { label: 'GIẢM', className: 'bg-[var(--success)]/20 text-[var(--success)]' },
   STABLE: { label: 'ỔN ĐỊNH', className: 'bg-[var(--text-muted)]/20 text-[var(--text-tertiary)]' },
+  UNKNOWN: { label: '—', className: 'bg-[var(--text-muted)]/10 text-[var(--text-tertiary)]' },
 };
 
 export function ProbabilityGauge({

@@ -14,6 +14,7 @@ from omen.domain.models.common import ImpactDomain, RulesetVersion
 from omen.domain.models.context import ProcessingContext
 from omen.domain.models.explanation import ExplanationChain, ExplanationStep
 from omen.domain.rules.translation.base import ImpactTranslationRule, TranslationResult
+from omen.domain.methodology.red_sea_impact import TIMING_METHODOLOGY
 
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,15 @@ class ImpactTranslator:
             signal, all_metrics, all_routes, all_systems, max_severity
         )
 
+        # Use documented timing methodology (fixes ISSUE-010)
+        prob = signal.original_event.probability
+        tp = TIMING_METHODOLOGY.parameters
+        base_onset = int(tp["base_onset_hours"][0])
+        urgency_factor = float(tp["urgency_factor"][0])
+        base_duration = int(tp["base_duration_hours"][0])
+        onset_hours = int(base_onset * (1.0 - prob * urgency_factor))
+        duration_hours = base_duration
+
         return ImpactAssessment(
             event_id=signal.event_id,
             source_signal=signal,
@@ -134,8 +144,8 @@ class ImpactTranslator:
             affected_systems=all_systems,
             overall_severity=max_severity,
             severity_label=severity_label,
-            expected_onset_hours=24,
-            expected_duration_hours=720,
+            expected_onset_hours=max(1, onset_hours),
+            expected_duration_hours=duration_hours,
             explanation_steps=steps_with_context_time,
             explanation_chain=explanation_chain,
             impact_summary=impact_summary,

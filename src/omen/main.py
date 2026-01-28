@@ -6,7 +6,16 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from omen.api.routes import explanations, health, live, realtime, signals
+from omen.api.routes import (
+    activity,
+    explanations,
+    health,
+    live,
+    methodology,
+    realtime,
+    signals,
+    stats,
+)
 from omen.infrastructure.security.auth import verify_api_key
 from omen.infrastructure.security.config import get_security_config
 from omen.infrastructure.security.rate_limit import rate_limit_middleware
@@ -57,6 +66,12 @@ def create_app() -> FastAPI:
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
         )
+        # Ensure CORS headers are present for cross-origin requests
+        origin = request.headers.get("origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
         return response
 
     app.include_router(health.router, prefix="/health", tags=["Health"])
@@ -76,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(stats.router, prefix="/api/v1")
     app.include_router(activity.router, prefix="/api/v1")
     app.include_router(realtime.router, prefix="/api/v1")
+    app.include_router(methodology.router, prefix="/api/v1")
 
     @app.get("/")
     async def root():

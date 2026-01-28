@@ -5,12 +5,37 @@ Base URL: https://gamma-api.polymarket.com
 No API key required for public read endpoints.
 """
 
+import time
 from typing import Any
 
 import httpx
 
 from omen.domain.errors import SourceRateLimitedError, SourceUnavailableError
 from omen.infrastructure.retry import create_source_circuit_breaker
+
+
+def _log_source_failure(source_name: str, start: float, error_message: str) -> None:
+    """Log source fetch failure and update metrics (best-effort)."""
+    try:
+        latency_ms = (time.perf_counter() - start) * 1000
+        from omen.infrastructure.activity.activity_logger import get_activity_logger
+        from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
+        get_activity_logger().log_source_fetch(
+            source_name=source_name,
+            events_count=0,
+            latency_ms=latency_ms,
+            success=False,
+            error_message=error_message,
+        )
+        get_metrics_collector().update_source_health(
+            source_name="polymarket",
+            status="disconnected",
+            events_fetched=0,
+            latency_ms=latency_ms,
+            error=True,
+        )
+    except Exception:
+        pass
 
 
 class PolymarketLiveClient:
@@ -44,12 +69,14 @@ class PolymarketLiveClient:
         Fetch events from Polymarket Gamma API.
 
         Returns list of event dicts with nested markets.
+        Logs to activity and updates source health metrics.
         """
         if not self._circuit.is_available():
             raise SourceUnavailableError(
                 "Polymarket circuit breaker is open",
                 context={"circuit_state": self._circuit.state.value},
             )
+        start = time.perf_counter()
         try:
             params: dict[str, Any] = {"limit": limit}
             if self._base_url == self.GAMMA_BASE_URL:
@@ -62,15 +89,37 @@ class PolymarketLiveClient:
             response.raise_for_status()
             self._circuit.record_success()
             data = response.json()
-            return data if isinstance(data, list) else []
+            out = data if isinstance(data, list) else []
+            latency_ms = (time.perf_counter() - start) * 1000
+            try:
+                from omen.infrastructure.activity.activity_logger import get_activity_logger
+                from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
+                get_activity_logger().log_source_fetch(
+                    source_name="Polymarket",
+                    events_count=len(out),
+                    latency_ms=latency_ms,
+                    success=True,
+                )
+                get_metrics_collector().update_source_health(
+                    source_name="polymarket",
+                    status="connected",
+                    events_fetched=len(out),
+                    latency_ms=latency_ms,
+                    error=False,
+                )
+            except Exception:
+                pass
+            return out
         except httpx.TimeoutException as e:
             self._circuit.record_failure(e)
+            _log_source_failure("Polymarket", start, str(e))
             raise SourceUnavailableError(
                 f"Polymarket timeout: {e}",
                 context={"event": "timeout"},
             ) from e
         except httpx.HTTPStatusError as e:
             self._circuit.record_failure(e)
+            _log_source_failure("Polymarket", start, str(e))
             if e.response.status_code == 429:
                 retry_after = int(e.response.headers.get("Retry-After", "60"))
                 raise SourceRateLimitedError(
@@ -84,6 +133,7 @@ class PolymarketLiveClient:
             ) from e
         except Exception as e:
             self._circuit.record_failure(e)
+            _log_source_failure("Polymarket", start, str(e))
             raise SourceUnavailableError(
                 f"Polymarket error: {e}",
                 context={"exception_type": type(e).__name__},

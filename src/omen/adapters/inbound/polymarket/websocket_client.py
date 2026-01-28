@@ -49,7 +49,9 @@ class PolymarketWebSocketClient:
         self._running = False
 
     async def connect(self) -> None:
-        """Establish WebSocket connection."""
+        """Establish WebSocket connection. Idempotent if already connected."""
+        if self._running and self._ws is not None:
+            return
         try:
             self._ws = await websockets.connect(
                 self.WS_URL,

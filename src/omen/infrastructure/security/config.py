@@ -26,8 +26,8 @@ class SecurityConfig(BaseSettings):
 
     # Rate Limiting
     rate_limit_enabled: bool = True
-    rate_limit_requests_per_minute: int = 60
-    rate_limit_burst: int = 10
+    rate_limit_requests_per_minute: int = 300  # 5 req/sec for demo/dev
+    rate_limit_burst: int = 50  # Allow bursts from frontend
 
     # CORS
     cors_enabled: bool = True

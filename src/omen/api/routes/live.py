@@ -2,9 +2,9 @@
 Live Polymarket data endpoints for demo UI.
 
 Fetches from Gamma API, runs OMEN pipeline, returns results for the React app.
+All data in responses is traceable to pipeline or storage — no synthetic fabrication.
 """
 
-import math
 from datetime import datetime
 from typing import Any
 
@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from omen.application.container import get_container
 from omen.domain.errors import SourceUnavailableError
 from omen.adapters.inbound.polymarket.source import PolymarketSignalSource
+from omen.infrastructure.storage.signal_history import get_signal_history_store
 
 
 router = APIRouter(prefix="/live", tags=["Live Data"])
@@ -101,10 +102,12 @@ class EnhancedMetric(BaseModel):
     name: str
     value: float
     unit: str
-    uncertainty: dict[str, float] | None = None  # {lower, upper}
+    uncertainty: dict[str, float] | None = None  # {lower, upper} — only when provided
     baseline: float = 0
     projection: list[float] = []  # 7-day projection
     evidence_source: str | None = None
+    methodology_name: str | None = None
+    methodology_version: str | None = None
 
 
 class EnhancedExplanationStep(BaseModel):
@@ -144,6 +147,21 @@ class FullProcessedSignalResponse(BaseModel):
     generated_at: datetime
     source_market: str
     market_url: str | None = None
+    # Trace & reproducibility
+    trace_id: str | None = None
+    input_event_hash: str | None = None
+    ruleset_version: str | None = None
+    # Summary & explanation
+    detailed_explanation: str | None = None
+    # Onset / duration (hours)
+    expected_onset_hours: int | None = None
+    expected_duration_hours: int | None = None
+    # Classification
+    domain: str | None = None
+    category: str | None = None
+    subcategory: str | None = None
+    # Layer 3: affected systems (system names)
+    affected_systems: list[str] = []
 
 
 # -----------------------------------------------------------------------------
@@ -198,8 +216,18 @@ def _infer_chokepoints(title: str, keywords: list[str] | None = None) -> list[Ch
     return out
 
 
-def _route_coords(origin_region: str, destination_region: str, severity: float) -> EnhancedRoute:
-    """Build enhanced route with coordinates from region names."""
+def _route_coords(
+    origin_region: str,
+    destination_region: str,
+    severity: float,
+    delay_days: float | None = None,
+) -> EnhancedRoute:
+    """
+    Build enhanced route with coordinates from region names.
+
+    delay_days must come from AffectedRoute.estimated_delay_days (impact assessment).
+    If not provided, 0.0 is used — no arbitrary formula.
+    """
     ok = _norm_key(origin_region)
     dk = _norm_key(destination_region)
     origin = _LOCATIONS.get(ok, RouteCoordinate(lat=0, lng=0, name=origin_region or "Unknown"))
@@ -226,22 +254,24 @@ def _route_coords(origin_region: str, destination_region: str, severity: float) 
         waypoints=waypoints,
         status=status,
         impact_severity=severity,
-        delay_days=severity * 10,
+        delay_days=float(delay_days) if delay_days is not None else 0.0,
     )
 
 
-def _metric_projection(current_value: float, days: int = 7) -> list[float]:
-    """Simple projection curve for a metric."""
-    return [round(current_value * (1 - math.exp(-d / 2)), 2) for d in range(days)]
-
-
 def _enhance_metric(m: Any) -> EnhancedMetric:
-    """Turn domain ImpactMetric into EnhancedMetric."""
+    """
+    Turn domain ImpactMetric into EnhancedMetric.
+
+    Projection is omitted — no sourced methodology. UI may show empty or N/A.
+    Uncertainty is set only when the domain object has real lower/upper — never fabricated.
+    """
     val = float(getattr(m, "value", 0))
     unc = getattr(m, "uncertainty", None)
     u_dict: dict[str, float] | None = None
     if unc is not None:
-        u_dict = {"lower": getattr(unc, "lower", val * 0.8), "upper": getattr(unc, "upper", val * 1.2)}
+        lo, hi = getattr(unc, "lower", None), getattr(unc, "upper", None)
+        if lo is not None and hi is not None:
+            u_dict = {"lower": float(lo), "upper": float(hi)}
     baseline = float(getattr(m, "baseline", 0) or 0)
     return EnhancedMetric(
         name=getattr(m, "name", "unknown"),
@@ -249,23 +279,45 @@ def _enhance_metric(m: Any) -> EnhancedMetric:
         unit=getattr(m, "unit", ""),
         uncertainty=u_dict,
         baseline=baseline,
-        projection=_metric_projection(val),
+        projection=[],  # No unsourced projection — removed ISSUE-003
         evidence_source=getattr(m, "evidence_source", None),
+        methodology_name=getattr(m, "methodology_name", None),
+        methodology_version=getattr(m, "methodology_version", None),
     )
 
 
-def _confidence_breakdown(score: float, signal_id: str) -> ConfidenceBreakdown:
-    """Deterministic breakdown from overall score (no random)."""
-    h = hash(signal_id) % 1000
-    v = 0.02 * (h / 1000 - 0.5)
-    base = min(1.0, max(0.0, score + v))
+def _confidence_breakdown_from_factors(score: float, factors: dict[str, Any] | None) -> ConfidenceBreakdown:
+    """
+    Build ConfidenceBreakdown from pipeline confidence_factors only.
+
+    No hash or synthetic variance. When factors are missing, use overall score
+    for each component (honest fallback, not fabricated).
+    """
+    if factors and isinstance(factors, dict):
+        def _f(key: str, default: float = 0.5) -> float:
+            v = factors.get(key)
+            if v is None:
+                return default
+            try:
+                return max(0.0, min(1.0, float(v)))
+            except (TypeError, ValueError):
+                return default
+
+        return ConfidenceBreakdown(
+            liquidity=_f("liquidity_score", score),
+            geographic=_f("geographic_score", score),
+            semantic=_f("semantic_score", _f("signal_strength", score)),
+            anomaly=_f("anomaly_score", _f("validation_score", score)),
+            market_depth=_f("market_depth_score", score),
+            source_reliability=_f("source_reliability_score", 0.85),
+        )
     return ConfidenceBreakdown(
-        liquidity=base,
-        geographic=base,
-        semantic=base,
-        anomaly=base,
-        market_depth=base,
-        source_reliability=base,
+        liquidity=score,
+        geographic=score,
+        semantic=score,
+        anomaly=score,
+        market_depth=score,
+        source_reliability=score,
     )
 
 
@@ -320,32 +372,33 @@ def _signal_to_response(s: Any) -> ProcessedSignalResponse:
 
 
 def _signal_to_full_response(s: Any) -> FullProcessedSignalResponse:
-    """Map OmenSignal to FullProcessedSignalResponse (all fields UI needs)."""
+    """
+    Map OmenSignal to FullProcessedSignalResponse.
+
+    All data is from pipeline or signal history store — no synthetic fabrication.
+    """
     prob = s.current_probability
-    prob_history = [round(prob * (0.92 + 0.08 * i / 24), 4) for i in range(24)]
-    momentum = getattr(s, "probability_momentum", "STABLE")
-    if isinstance(momentum, str) and momentum not in ("INCREASING", "DECREASING", "STABLE"):
-        momentum = "STABLE"
-    conf_breakdown = _confidence_breakdown(s.confidence_score, s.signal_id)
-    factors = getattr(s, "confidence_factors", None) or {}
-    if isinstance(factors, dict) and factors:
-        conf_breakdown = ConfidenceBreakdown(
-            liquidity=float(factors.get("liquidity_score", conf_breakdown.liquidity)),
-            geographic=float(factors.get("geographic", conf_breakdown.geographic)),
-            semantic=float(factors.get("signal_strength", conf_breakdown.semantic)),
-            anomaly=float(factors.get("validation_score", conf_breakdown.anomaly)),
-            market_depth=conf_breakdown.market_depth,
-            source_reliability=conf_breakdown.source_reliability,
-        )
+    history_store = get_signal_history_store()
+    prob_history = history_store.get_probability_series(
+        s.signal_id, hours=24, max_points=24
+    )
+    momentum = history_store.get_momentum(s.signal_id)
+    if momentum == "UNKNOWN":
+        fallback = getattr(s, "probability_momentum", "STABLE")
+        if isinstance(fallback, str) and fallback in ("INCREASING", "DECREASING", "STABLE"):
+            momentum = fallback
+    conf_breakdown = _confidence_breakdown_from_factors(
+        s.confidence_score, getattr(s, "confidence_factors", None)
+    )
     enhanced_metrics = [_enhance_metric(m) for m in (s.key_metrics or [])]
     enhanced_routes: list[EnhancedRoute] = []
     for r in s.affected_routes or []:
         orig = getattr(r, "origin_region", "Unknown") or "Unknown"
         dest = getattr(r, "destination_region", "Unknown") or "Unknown"
         sev = getattr(r, "impact_severity", s.severity)
-        enhanced_routes.append(_route_coords(orig, dest, sev))
-    if not enhanced_routes:
-        enhanced_routes.append(_route_coords("East Asia", "Northern Europe", s.severity))
+        delay_days = getattr(r, "estimated_delay_days", None)
+        enhanced_routes.append(_route_coords(orig, dest, sev, delay_days=delay_days))
+    # Do not add a synthetic default route when empty — return [] (ISSUE-003)
     keywords: list[str] = getattr(s, "affected_regions", None) or []
     chokepoints = _infer_chokepoints(s.title, keywords)
     if not chokepoints:
@@ -372,6 +425,18 @@ def _signal_to_full_response(s: Any) -> FullProcessedSignalResponse:
                     processing_time_ms=float(d.get("processing_time_ms", 0)),
                 )
             )
+    trace_id = getattr(s, "deterministic_trace_id", None) or getattr(s, "trace_id", None)
+    ruleset_v = getattr(s, "ruleset_version", None)
+    ruleset_str = str(ruleset_v) if ruleset_v is not None else None
+    domain_v = getattr(s, "domain", None)
+    domain_str = getattr(domain_v, "value", domain_v) if domain_v is not None else None
+    category_v = getattr(s, "category", None)
+    category_str = getattr(category_v, "value", category_v) if category_v is not None else None
+    affected_sys: list[str] = []
+    for a in getattr(s, "affected_systems", None) or []:
+        name = getattr(a, "system_name", None) or getattr(a, "system_id", None) or str(a)
+        affected_sys.append(name)
+
     return FullProcessedSignalResponse(
         signal_id=s.signal_id,
         event_id=str(s.event_id),
@@ -394,6 +459,16 @@ def _signal_to_full_response(s: Any) -> FullProcessedSignalResponse:
         generated_at=getattr(s, "generated_at", None) or datetime.utcnow(),
         source_market=getattr(s, "source_market", "polymarket"),
         market_url=getattr(s, "market_url", None),
+        trace_id=trace_id,
+        input_event_hash=getattr(s, "input_event_hash", None),
+        ruleset_version=ruleset_str,
+        detailed_explanation=getattr(s, "detailed_explanation", None),
+        expected_onset_hours=getattr(s, "expected_onset_hours", None),
+        expected_duration_hours=getattr(s, "expected_duration_hours", None),
+        domain=domain_str,
+        category=category_str,
+        subcategory=getattr(s, "subcategory", None),
+        affected_systems=affected_sys,
     )
 
 
