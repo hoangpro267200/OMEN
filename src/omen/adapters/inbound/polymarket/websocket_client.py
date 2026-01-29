@@ -126,7 +126,15 @@ class PolymarketWebSocketClient:
                     timeout=60.0,  # Reconnect if no message in 60s
                 )
 
-                data = json.loads(message)
+                # Skip empty or non-JSON messages (pings, pongs, etc.)
+                if not message or not message.strip():
+                    continue
+
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError:
+                    # Ignore non-JSON messages (control frames, heartbeats)
+                    continue
 
                 # Parse different message types
                 if data.get("type") == "price_change":
@@ -153,7 +161,9 @@ class PolymarketWebSocketClient:
                 # Attempt reconnect
                 await self._reconnect()
             except Exception as e:
-                print(f"WebSocket error: {e}")  # noqa: T201
+                # Log only unexpected errors, not transient network issues
+                if "Expecting value" not in str(e):
+                    print(f"WebSocket error: {e}")  # noqa: T201
                 await asyncio.sleep(1)
 
     async def _reconnect(self) -> None:

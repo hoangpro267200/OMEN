@@ -14,10 +14,9 @@ from omen.application.ports.output_publisher import OutputPublisher
 from omen.application.ports.signal_repository import AsyncSignalRepository
 from omen.application.ports.signal_source import SignalSource
 from omen.domain.models.context import ProcessingContext
-from omen.domain.models.impact_assessment import ImpactAssessment
 from omen.domain.models.omen_signal import OmenSignal
 from omen.domain.models.raw_signal import RawSignalEvent
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.services.signal_validator import SignalValidator
 from omen.infrastructure.dead_letter import DeadLetterQueue
 
@@ -38,7 +37,7 @@ class AsyncOmenPipeline:
     def __init__(
         self,
         validator: SignalValidator,
-        translator: ImpactTranslator,
+        enricher: SignalEnricher,
         repository: AsyncSignalRepository | None = None,
         publisher: OutputPublisher | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
@@ -46,7 +45,7 @@ class AsyncOmenPipeline:
         max_concurrent: int = 10,
     ) -> None:
         self._validator = validator
-        self._translator = translator
+        self._enricher = enricher
         self._repository = repository
         self._publisher = publisher
         self._dlq = dead_letter_queue or DeadLetterQueue()
@@ -122,36 +121,38 @@ class AsyncOmenPipeline:
 
             stats.events_validated = 1
 
-            assessments: list[ImpactAssessment] = []
-            for domain in self._config.target_domains:
-                assessment = await loop.run_in_executor(
-                    None,
-                    lambda d=domain: self._translator.translate(
-                        validated_signal, domain=d, context=ctx
+            validation_context: dict = {
+                "confidence_factors": {
+                    "liquidity": validated_signal.liquidity_score,
+                    "geographic": next(
+                        (r.score for r in validated_signal.validation_results if r.rule_name == "geographic_relevance"),
+                        0.5,
                     ),
-                )
-                if assessment is not None:
-                    assessments.append(assessment)
+                    "source_reliability": 0.85,
+                },
+                "validation_results": validated_signal.validation_results,
+            }
+            enrichment = await loop.run_in_executor(
+                None,
+                lambda: self._enricher.enrich(event, validation_context),
+            )
 
-            if not assessments:
-                stats.events_no_impact = 1
+            try:
+                signal = OmenSignal.from_validated_event(validated_signal, enrichment)
+            except Exception:
                 stats.processing_time_ms = (
                     datetime.utcnow() - started_at
                 ).total_seconds() * 1000
                 return PipelineResult(success=True, signals=[], stats=stats)
 
-            stats.assessments_generated = len(assessments)
+            if signal.confidence_score < self._config.min_confidence_for_output:
+                stats.processing_time_ms = (
+                    datetime.utcnow() - started_at
+                ).total_seconds() * 1000
+                return PipelineResult(success=True, signals=[], stats=stats)
 
-            signals: list[OmenSignal] = []
-            for assessment in assessments:
-                signal = OmenSignal.from_impact_assessment(
-                    assessment,
-                    ruleset_version=ctx.ruleset_version,
-                    generated_at=ctx.processing_time,
-                )
-                if signal.confidence_score >= self._config.min_confidence_for_output:
-                    signals.append(signal)
-            stats.signals_generated = len(signals)
+            signals: list[OmenSignal] = [signal]
+            stats.signals_generated = 1
 
             if not self._config.enable_dry_run and signals:
                 await self._persist_and_publish(signals)

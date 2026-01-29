@@ -15,32 +15,34 @@ from omen.domain.models.common import (
 )
 from omen.domain.models.context import ProcessingContext
 from omen.domain.models.explanation import ExplanationChain, ExplanationStep
-from omen.domain.models.impact_assessment import (
-    ImpactAssessment,
-    ImpactMetric,
+from omen.domain.models.omen_signal import (
+    OmenSignal,
+    GeographicContext,
+    TemporalContext,
     UncertaintyBounds,
-    AffectedRoute,
-    AffectedSystem,
-    create_transit_time_metric,
-    create_cost_increase_metric,
+    EvidenceItem,
+    ValidationScore,
+    ConfidenceLevel as SignalConfidenceLevel,
+    SignalCategory as OmenSignalCategory,
 )
-from omen.domain.models.omen_signal import OmenSignal
 from omen.domain.models.raw_signal import RawSignalEvent, MarketMetadata
 from omen.domain.models.validated_signal import ValidatedSignal, ValidationResult
+from omen.domain.models.enums import SignalType, SignalStatus, ImpactDirection, AffectedDomain
+from omen.domain.models.impact_hints import ImpactHints
 
 __all__ = [
     "RawSignalEvent",
     "MarketMetadata",
     "ValidatedSignal",
     "ValidationResult",
-    "ImpactAssessment",
-    "ImpactMetric",
-    "UncertaintyBounds",
-    "AffectedRoute",
-    "AffectedSystem",
-    "create_transit_time_metric",
-    "create_cost_increase_metric",
     "OmenSignal",
+    "GeographicContext",
+    "TemporalContext",
+    "UncertaintyBounds",
+    "EvidenceItem",
+    "ValidationScore",
+    "SignalConfidenceLevel",
+    "OmenSignalCategory",
     "ExplanationStep",
     "ExplanationChain",
     "ProcessingContext",
@@ -55,4 +57,9 @@ __all__ = [
     "GeoLocation",
     "ProbabilityMovement",
     "generate_deterministic_hash",
+    "SignalType",
+    "SignalStatus",
+    "ImpactDirection",
+    "AffectedDomain",
+    "ImpactHints",
 ]

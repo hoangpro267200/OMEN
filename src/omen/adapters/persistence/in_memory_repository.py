@@ -18,14 +18,14 @@ class InMemorySignalRepository(SignalRepository):
         self._signals_list: list[OmenSignal] = []
 
     def save(self, signal: OmenSignal) -> None:
-        """Persist an OMEN signal."""
+        """Persist an OMEN signal (pure contract)."""
         self._signals_by_id[signal.signal_id] = signal
-        self._signals_by_hash[signal.input_event_hash] = signal
-        
-        # Index by event ID
-        if signal.event_id not in self._signals_by_event_id:
-            self._signals_by_event_id[signal.event_id] = []
-        self._signals_by_event_id[signal.event_id].append(signal)
+        if getattr(signal, "input_event_hash", None) is not None:
+            self._signals_by_hash[signal.input_event_hash] = signal
+        event_key = signal.source_event_id
+        if event_key not in self._signals_by_event_id:
+            self._signals_by_event_id[event_key] = []
+        self._signals_by_event_id[event_key].append(signal)
         
         # Update list (remove old if exists, add new)
         self._signals_list = [

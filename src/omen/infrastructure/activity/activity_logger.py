@@ -27,7 +27,7 @@ class ActivityEvent:
     signal_id: Optional[str] = None
     event_id: Optional[str] = None
     rule_name: Optional[str] = None
-    severity: Optional[str] = None
+    confidence_label: Optional[str] = None
     source_name: Optional[str] = None
     error_code: Optional[str] = None
 
@@ -39,8 +39,8 @@ class ActivityEvent:
             details["event_id"] = self.event_id
         if self.rule_name is not None:
             details["rule_name"] = self.rule_name
-        if self.severity is not None:
-            details["severity"] = self.severity
+        if self.confidence_label is not None:
+            details["confidence_level"] = self.confidence_label
         if self.source_name is not None:
             details["source_name"] = self.source_name
         if self.error_code is not None:
@@ -73,7 +73,7 @@ class ActivityLogger:
         self,
         signal_id: str,
         title: str,
-        severity_label: str,
+        confidence_label: str,
         confidence_level: str,
     ) -> None:
         """Log when a signal is generated."""
@@ -84,18 +84,18 @@ class ActivityLogger:
                 message=f"Tín hiệu được tạo: {signal_id} — {(title or '')[:50]}",
                 timestamp=datetime.utcnow(),
                 signal_id=signal_id,
-                severity=severity_label,
+                confidence_label=confidence_label,
             )
         )
-        if severity_label in ("HIGH", "CRITICAL"):
+        if confidence_label in ("HIGH", "VERY_HIGH", "CRITICAL"):
             self._log(
                 ActivityEvent(
                     id=str(uuid.uuid4())[:8],
                     type="alert",
-                    message=f"Cảnh báo mức độ {severity_label}: {signal_id}",
+                    message=f"High-confidence signal ({confidence_label}): {signal_id}",
                     timestamp=datetime.utcnow(),
                     signal_id=signal_id,
-                    severity=severity_label,
+                    confidence_label=confidence_label,
                 )
             )
 

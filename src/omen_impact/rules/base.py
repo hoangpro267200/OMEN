@@ -1,28 +1,30 @@
-"""Impact Translation Rule Interface.
+"""
+Impact Translation Rule Interface.
 
-This is the CORE DIFFERENTIATOR of OMEN.
 Translation rules convert belief into consequence.
+Lives in omen_impact; uses omen.domain for ValidatedSignal, Rule, etc.
 """
 
 from abc import abstractmethod
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
-from ...models.common import ImpactDomain, SignalCategory
-from ...models.validated_signal import ValidatedSignal
-from ...models.impact_assessment import (
+from omen.domain.models.common import ImpactDomain, SignalCategory
+from omen.domain.models.validated_signal import ValidatedSignal
+from omen.domain.models.explanation import ExplanationStep
+from omen.domain.rules.base import Rule
+
+from omen_impact.assessment import (
     ImpactMetric,
     AffectedRoute,
     AffectedSystem,
 )
-from ...models.explanation import ExplanationStep
-from ..base import Rule
 
 
 class TranslationResult:
     """
     Result of applying a translation rule.
-    
+
     A rule may produce partial results that are combined
     by the translator service.
     """
@@ -43,7 +45,7 @@ class TranslationResult:
         self.severity_contribution = severity_contribution
         self.assumptions = assumptions or []
         self.explanation = explanation
-    
+
     @classmethod
     def not_applicable(cls) -> "TranslationResult":
         """Factory for non-applicable results."""
@@ -54,110 +56,90 @@ class TranslationResult:
 class ImpactTranslationRule(Protocol):
     """
     Protocol for impact translation rules.
-    
-    This is the PLUGGABLE INTERFACE that allows different domains
-    (logistics, energy, insurance) to implement their own translation logic
-    WITHOUT changing core OMEN code.
-    
+
     To add a new domain:
-    1. Create a new module in domain/rules/translation/{domain}/
+    1. Create a new module in omen_impact/rules/{domain}/
     2. Implement classes that satisfy this protocol
     3. Register them with the ImpactTranslator service
     """
-    
+
     @property
     def name(self) -> str:
         """Unique rule identifier."""
         ...
-    
+
     @property
     def version(self) -> str:
         """Rule version."""
         ...
-    
+
     @property
     def domain(self) -> ImpactDomain:
         """Target domain for this rule."""
         ...
-    
+
     @property
     def applicable_categories(self) -> set[SignalCategory]:
         """Signal categories this rule can process."""
         ...
-    
+
     def is_applicable(self, signal: ValidatedSignal) -> bool:
         """Check if this rule applies to the given signal."""
         ...
-    
+
     def translate(
         self,
         signal: ValidatedSignal,
         *,
         processing_time: datetime | None = None,
     ) -> TranslationResult:
-        """
-        Perform the translation.
-
-        This is where belief → consequence happens.
-        """
+        """Perform the translation."""
         ...
 
 
 class BaseTranslationRule(Rule[ValidatedSignal, TranslationResult]):
     """
     Abstract base class providing common functionality for translation rules.
-    
-    Extend this for concrete implementations.
     """
-    
+
     @property
     @abstractmethod
     def domain(self) -> ImpactDomain:
         ...
-    
+
     @property
     @abstractmethod
     def applicable_categories(self) -> set[SignalCategory]:
         ...
-    
+
     @property
     def applicable_keywords(self) -> set[str]:
         """Keywords that trigger this rule. Override in subclasses."""
         return set()
-    
+
     @property
     def applicable_chokepoints(self) -> set[str]:
         """Chokepoints that trigger this rule. Override in subclasses."""
         return set()
-    
+
     def is_applicable(self, signal: ValidatedSignal) -> bool:
-        """
-        Default applicability check.
-        
-        A rule is applicable if:
-        1. Signal category matches, AND
-        2. (Keywords match OR chokepoints match OR custom logic passes)
-        """
         if signal.category not in self.applicable_categories:
             return False
-        
-        # Check keywords
+
         signal_keywords = set(signal.original_event.keywords)
         if self.applicable_keywords & signal_keywords:
             return True
-        
-        # Check chokepoints
+
         signal_chokepoints = set(signal.affected_chokepoints)
         if self.applicable_chokepoints & signal_chokepoints:
             return True
-        
-        # Subclasses can override for custom logic
+
         return self._custom_applicability_check(signal)
-    
+
     def _custom_applicability_check(self, signal: ValidatedSignal) -> bool:
         """Override for custom applicability logic."""
         return False
-    
+
     def apply(self, input_data: ValidatedSignal) -> TranslationResult:
         """Apply rule with applicability check."""
         if not self.is_applicable(input_data):

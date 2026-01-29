@@ -22,15 +22,9 @@ from omen.domain.models.common import (
 )
 from omen.domain.models.raw_signal import RawSignalEvent, MarketMetadata
 from omen.domain.models.omen_signal import OmenSignal
-from omen.domain.models.impact_assessment import ImpactAssessment, ImpactMetric
-from omen.domain.models.validated_signal import ValidatedSignal
-from omen.domain.models.explanation import ExplanationChain
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import (
-    RedSeaDisruptionRule,
-)
 from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.adapters.persistence.in_memory_repository import InMemorySignalRepository
 
@@ -42,7 +36,7 @@ def _make_sample_signal() -> OmenSignal:
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=repo,
         publisher=None,
         config=PipelineConfig.default(),
@@ -125,7 +119,7 @@ class TestSaveAsync:
         found = await async_repo.find_by_id_async(sample_signal.signal_id)
         assert found is not None
         assert found.signal_id == sample_signal.signal_id
-        assert found.event_id == sample_signal.event_id
+        assert found.source_event_id == sample_signal.source_event_id
 
     @pytest.mark.asyncio
     async def test_save_indexes_by_hash(

@@ -36,5 +36,6 @@ class PipelineResult:
         return len(self.signals)
     
     @property
-    def has_actionable_signals(self) -> bool:
-        return any(s.is_actionable for s in self.signals)
+    def has_signals(self) -> bool:
+        """True if at least one signal was produced. Pure contract has no actionability."""
+        return len(self.signals) > 0

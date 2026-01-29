@@ -21,11 +21,9 @@ from omen.domain.models.raw_signal import RawSignalEvent, MarketMetadata
 from omen.domain.models.validated_signal import ValidatedSignal, ValidationResult
 from omen.domain.models.context import ProcessingContext
 from omen.domain.models.explanation import ExplanationChain, ExplanationStep
-from omen.domain.services.impact_translator import ImpactTranslator
-from omen.domain.rules.translation.base import TranslationResult, ImpactTranslationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import (
-    RedSeaDisruptionRule,
-)
+from omen_impact import ImpactTranslator
+from omen_impact.rules.base import TranslationResult, ImpactTranslationRule
+from omen_impact.rules.logistics import RedSeaDisruptionRule
 
 _FIXED_TIME = datetime(2025, 1, 15, 12, 0, 0)
 
@@ -204,14 +202,17 @@ class TestRuleFiltering:
         assert out.domain == ImpactDomain.LOGISTICS
 
     def test_skips_non_applicable_rules(
-        self, translator: ImpactTranslator, unrelated_signal: ValidatedSignal
+        self, unrelated_signal: ValidatedSignal
     ) -> None:
-        """Signal not matching rule keywords → rule skipped."""
+        """Signal not matching rule keywords → rule skipped, no fallback → None."""
+        no_fallback = ImpactTranslator(
+            rules=[RedSeaDisruptionRule()], fallback_enabled=False
+        )
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
+        out = no_fallback.translate(
             unrelated_signal, domain=ImpactDomain.LOGISTICS, context=ctx
         )
         assert out is None
@@ -235,27 +236,31 @@ class TestNoMatchScenarios:
     """No applicable rules scenarios."""
 
     def test_no_matching_rules_returns_none(
-        self, translator: ImpactTranslator, unrelated_signal: ValidatedSignal
+        self, unrelated_signal: ValidatedSignal
     ) -> None:
-        """No rules match → returns None."""
+        """No rules match and fallback disabled → returns None."""
+        no_fallback = ImpactTranslator(
+            rules=[RedSeaDisruptionRule()], fallback_enabled=False
+        )
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
+        out = no_fallback.translate(
             unrelated_signal, domain=ImpactDomain.LOGISTICS, context=ctx
         )
         assert out is None
 
     def test_empty_rules_list_returns_none(
-        self, empty_translator: ImpactTranslator, logistics_signal: ValidatedSignal
+        self, logistics_signal: ValidatedSignal
     ) -> None:
-        """No rules configured → returns None."""
+        """No rules configured and fallback disabled → returns None."""
+        no_fallback = ImpactTranslator(rules=[], fallback_enabled=False)
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = empty_translator.translate(
+        out = no_fallback.translate(
             logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx
         )
         assert out is None
@@ -265,14 +270,17 @@ class TestRuleErrorHandling:
     """Rule exception handling."""
 
     def test_rule_exception_logged_and_skipped(
-        self, translator_with_failing_rule: ImpactTranslator, logistics_signal: ValidatedSignal
+        self, logistics_signal: ValidatedSignal
     ) -> None:
-        """Rule raises → logged, continues (no other rules), returns None."""
+        """Rule raises → logged, no applicable results, fallback disabled → None."""
+        failing_only = ImpactTranslator(
+            rules=[FailingTranslationRule()], fallback_enabled=False
+        )
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator_with_failing_rule.translate(
+        out = failing_only.translate(
             logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx
         )
         assert out is None
@@ -323,7 +331,7 @@ class TestAssessmentBuilding:
         )
         assert out is not None
         assert 0 <= out.overall_severity <= 1
-        assert out.severity_label in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+        assert out.severity_label in ("VERY_HIGH", "HIGH", "MEDIUM", "LOW")
 
     def test_explanation_chain_finalized(
         self, translator: ImpactTranslator, logistics_signal: ValidatedSignal

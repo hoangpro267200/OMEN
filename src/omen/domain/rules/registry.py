@@ -66,11 +66,15 @@ class RuleConfig:
 
 class RuleParameterRegistry:
     """
-    Global registry of all rule parameters.
+    Global registry of rule parameters used by the OMEN signal pipeline.
+
+    Contains only signal-validation parameters (e.g. liquidity_validation).
+    Impact-assessment parameters are not registered; downstream consumers
+    (e.g. RiskCast) define their own impact parameters.
 
     Usage:
         registry = RuleParameterRegistry.default()
-        transit_days = registry.get("red_sea_disruption_logistics", "reroute_transit_increase_days")
+        min_liq = registry.get("liquidity_validation", "min_liquidity_usd")
     """
 
     def __init__(self) -> None:
@@ -138,48 +142,9 @@ class RuleParameterRegistry:
             )
         )
 
-        registry.register(
-            RuleConfig(
-                rule_name="red_sea_disruption_logistics",
-                rule_version="2.0.0",
-                parameters={
-                    "reroute_transit_increase_days": RuleParameter(
-                        name="reroute_transit_increase_days",
-                        value=10,
-                        unit="days",
-                        description="Transit time increase via Cape of Good Hope",
-                        source="Drewry Maritime Research Q1 2024",
-                        source_date=date(2024, 2, 1),
-                        min_value=5,
-                        max_value=20,
-                    ),
-                    "fuel_consumption_increase_pct": RuleParameter(
-                        name="fuel_consumption_increase_pct",
-                        value=30,
-                        unit="percent",
-                        description="Fuel consumption increase on longer route",
-                        source="Lloyd's List Intelligence, Jan 2024",
-                        source_date=date(2024, 1, 20),
-                    ),
-                    "freight_rate_increase_pct_base": RuleParameter(
-                        name="freight_rate_increase_pct_base",
-                        value=15,
-                        unit="percent",
-                        description="Minimum freight rate increase",
-                        source="Freightos Baltic Index",
-                        source_date=date(2024, 1, 25),
-                    ),
-                    "freight_rate_increase_pct_crisis": RuleParameter(
-                        name="freight_rate_increase_pct_crisis",
-                        value=100,
-                        unit="percent",
-                        description="Peak freight rate increase during crisis",
-                        source="Freightos Baltic Index Dec 2023-Jan 2024",
-                        source_date=date(2024, 1, 30),
-                    ),
-                },
-            )
-        )
+        # Impact-assessment parameters (freight, transit, fuel, etc.) are NOT
+        # registered here. OMEN is a signal intelligence engine; impact
+        # assessment is the responsibility of downstream consumers (e.g. RiskCast).
 
         return registry
 

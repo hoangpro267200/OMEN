@@ -13,9 +13,15 @@ import {
   mapApiActivityToUi,
 } from '../lib/mapApiToUi';
 import type { ProcessedSignal } from '../types/omen';
-import { OMEN_API_BASE } from '../lib/apiBase';
+import { OMEN_API_BASE, getOmenBaseUrl } from '../lib/apiBase';
 
 const API_BASE = OMEN_API_BASE;
+
+/** Timeout (ms) for normal API calls — fail fast if backend is down. */
+const API_TIMEOUT_MS = 12_000;
+
+/** Timeout for /live/process — Polymarket fetch + pipeline can take 30–90s. */
+const LIVE_PROCESS_TIMEOUT_MS = 90_000;
 
 /** Raw live event from Polymarket (before OMEN processing). */
 export interface LiveEvent {
@@ -37,29 +43,41 @@ export function useOmenApi() {
   };
 }
 
-/** Số tín hiệu mặc định khi gọi /live/process — tải nhiều để danh sách đầy đủ. */
-const DEFAULT_LIVE_PROCESS_LIMIT = 500;
+/** Số tín hiệu mặc định — nhỏ để lần đầu tải nhanh, tránh timeout. */
+const DEFAULT_LIVE_PROCESS_LIMIT = 50;
 
-/** Fetch and process live Polymarket events through OMEN. Populates live-signals cache. */
+const BACKEND_CHECK_TIMEOUT_MS = 6_000;
+
+/** Fetch and process live Polymarket events through OMEN. Resilient to backend/network errors. */
 export function useProcessLiveSignals(options?: { enabled?: boolean; limit?: number }) {
   const limit = options?.limit ?? DEFAULT_LIVE_PROCESS_LIMIT;
   return useQuery<ProcessedSignal[]>({
     queryKey: ['live-signals', limit],
     queryFn: async () => {
+      const base = getOmenBaseUrl();
+      try {
+        await axios.get(`${base}/health/`, { timeout: BACKEND_CHECK_TIMEOUT_MS });
+      } catch (e) {
+        const msg =
+          'Backend chưa chạy hoặc không phản hồi. Trong terminal chạy: python -m uvicorn omen.main:app --host 0.0.0.0 --port 8000';
+        throw new Error(msg);
+      }
       const { data } = await axios.post<ApiSignalResponse[]>(
         `${API_BASE}/live/process`,
         null,
-        { params: { limit, min_liquidity: 1000 } }
+        { params: { limit, min_liquidity: 1000 }, timeout: LIVE_PROCESS_TIMEOUT_MS }
       );
       return (data ?? []).map(mapApiSignalToUi);
     },
     enabled: options?.enabled ?? true,
-    refetchInterval: 30_000,
+    retry: 1,
+    retryDelay: 2000,
+    refetchInterval: (q) => (q.state.error ? 60_000 : 30_000),
     staleTime: 10_000,
   });
 }
 
-/** System statistics for dashboard KPIs. */
+/** System statistics for dashboard KPIs. Resilient to backend/network errors. */
 export function useSystemStats() {
   return useQuery({
     queryKey: ['system-stats'],
@@ -67,7 +85,10 @@ export function useSystemStats() {
       const { data } = await axios.get<ApiSystemStats>(`${API_BASE}/stats`);
       return mapApiStatsToUi(data);
     },
-    refetchInterval: 15_000,  // Reduced from 5s to 15s
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchInterval: (query) =>
+      query.state.error ? 60_000 : 15_000,
     staleTime: 10_000,
   });
 }
@@ -79,6 +100,7 @@ export function useActivityFeed(limit = 20) {
     queryFn: async () => {
       const { data } = await axios.get<ApiActivityItem[]>(`${API_BASE}/activity`, {
         params: { limit },
+        timeout: API_TIMEOUT_MS,
       });
       return (data ?? []).map(mapApiActivityToUi);
     },

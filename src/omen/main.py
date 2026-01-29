@@ -40,8 +40,26 @@ def create_app() -> FastAPI:
     config = get_security_config()
 
     app = FastAPI(
-        title="OMEN Intelligence API",
-        description="Signal intelligence engine for logistics risk",
+        title="OMEN Signal Intelligence API",
+        description="""
+## Signal Intelligence Engine
+
+OMEN transforms market events into structured probability signals.
+
+### What OMEN provides
+- Probability assessment with confidence bounds
+- Signal validation and quality scoring
+- Geographic and temporal context
+- Full evidence chain and traceability
+
+### What OMEN does NOT provide
+- Impact assessment (severity, delay, cost)
+- Decision steering (temporal proximity, relevance rank, high-confidence flags)
+- Recommendations or advice
+- Risk quantification
+
+Impact assessment is the responsibility of downstream systems.
+        """.strip(),
         version="2.0.0",
         lifespan=lifespan,
     )
@@ -67,6 +85,8 @@ def create_app() -> FastAPI:
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
         )
+        response.headers["X-OMEN-Contract-Version"] = "2.0.0"
+        response.headers["X-OMEN-Contract-Type"] = "signal-only"
         # Ensure CORS headers are present for cross-origin requests
         origin = request.headers.get("origin")
         if origin:

@@ -59,7 +59,8 @@ function App() {
     isLoading: signalsLoading,
     error: signalsError,
     dataUpdatedAt,
-  } = useProcessLiveSignals({ enabled: useLiveData, limit: 500 });
+    refetch: refetchLiveSignals,
+  } = useProcessLiveSignals({ enabled: useLiveData });
 
   const lastFetchTime = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
   const { data: signals, source: dataSource } = useDataSource(
@@ -161,6 +162,11 @@ function App() {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-[var(--text-secondary)]">Đang tải dữ liệu từ Polymarket...</p>
+          {useLiveData && (
+            <p className="text-[var(--text-muted)] text-sm mt-2">
+              Lần đầu có thể mất 30–90 giây (fetch + xử lý pipeline).
+            </p>
+          )}
         </div>
       </div>
     );
@@ -187,7 +193,12 @@ function App() {
 
         <MainPanel>
           <div className="flex-1 min-h-0 overflow-y-auto overflow-thin-scroll p-6 pb-12 space-y-6 bg-[var(--bg-primary)]">
-            {dataSource.type !== 'live' ? <DataSourceBanner source={dataSource} /> : null}
+            {dataSource.type !== 'live' ? (
+              <DataSourceBanner
+                source={dataSource}
+                onRetry={useLiveData && signalsError ? () => refetchLiveSignals() : undefined}
+              />
+            ) : null}
             {realtimeStatus.error ? (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}

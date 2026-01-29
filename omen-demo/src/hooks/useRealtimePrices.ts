@@ -159,7 +159,10 @@ export function useRealtimePrices(signalIds: string[]): RealtimeStatus {
   return status;
 }
 
-/** Fetch /realtime/status for header (registered count, websocket connected). */
+/** Fetch /realtime/status for header. Backs off on failure to avoid console spam. */
+const REALTIME_POLL_OK_MS = 10_000;
+const REALTIME_POLL_BACKOFF_MS = 30_000;
+
 export function useRealtimeStatus(): {
   registered_signals: number;
   websocket_connected: boolean;
@@ -172,9 +175,19 @@ export function useRealtimeStatus(): {
   } | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = (ms: number) => {
+      if (cancelled) return;
+      timeoutId = setTimeout(fetchStatus, ms);
+    };
+
     const fetchStatus = async () => {
+      if (cancelled) return;
       try {
         const res = await fetch(`${API_BASE}/realtime/status`);
+        if (cancelled) return;
         if (res.ok) {
           const json = await res.json();
           setData({
@@ -182,14 +195,21 @@ export function useRealtimeStatus(): {
             websocket_connected: json.websocket_connected ?? false,
             status: json.status ?? 'idle',
           });
+          schedule(REALTIME_POLL_OK_MS);
+        } else {
+          schedule(REALTIME_POLL_BACKOFF_MS);
         }
       } catch {
-        setData(null);
+        if (!cancelled) setData(null);
+        schedule(REALTIME_POLL_BACKOFF_MS);
       }
     };
+
     fetchStatus();
-    const id = setInterval(fetchStatus, 10000);
-    return () => clearInterval(id);
+    return () => {
+      cancelled = true;
+      if (timeoutId != null) clearTimeout(timeoutId);
+    };
   }, []);
 
   return data;

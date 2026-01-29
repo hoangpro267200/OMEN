@@ -47,12 +47,8 @@ class TestFullDeterminism:
         signal2 = result2.signals[0]
 
         assert signal1.signal_id == signal2.signal_id
-        assert signal1.deterministic_trace_id == signal2.deterministic_trace_id
+        assert signal1.trace_id == signal2.trace_id
         assert signal1.generated_at == signal2.generated_at
-        assert (
-            signal1.explanation_chain.started_at
-            == signal2.explanation_chain.started_at
-        )
 
         json1 = signal1.model_dump_json(indent=2)
         json2 = signal2.model_dump_json(indent=2)

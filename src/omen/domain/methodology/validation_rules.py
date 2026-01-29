@@ -100,7 +100,7 @@ GEOGRAPHIC_RELEVANCE_METHODOLOGY = Methodology(
                 "Taiwan Strait",
                 "Cape of Good Hope",
             ],
-            "Critical maritime chokepoints that handle >50% of global shipping",
+            "Major maritime chokepoints that handle >50% of global shipping",
         ),
         "KEYWORDS": (
             ["shipping", "freight", "container", "port", "maritime", "vessel", "cargo"],

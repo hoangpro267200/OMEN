@@ -42,7 +42,7 @@ async def get_activity(
     - signal: When signals are generated
     - validation: When events pass or fail validation
     - rule: When translation rules are applied
-    - alert: When high-severity signals are created
+    - alert: When high-confidence signals are created
     - source: When data is fetched from sources
     - error: When errors occur
 
@@ -73,7 +73,7 @@ async def get_activity_types() -> dict[str, str]:
         "signal": "Signal generation events",
         "validation": "Event validation results",
         "rule": "Translation rule applications",
-        "alert": "High-severity alerts",
+        "alert": "High-confidence signals",
         "source": "Data source fetch events",
         "error": "System errors",
         "system": "General system events",

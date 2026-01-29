@@ -13,9 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import RedSeaDisruptionRule
 from omen.adapters.inbound.stub_source import StubSignalSource
 from omen.adapters.persistence.in_memory_repository import InMemorySignalRepository
 from omen.adapters.outbound.console_publisher import ConsolePublisher
@@ -37,15 +36,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Build components
+    # Build components (signal-only pipeline; for impact use omen_impact.LegacyPipeline)
     validator = SignalValidator(rules=[LiquidityValidationRule()])
-    translator = ImpactTranslator(rules=[RedSeaDisruptionRule()])
+    enricher = SignalEnricher()
     repository = InMemorySignalRepository()
     publisher = ConsolePublisher()
 
     pipeline = OmenPipeline(
         validator=validator,
-        translator=translator,
+        enricher=enricher,
         repository=repository,
         publisher=publisher,
         config=PipelineConfig.default(),

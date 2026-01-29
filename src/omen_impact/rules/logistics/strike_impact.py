@@ -6,22 +6,21 @@ Translates labor/strike signals into logistics impacts.
 
 from datetime import datetime
 
-from ....models.common import ImpactDomain, SignalCategory
-from ....models.validated_signal import ValidatedSignal
-from ....models.impact_assessment import (
+from omen.domain.models.common import ImpactDomain, SignalCategory
+from omen.domain.models.validated_signal import ValidatedSignal
+from omen.domain.models.explanation import ExplanationStep
+
+from omen_impact.assessment import (
     ImpactMetric,
     UncertaintyBounds,
     AffectedSystem,
 )
-from ....models.explanation import ExplanationStep
-from ..base import BaseTranslationRule, TranslationResult
-from .parameters import STRIKE_PARAMS, get_param
+from omen_impact.rules.base import BaseTranslationRule, TranslationResult
+from omen_impact.rules.logistics.parameters import STRIKE_PARAMS, get_param
 
 
 class StrikeImpactRule(BaseTranslationRule):
-    """
-    Translates labor/strike signals into logistics impacts.
-    """
+    """Translates labor/strike signals into logistics impacts."""
 
     @property
     def name(self) -> str:

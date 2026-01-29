@@ -15,7 +15,7 @@ from omen.domain.models.raw_signal import RawSignalEvent, MarketMetadata
 from omen.domain.models.validated_signal import ValidatedSignal, ValidationResult
 from omen.domain.models.context import ProcessingContext
 from omen.domain.models.explanation import ExplanationChain, ExplanationStep
-from omen.domain.rules.translation.logistics.red_sea_disruption import RedSeaDisruptionRule
+from omen_impact.rules.logistics import RedSeaDisruptionRule
 
 _FIXED_TIME = datetime(2025, 1, 15, 12, 0, 0)
 

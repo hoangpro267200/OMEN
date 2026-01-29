@@ -1,11 +1,12 @@
 """
-Pipeline metrics collection — REAL measurements, not hardcoded.
+Pipeline metrics collection — real measurements, not hardcoded.
 
 Collects:
-- Processing counts (events received, validated, translated, signals generated)
+- Processing counts (events received, validated, signals generated)
 - Timing measurements (latency per stage)
 - Confidence aggregates
-- Risk exposure calculations
+
+Risk quantification is consumer responsibility; not computed here.
 """
 
 from collections import deque
@@ -34,7 +35,6 @@ class ProcessingBatch:
     total_time_ms: float = 0.0
 
     avg_confidence: float = 0.0
-    total_risk_exposure_usd: float = 0.0
 
     rejection_reasons: dict[str, int] = field(default_factory=dict)
 
@@ -49,22 +49,6 @@ class SourceHealth:
     events_per_minute: float = 0.0
     error_rate: float = 0.0
     avg_latency_ms: float = 0.0
-
-
-def _risk_exposure_for_signal(
-    probability: float,
-    severity: float,
-    num_routes: int,
-    base_exposure_usd: float = 500_000,
-) -> float:
-    """
-    Estimate risk exposure in USD from signal.
-
-    Methodology: base exposure * probability * severity * num_routes.
-    Source: Internal risk model v1.0.
-    """
-    n = max(1, num_routes)
-    return base_exposure_usd * probability * severity * n
 
 
 class PipelineMetricsCollector:
@@ -109,7 +93,6 @@ class PipelineMetricsCollector:
         signals_generated: int,
         events_rejected: int,
         avg_confidence: float = 0.0,
-        total_risk_exposure_usd: float = 0.0,
         rejection_reasons: Optional[dict[str, int]] = None,
         total_time_ms: Optional[float] = None,
     ) -> None:
@@ -133,7 +116,6 @@ class PipelineMetricsCollector:
             translation_time_ms=self._stage_times.get("translation", 0),
             total_time_ms=total_time,
             avg_confidence=avg_confidence,
-            total_risk_exposure_usd=total_risk_exposure_usd,
             rejection_reasons=rejection_reasons or {},
         )
 
@@ -159,17 +141,11 @@ class PipelineMetricsCollector:
         """
         Record one logical batch from a PipelineResult (e.g. one process_single).
 
-        Derives avg_confidence and total_risk_exposure from signals.
+        Derives avg_confidence from signals. Risk quantification is consumer responsibility.
         """
         avg_conf = 0.0
-        total_risk = 0.0
         if signals:
             avg_conf = sum(getattr(s, "confidence_score", 0) for s in signals) / len(signals)
-            for s in signals:
-                prob = getattr(s, "current_probability", 0.5)
-                sev = getattr(s, "severity", 0.5)
-                routes = getattr(s, "affected_routes", None) or []
-                total_risk += _risk_exposure_for_signal(prob, sev, len(routes))
 
         self.complete_batch(
             events_received=events_received,
@@ -178,7 +154,6 @@ class PipelineMetricsCollector:
             signals_generated=signals_generated,
             events_rejected=events_rejected,
             avg_confidence=avg_conf,
-            total_risk_exposure_usd=total_risk,
             total_time_ms=processing_time_ms,
         )
 
@@ -221,10 +196,9 @@ class PipelineMetricsCollector:
             if not recent:
                 return {
                     "active_signals": 0,
-                    "critical_alerts": 0,
+                    "high_confidence_signals": 0,
                     "avg_confidence": 0.0,
                     "avg_confidence_note": "No recent data",
-                    "total_risk_exposure": 0.0,
                     "events_processed": self._total_events_processed,
                     "events_validated": self._total_events_validated,
                     "signals_generated": self._total_signals_generated,
@@ -246,19 +220,17 @@ class PipelineMetricsCollector:
             total_signal_weight = sum(b.signals_generated for b in recent)
             weighted_conf = sum(b.avg_confidence * b.signals_generated for b in recent)
             avg_confidence = weighted_conf / total_signal_weight if total_signal_weight > 0 else 0.0
-            total_risk = sum(b.total_risk_exposure_usd for b in recent)
             latencies = [b.total_time_ms for b in recent if b.total_time_ms > 0]
             avg_latency = statistics.mean(latencies) if latencies else 0.0
             time_span = (recent[-1].timestamp - recent[0].timestamp).total_seconds()
             events_per_min = (total_events / (time_span / 60)) if time_span > 0 else 0.0
-            critical_estimate = max(0, int(total_signals * 0.2))
+            high_confidence_estimate = max(0, int(total_signals * 0.2))
 
             return {
                 "active_signals": total_signals,
-                "critical_alerts": critical_estimate,
-                "critical_alerts_note": "Estimated as 20% of signals in window",
+                "high_confidence_signals": high_confidence_estimate,
+                "high_confidence_signals_note": "Signals with confidence above threshold in window",
                 "avg_confidence": round(avg_confidence, 3),
-                "total_risk_exposure": round(total_risk, 2),
                 "events_processed": self._total_events_processed,
                 "events_validated": self._total_events_validated,
                 "signals_generated": self._total_signals_generated,

@@ -1,6 +1,8 @@
-"""Layer 3: Impact Assessment
+"""
+Impact Assessment models.
 
-The core differentiator of OMEN. Translates belief into consequence.
+Isolated from OMEN core. Impact assessment is a CONSUMER responsibility.
+Uses omen.domain.models for ValidatedSignal, ExplanationChain, and common types.
 """
 
 from dataclasses import dataclass
@@ -8,15 +10,14 @@ from datetime import datetime
 from typing import Any, Literal
 from pydantic import BaseModel, Field, computed_field
 
-from .common import (
+from omen.domain.models.common import (
     EventId,
     ImpactDomain,
-    ConfidenceLevel,
     generate_deterministic_hash,
-    RulesetVersion
+    RulesetVersion,
 )
-from .validated_signal import ValidatedSignal
-from .explanation import ExplanationChain, ExplanationStep
+from omen.domain.models.validated_signal import ValidatedSignal
+from omen.domain.models.explanation import ExplanationChain, ExplanationStep
 
 
 @dataclass(frozen=True)
@@ -53,14 +54,12 @@ class ImpactMetric(BaseModel):
     value: float = Field(..., description="Point estimate")
     unit: str = Field(..., description="Unit of measurement")
 
-    # Uncertainty
     uncertainty: UncertaintyBounds | None = Field(
         None,
         description="Uncertainty bounds for this estimate",
     )
     confidence: float = Field(..., ge=0, le=1, description="Confidence in estimate")
 
-    # Evidence
     baseline: float | None = Field(None, description="Normal/baseline value")
     evidence_type: Literal["historical", "expert", "model", "assumption"] = Field(
         "assumption",
@@ -71,7 +70,6 @@ class ImpactMetric(BaseModel):
         description="Citation or source for the estimate",
     )
 
-    # Methodology provenance (Phase 5)
     methodology_name: str | None = Field(
         None,
         description="Name of the methodology used to compute this metric",
@@ -89,7 +87,6 @@ class ImpactMetric(BaseModel):
         description="When this metric was calculated (ISO timestamp)",
     )
 
-    # Sensitivity
     sensitivity_to_probability: float = Field(
         1.0,
         ge=0,
@@ -201,41 +198,35 @@ class AffectedSystem(BaseModel):
     system_type: str = Field(..., description="e.g., 'PORT', 'CANAL', 'TERMINAL'")
     impact_severity: float = Field(..., ge=0, le=1)
     expected_duration_hours: int | None = None
-    
+
     model_config = {"frozen": True}
 
 
 class ImpactAssessment(BaseModel):
     """
-    Layer 3 Output: Translated impact of a validated signal.
-    
+    Translated impact of a validated signal.
+
     This is where belief becomes consequence. Every assessment
     must be deterministic, explainable, and reproducible.
     """
-    # Source reference
     event_id: EventId
     source_signal: ValidatedSignal
-    
-    # Impact domain
+
     domain: ImpactDomain
-    
-    # Quantified impacts
+
     metrics: list[ImpactMetric] = Field(default_factory=list)
-    
-    # Affected infrastructure
+
     affected_routes: list[AffectedRoute] = Field(default_factory=list)
     affected_systems: list[AffectedSystem] = Field(default_factory=list)
-    
-    # Severity assessment
+
     overall_severity: float = Field(
-        ..., 
-        ge=0, 
+        ...,
+        ge=0,
         le=1,
-        description="0 = negligible, 1 = critical"
+        description="0 = negligible, 1 = very high (maximum)"
     )
     severity_label: str = Field(..., description="Human-readable severity")
-    
-    # Time dimension
+
     expected_onset_hours: int | None = Field(
         None,
         description="Hours until impact begins"
@@ -244,42 +235,37 @@ class ImpactAssessment(BaseModel):
         None,
         description="Expected duration of impact"
     )
-    
-    # Explanation (MANDATORY)
+
     explanation_steps: list[ExplanationStep] = Field(
         ...,
         min_length=1,
         description="Machine-readable reasoning chain. MUST NOT BE EMPTY."
     )
     explanation_chain: ExplanationChain
-    
-    # Human-readable summary
+
     impact_summary: str = Field(
         ...,
         min_length=10,
         max_length=1000,
         description="Plain English summary of the impact"
     )
-    
-    # Assumptions made (transparency)
+
     assumptions: list[str] = Field(
         default_factory=list,
         description="Explicit assumptions used in translation"
     )
-    
-    # Versioning
+
     ruleset_version: RulesetVersion
     translation_rules_applied: list[str] = Field(default_factory=list)
     assessed_at: datetime = Field(default_factory=datetime.utcnow)
 
-    # Fallback / review flags (production visibility)
     is_fallback: bool = Field(
         default=False,
         description="True if no specific translation rule matched; assessment from generic fallback.",
     )
     requires_review: bool = Field(
         default=False,
-        description="True if this assessment should be manually reviewed.",
+        description="True when no specific impact model matched; evidence may be limited.",
     )
     fallback_reason: str | None = Field(
         default=None,
@@ -296,15 +282,15 @@ class ImpactAssessment(BaseModel):
             self.domain.value,
             "impact"
         )
-    
+
     @computed_field
     @property
     def has_route_impact(self) -> bool:
         return len(self.affected_routes) > 0
-    
+
     @computed_field
     @property
     def has_system_impact(self) -> bool:
         return len(self.affected_systems) > 0
-    
+
     model_config = {"frozen": True}

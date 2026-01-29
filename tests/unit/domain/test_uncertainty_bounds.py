@@ -2,7 +2,7 @@
 
 import pytest
 
-from omen.domain.models.impact_assessment import (
+from omen_impact.assessment import (
     UncertaintyBounds,
     ImpactMetric,
     create_transit_time_metric,

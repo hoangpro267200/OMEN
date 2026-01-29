@@ -9,17 +9,17 @@ from omen.domain.models.raw_signal import RawSignalEvent, MarketMetadata
 from omen.domain.models.validated_signal import ValidatedSignal, ValidationResult
 from omen.domain.models.context import ProcessingContext
 from omen.domain.models.explanation import ExplanationChain, ExplanationStep
-from omen.domain.models.impact_assessment import (
-    ImpactAssessment,
-    ImpactMetric,
-    UncertaintyBounds,
-)
 from omen.domain.models.common import (
     ImpactDomain,
     ValidationStatus,
     SignalCategory,
 )
-from omen.domain.services.cascading_impact import (
+from omen_impact.assessment import (
+    ImpactAssessment,
+    ImpactMetric,
+    UncertaintyBounds,
+)
+from omen_impact.cascading_impact import (
     CascadingImpactAnalyzer,
     CascadeRule,
     LOGISTICS_CASCADE_RULES,

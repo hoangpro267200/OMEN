@@ -1,283 +1,509 @@
-"""Layer 4: OMEN_SIGNAL
+"""
+OMEN Signal: Structured Intelligence Output
 
-The final, decision-grade output of OMEN.
-This object is safe for downstream consumption.
+The canonical output of the OMEN Signal Intelligence Engine.
+Contains probability assessment, confidence measurement, and contextual
+information.
+
+This signal is:
+- Reproducible (deterministic trace)
+- Auditable (full evidence chain)
+- Context-rich (geographic, temporal)
+
+This signal does NOT contain:
+- Impact assessment
+- Decision steering
+- Recommendations
+
+Downstream consumers are responsible for translating signals into
+domain-specific impact and decisions.
 """
 
-from datetime import datetime
-from pydantic import BaseModel, Field, computed_field
+from __future__ import annotations
 
-from .common import (
-    EventId,
-    SignalCategory,
-    ImpactDomain,
-    ConfidenceLevel,
-    generate_deterministic_hash,
-    RulesetVersion
-)
-from .impact_assessment import (
-    ImpactAssessment, 
-    ImpactMetric, 
-    AffectedRoute, 
-    AffectedSystem
-)
-from .explanation import ExplanationChain
+import hashlib
+import logging
+import re
+from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING, Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+if TYPE_CHECKING:
+    from .validated_signal import ValidatedSignal
+
+from .enums import SignalType, SignalStatus
+from .impact_hints import ImpactHints
+from ..services.signal_classifier import SignalClassifier
+
+logger = logging.getLogger(__name__)
+
+# Module-level classifier instance
+_classifier = SignalClassifier()
+
+
+def _generate_deterministic_trace_id(
+    event_id: str,
+    input_event_hash: Optional[str],
+    ruleset_version: str,
+) -> str:
+    """
+    Generate a reproducible trace_id from input components.
+
+    Same inputs always produce the same trace_id, enabling:
+    - Reproducibility audits
+    - Idempotent reprocessing
+    - Deterministic testing
+
+    Args:
+        event_id: Source event identifier
+        input_event_hash: Hash of raw input data (if available)
+        ruleset_version: Version of rules applied
+
+    Returns:
+        16-character hex string derived from SHA-256
+    """
+    hash_input = input_event_hash if input_event_hash else "no_hash"
+    components = f"{event_id}|{hash_input}|{ruleset_version}"
+    full_hash = hashlib.sha256(components.encode("utf-8")).hexdigest()
+    return full_hash[:16]
+
+
+def _validate_temporal_consistency(title: str, resolution_date: Optional[datetime]) -> None:
+    """
+    Log a warning if the year mentioned in the title does not match the
+    market resolution_date year.
+
+    This is a data-quality check only and does NOT affect processing.
+    """
+    if not resolution_date or not title:
+        return
+
+    match = re.search(r"\b(20\d{2})\b", title)
+    if not match:
+        return
+
+    title_year = int(match.group(1))
+    horizon_year = resolution_date.year
+    if title_year != horizon_year:
+        logger.warning(
+            "Temporal inconsistency detected: title year %s, resolution_date year %s. "
+            "Title: %r",
+            title_year,
+            horizon_year,
+            title[:80],
+        )
+
+
+class ConfidenceLevel(str, Enum):
+    """Signal confidence level."""
+    HIGH = "HIGH"       # >=0.75 — Strong validation scores
+    MEDIUM = "MEDIUM"   # 0.50–0.75 — Moderate validation
+    LOW = "LOW"         # <0.50 — Weak validation
+
+    @classmethod
+    def from_score(cls, score: float) -> "ConfidenceLevel":
+        if score >= 0.75:
+            return cls.HIGH
+        if score >= 0.50:
+            return cls.MEDIUM
+        return cls.LOW
+
+
+class SignalCategory(str, Enum):
+    """Category of the signal for routing/filtering."""
+    GEOPOLITICAL = "GEOPOLITICAL"
+    INFRASTRUCTURE = "INFRASTRUCTURE"
+    WEATHER = "WEATHER"
+    ECONOMIC = "ECONOMIC"
+    REGULATORY = "REGULATORY"
+    SECURITY = "SECURITY"
+    OTHER = "OTHER"
+
+
+class GeographicContext(BaseModel):
+    """Geographic context of the signal."""
+    regions: list[str] = Field(
+        default_factory=list,
+        description="Regions mentioned or implied (e.g., 'Red Sea', 'Asia', 'Europe')",
+    )
+    chokepoints: list[str] = Field(
+        default_factory=list,
+        description="Maritime chokepoints referenced (e.g., 'suez', 'panama', 'hormuz')",
+    )
+    coordinates: Optional[dict] = Field(
+        default=None,
+        description="Primary coordinate if determinable: {lat, lng}",
+    )
+
+
+class TemporalContext(BaseModel):
+    """Temporal context of the signal."""
+    event_horizon: Optional[str] = Field(
+        default=None,
+        description="When the event might occur (e.g., '2026-06-30', 'Q2 2026')",
+    )
+    resolution_date: Optional[datetime] = Field(
+        default=None,
+        description="When the market resolves (from source)",
+    )
+    signal_freshness: str = Field(
+        default="current",
+        description="How fresh this signal is: 'current', 'recent', 'stale'",
+    )
+
+
+class UncertaintyBounds(BaseModel):
+    """Uncertainty bounds for a value."""
+    lower: float
+    upper: float
+    confidence_interval: str = Field(
+        default="70%",
+        description="Confidence interval these bounds represent",
+    )
+
+
+class EvidenceItem(BaseModel):
+    """Single piece of evidence supporting the signal."""
+    source: str = Field(description="Source name (e.g., 'Polymarket', 'Drewry')")
+    source_type: str = Field(description="Type: 'market', 'research', 'news', 'internal'")
+    value: Optional[str] = Field(default=None, description="The evidence value/quote")
+    url: Optional[str] = Field(default=None, description="Link to source")
+    observed_at: Optional[datetime] = Field(default=None)
+
+
+class ValidationScore(BaseModel):
+    """Score from a validation rule."""
+    rule_name: str
+    rule_version: str
+    score: float = Field(ge=0, le=1)
+    reasoning: str
 
 
 class OmenSignal(BaseModel):
     """
-    Layer 4 Output: The final OMEN intelligence artifact.
-    
-    This is the contract between OMEN and downstream consumers.
-    
-    NON-NEGOTIABLE PROPERTIES:
-    - Structured
-    - Explainable
-    - Timestamped
-    - Reproducible given same inputs
-    - Contains no hidden logic
-    
-    If a signal cannot meet these criteria, it MUST NOT be emitted.
+    Structured intelligence output (probability, confidence, context).
+
+    This is a signal, not a decision or recommendation.
+    Downstream consumers use it for their own impact and decisions.
     """
-    # === IDENTITY ===
-    signal_id: str = Field(..., description="Unique OMEN signal identifier")
-    event_id: EventId = Field(..., description="Source event identifier")
-    
+
+    # === IDENTIFICATION ===
+    signal_id: str = Field(
+        description="Unique signal identifier (e.g., 'OMEN-RS2024-001')",
+    )
+    source_event_id: str = Field(
+        description="Original event ID from source (e.g., Polymarket market ID)",
+    )
+    input_event_hash: Optional[str] = Field(
+        default=None,
+        description="Hash of the input RawSignalEvent, for idempotency and repository indexing.",
+    )
+
     # === CLASSIFICATION ===
-    category: SignalCategory
-    subcategory: str | None = None
-    domain: ImpactDomain
-    
-    # === PROBABILITY & MOMENTUM ===
-    current_probability: float = Field(..., ge=0, le=1)
-    probability_momentum: str = Field(
-        ..., 
-        description="INCREASING / DECREASING / STABLE"
+    signal_type: SignalType = Field(
+        default=SignalType.UNCLASSIFIED,
+        description="Signal category. Classification, not impact.",
     )
-    probability_change_24h: float | None = Field(
-        None, 
-        ge=-1, 
+
+    # === LIFECYCLE ===
+    status: SignalStatus = Field(
+        default=SignalStatus.ACTIVE,
+        description="Lifecycle state. Operational, not decision.",
+    )
+
+    # === ROUTING HINTS ===
+    impact_hints: ImpactHints = Field(
+        default_factory=ImpactHints,
+        description="Routing metadata. NOT impact assessment.",
+    )
+
+    # === CORE SIGNAL DATA ===
+    title: str = Field(
+        description="Human-readable title of the event/signal",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Extended description if available",
+    )
+
+    # === PROBABILITY (from source market) ===
+    probability: float = Field(
+        ge=0,
         le=1,
-        description="Change in probability over last 24 hours"
+        description="Probability from source market (0-1). "
+        "This is market-derived, not OMEN-computed.",
     )
-    probability_is_fallback: bool = Field(
+    probability_source: str = Field(
+        default="polymarket",
+        description="Source of probability data",
+    )
+    probability_is_estimate: bool = Field(
         default=False,
-        description="True if probability came from fallback (e.g. 0.5) when market data was missing.",
+        description="True if probability is estimated/fallback, not from live market",
     )
-    
-    # === CONFIDENCE (EXPLICIT, NOT IMPLIED) ===
-    confidence_level: ConfidenceLevel
-    confidence_score: float = Field(..., ge=0, le=1)
+
+    # === CONFIDENCE (OMEN-computed) ===
+    confidence_score: float = Field(
+        ge=0,
+        le=1,
+        description="OMEN's confidence in signal quality (0-1). "
+        "Based on liquidity, source reliability, validation scores.",
+    )
+    confidence_method: str = Field(
+        default="weighted_factors_v1",
+        description="Method used to calculate confidence_score",
+    )
+    confidence_level: ConfidenceLevel = Field(
+        description="Categorical confidence: HIGH, MEDIUM, LOW",
+    )
     confidence_factors: dict[str, float] = Field(
         default_factory=dict,
-        description="Breakdown of confidence contributors"
-    )
-    
-    # === IMPACT SUMMARY ===
-    severity: float = Field(..., ge=0, le=1)
-    severity_label: str
-    key_metrics: list[ImpactMetric] = Field(default_factory=list)
-    
-    # === AFFECTED INFRASTRUCTURE ===
-    affected_routes: list[AffectedRoute] = Field(default_factory=list)
-    affected_systems: list[AffectedSystem] = Field(default_factory=list)
-    affected_regions: list[str] = Field(default_factory=list)
-    
-    # === TIMING ===
-    expected_onset_hours: int | None = None
-    expected_duration_hours: int | None = None
-    
-    # === HUMAN-READABLE EXPLANATION ===
-    title: str = Field(..., description="Signal title for display")
-    summary: str = Field(
-        ..., 
-        min_length=10,
-        max_length=500,
-        description="Executive summary of the signal"
-    )
-    detailed_explanation: str = Field(
-        ...,
-        min_length=10,
-        max_length=2000,
-        description="Full explanation of reasoning"
-    )
-    
-    # === FULL EXPLANATION CHAIN (MACHINE-READABLE) ===
-    explanation_chain: ExplanationChain
-    
-    # === REPRODUCIBILITY CONTRACT ===
-    input_event_hash: str = Field(
-        ..., 
-        description="Hash of the input RawSignalEvent"
-    )
-    ruleset_version: RulesetVersion = Field(
-        ..., 
-        description="Version of rules used to generate this signal"
-    )
-    deterministic_trace_id: str = Field(
-        ..., 
-        description="Reproducible trace ID"
-    )
-    
-    # === METADATA ===
-    source_market: str = Field(..., description="Original market source")
-    market_url: str | None = None
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
-    market_token_id: str | None = Field(
-        default=None,
-        description="Market/condition token ID for real-time price tracking via WebSocket.",
-    )
-    clob_token_ids: list[str] | None = Field(
-        default=None,
-        description="CLOB token IDs for orderbook-based price updates.",
+        description="Breakdown of confidence by factor: "
+        "{liquidity: 0.8, geographic: 0.9, source_reliability: 0.85}",
     )
 
-    # === INTERNAL REFERENCES (for debugging, excluded from API) ===
-    _source_assessment: ImpactAssessment | None = None
-    
-    @computed_field
-    @property
-    def is_actionable(self) -> bool:
-        """
-        A signal is actionable if it has:
-        - HIGH or MEDIUM confidence
-        - At least one affected route or system
-        - Non-negligible severity
-        """
-        return (
-            self.confidence_level in (ConfidenceLevel.HIGH, ConfidenceLevel.MEDIUM)
-            and (len(self.affected_routes) > 0 or len(self.affected_systems) > 0)
-            and self.severity >= 0.3
-        )
-    
-    @computed_field
-    @property
-    def urgency(self) -> str:
-        """Derived urgency level based on onset timing and severity."""
-        if self.expected_onset_hours is None:
-            return "UNKNOWN"
-        if self.expected_onset_hours <= 24 and self.severity >= 0.7:
-            return "CRITICAL"
-        if self.expected_onset_hours <= 72 and self.severity >= 0.5:
-            return "HIGH"
-        if self.expected_onset_hours <= 168:  # 1 week
-            return "MEDIUM"
-        return "LOW"
-    
+    # === UNCERTAINTY ===
+    probability_uncertainty: Optional[UncertaintyBounds] = Field(
+        default=None,
+        description="Uncertainty bounds on probability if calculable",
+    )
+
+    # === CATEGORIZATION ===
+    category: SignalCategory = Field(
+        description="Primary category of this signal",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Additional tags for filtering (e.g., ['shipping', 'conflict', 'oil'])",
+    )
+    keywords_matched: list[str] = Field(
+        default_factory=list,
+        description="Logistics keywords found in this signal",
+    )
+
+    # === GEOGRAPHIC CONTEXT ===
+    geographic: GeographicContext = Field(
+        default_factory=GeographicContext,
+        description="Geographic context: regions, chokepoints, coordinates",
+    )
+
+    # === TEMPORAL CONTEXT ===
+    temporal: TemporalContext = Field(
+        default_factory=TemporalContext,
+        description="Temporal context: event horizon, resolution date",
+    )
+
+    # === EVIDENCE & TRACEABILITY ===
+    evidence: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="Evidence items supporting this signal",
+    )
+    validation_scores: list[ValidationScore] = Field(
+        default_factory=list,
+        description="Scores from each validation rule",
+    )
+
+    # === TRACEABILITY ===
+    trace_id: str = Field(
+        description="Deterministic trace ID for reproducibility",
+    )
+    ruleset_version: str = Field(
+        default="1.0.0",
+        description="Version of validation/processing rules used",
+    )
+
+    # === METADATA ===
+    source_url: Optional[str] = Field(
+        default=None,
+        description="URL to the source market/event",
+    )
+    observed_at: Optional[datetime] = Field(
+        default=None,
+        description="When source data was observed (from source system)",
+    )
+    generated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="When this signal was generated",
+    )
+
+    # === VALIDATION HELPERS ===
+    @field_validator("confidence_score", mode="after")
     @classmethod
-    def from_impact_assessment(
+    def _round_confidence(cls, v: float) -> float:
+        """Round confidence score to 4 decimal places for stability."""
+        return round(v, 4)
+
+    @classmethod
+    def from_validated_event(
         cls,
-        assessment: ImpactAssessment,
-        ruleset_version: RulesetVersion,
-        generated_at: datetime | None = None,
+        validated_signal: "ValidatedSignal",
+        enrichment: dict,
     ) -> "OmenSignal":
         """
-        Factory method to construct OmenSignal from ImpactAssessment.
+        Create an OmenSignal from a validated event and enrichment context.
 
-        This ensures consistent transformation from Layer 3 to Layer 4.
-        Pass generated_at for deterministic replay (e.g. from ProcessingContext).
+        NOTE: This creates a SIGNAL only. No impact calculations.
+        Impact assessment is the responsibility of downstream systems.
         """
-        source = assessment.source_signal
-        original = source.original_event
+        from .validated_signal import ValidatedSignal, ValidationResult
 
-        # Build confidence factors from validation results (real scores, no synthesis)
-        confidence_factors: dict[str, float] = {
-            "signal_strength": source.signal_strength,
-            "liquidity_score": source.liquidity_score,
-            "validation_score": source.overall_validation_score,
-        }
-        for r in source.validation_results:
-            if r.rule_name == "liquidity_validation":
-                confidence_factors["liquidity_score"] = r.score
-            elif r.rule_name == "geographic_relevance":
-                confidence_factors["geographic_score"] = r.score
-            elif r.rule_name == "semantic_relevance":
-                confidence_factors["semantic_score"] = r.score
-            elif r.rule_name == "anomaly_detection":
-                confidence_factors["anomaly_score"] = r.score
-        confidence_factors.setdefault("source_reliability_score", 0.85)
-        confidence_score = (
-            confidence_factors["signal_strength"]
-            + confidence_factors["liquidity_score"]
-            + confidence_factors["validation_score"]
-        ) / 3
+        event = validated_signal.original_event
+        res_date = event.market.resolution_date
 
-        # Determine momentum
-        momentum = "STABLE"
-        prob_change = None
-        if original.movement:
-            momentum = original.movement.direction
-            prob_change = original.movement.delta
+        # Data-quality only: log if title year and resolution year diverge.
+        _validate_temporal_consistency(event.title, res_date)
 
-        # Build trace ID
-        trace_id = generate_deterministic_hash(
-            original.input_event_hash,
-            ruleset_version,
-            assessment.domain.value,
-            "omen_signal",
+        regions = enrichment.get("matched_regions", [])
+        chokepoints = enrichment.get("matched_chokepoints", [])
+        if not chokepoints and getattr(validated_signal, "affected_chokepoints", None):
+            chokepoints = [cp.lower().replace(" ", "-") for cp in validated_signal.affected_chokepoints]
+        geographic = GeographicContext(regions=regions, chokepoints=chokepoints)
+
+        temporal = TemporalContext(
+            event_horizon=res_date.isoformat() if res_date else None,
+            resolution_date=res_date,
         )
 
-        gen_at = generated_at if generated_at is not None else datetime.utcnow()
+        factors = dict(enrichment.get("confidence_factors", {}))
+        if not factors:
+            factors = {
+                "liquidity": getattr(validated_signal, "liquidity_score", 0.5),
+                "geographic": 0.5,
+                "source_reliability": 0.85,
+            }
+            for r in getattr(validated_signal, "validation_results", []) or []:
+                if r.rule_name == "liquidity_validation":
+                    factors["liquidity"] = r.score
+                elif r.rule_name == "geographic_relevance":
+                    factors["geographic"] = r.score
+            factors.setdefault("liquidity", validated_signal.liquidity_score)
+            factors.setdefault("geographic", 0.5)
+        confidence_score = sum(factors.values()) / len(factors) if factors else 0.5
+
+        keyword_cats = enrichment.get("keyword_categories", {})
+        category = cls._infer_category(keyword_cats)
+        if category == SignalCategory.OTHER:
+            category = cls._map_validated_category(
+                getattr(validated_signal, "category", None),
+            )
+
+        val_results: list[ValidationResult] = enrichment.get(
+            "validation_results",
+            getattr(validated_signal, "validation_results", []) or [],
+        )
+        validation_scores = [
+            ValidationScore(
+                rule_name=r.rule_name,
+                rule_version=r.rule_version,
+                score=r.score,
+                reasoning=r.reason,
+            )
+            for r in val_results
+        ]
+
+        evidence = [
+            EvidenceItem(
+                source=event.market.source,
+                source_type="market",
+                url=event.market.market_url,
+                observed_at=event.observed_at,
+            )
+        ]
+
+        tags = (enrichment.get("matched_keywords") or [])[:10]
+        keywords_matched = list(enrichment.get("matched_keywords") or [])
+        ruleset = getattr(validated_signal, "ruleset_version", "1.0.0")
+        if hasattr(ruleset, "value"):
+            ruleset = str(ruleset) if not isinstance(ruleset, str) else ruleset
+        ruleset_str = ruleset if isinstance(ruleset, str) else "1.0.0"
+        input_event_hash = getattr(event, "input_event_hash", None)
+
+        trace_id = getattr(validated_signal, "deterministic_trace_id", None)
+        if not trace_id:
+            trace_id = _generate_deterministic_trace_id(
+                event_id=str(event.event_id),
+                input_event_hash=input_event_hash,
+                ruleset_version=ruleset_str,
+            )
+
+        # === CLASSIFICATION ===
+        signal_type, impact_hints = _classifier.classify(
+            title=event.title,
+            description=event.description,
+        )
+
+        # === STATUS: Determine from confidence ===
+        if confidence_score >= 0.7:
+            status = SignalStatus.ACTIVE
+        elif confidence_score >= 0.5:
+            status = SignalStatus.MONITORING
+        elif confidence_score >= 0.3:
+            status = SignalStatus.CANDIDATE
+        else:
+            status = SignalStatus.DEGRADED
 
         return cls(
             signal_id=f"OMEN-{trace_id[:12].upper()}",
-            event_id=original.event_id,
-            category=source.category,
-            subcategory=source.subcategory,
-            domain=assessment.domain,
-            current_probability=original.probability,
-            probability_momentum=momentum,
-            probability_change_24h=prob_change,
-            probability_is_fallback=getattr(original, "probability_is_fallback", False),
-            confidence_level=ConfidenceLevel.from_score(confidence_score),
+            source_event_id=str(event.event_id),
+            input_event_hash=input_event_hash,
+            title=event.title,
+            description=event.description,
+            probability=event.probability,
+            probability_source=event.market.source,
+            probability_is_estimate=getattr(event, "probability_is_fallback", False),
             confidence_score=confidence_score,
-            confidence_factors=confidence_factors,
-            severity=assessment.overall_severity,
-            severity_label=assessment.severity_label,
-            key_metrics=assessment.metrics,
-            affected_routes=assessment.affected_routes,
-            affected_systems=assessment.affected_systems,
-            affected_regions=list(set(
-                r.origin_region for r in assessment.affected_routes
-            ) | set(
-                r.destination_region for r in assessment.affected_routes
-            )),
-            expected_onset_hours=assessment.expected_onset_hours,
-            expected_duration_hours=assessment.expected_duration_hours,
-            title=original.title,
-            summary=assessment.impact_summary,
-            detailed_explanation=_build_detailed_explanation(assessment),
-            explanation_chain=assessment.explanation_chain,
-            input_event_hash=original.input_event_hash,
-            ruleset_version=ruleset_version,
-            deterministic_trace_id=trace_id,
-            source_market=original.market.source,
-            market_url=original.market.market_url,
-            generated_at=gen_at,
-            market_token_id=(
-                original.market.condition_token_id
-                or (original.market.clob_token_ids[0] if original.market.clob_token_ids else None)
-            ),
-            clob_token_ids=original.market.clob_token_ids,
-            _source_assessment=assessment,
+            confidence_level=ConfidenceLevel.from_score(confidence_score),
+            confidence_factors=factors,
+            category=category,
+            tags=tags,
+            keywords_matched=keywords_matched,
+            geographic=geographic,
+            temporal=temporal,
+            evidence=evidence,
+            validation_scores=validation_scores,
+            trace_id=trace_id,
+            ruleset_version=ruleset,
+            source_url=event.market.market_url,
+            observed_at=getattr(event, "observed_at", None),
+            generated_at=getattr(validated_signal, "validated_at", datetime.utcnow()),
+            # === NEW FIELDS ===
+            signal_type=signal_type,
+            status=status,
+            impact_hints=impact_hints,
         )
-    
-    model_config = {"frozen": True}
 
+    @staticmethod
+    def _infer_category(keyword_categories: dict) -> SignalCategory:
+        """Infer primary category from matched keyword categories."""
+        relevance_order = [
+            ("geopolitical", SignalCategory.GEOPOLITICAL),
+            ("security", SignalCategory.SECURITY),
+            ("weather", SignalCategory.WEATHER),
+            ("infrastructure", SignalCategory.INFRASTRUCTURE),
+            ("economic", SignalCategory.ECONOMIC),
+            ("regulatory", SignalCategory.REGULATORY),
+        ]
+        for key, cat in relevance_order:
+            if key in keyword_categories and keyword_categories[key]:
+                return cat
+        return SignalCategory.OTHER
 
-def _build_detailed_explanation(assessment: ImpactAssessment) -> str:
-    """Build detailed explanation from assessment data."""
-    lines = [assessment.impact_summary, ""]
-    
-    if assessment.assumptions:
-        lines.append("Assumptions:")
-        for assumption in assessment.assumptions:
-            lines.append(f"  • {assumption}")
-        lines.append("")
-    
-    if assessment.explanation_steps:
-        lines.append("Reasoning chain:")
-        for step in assessment.explanation_steps:
-            lines.append(f"  {step.step_id}. {step.rule_name}: {step.reasoning}")
-    
-    return "\n".join(lines)
+    @staticmethod
+    def _map_validated_category(common_category: object) -> SignalCategory:
+        """Map common.SignalCategory to SignalCategory."""
+        from .common import SignalCategory as CommonCategory
+
+        if common_category is None:
+            return SignalCategory.OTHER
+        m = {
+            CommonCategory.GEOPOLITICAL: SignalCategory.GEOPOLITICAL,
+            CommonCategory.INFRASTRUCTURE: SignalCategory.INFRASTRUCTURE,
+            CommonCategory.CLIMATE: SignalCategory.WEATHER,
+            CommonCategory.ECONOMIC: SignalCategory.ECONOMIC,
+            CommonCategory.REGULATORY: SignalCategory.REGULATORY,
+            CommonCategory.LABOR: SignalCategory.OTHER,
+            CommonCategory.UNKNOWN: SignalCategory.OTHER,
+        }
+        return m.get(common_category, SignalCategory.OTHER)

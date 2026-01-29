@@ -13,11 +13,8 @@ import pytest
 from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.domain.models.common import EventId, ImpactDomain, RulesetVersion
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import (
-    RedSeaDisruptionRule,
-)
 from omen.domain.errors import (
     ValidationRuleError,
     TranslationRuleError,
@@ -37,7 +34,7 @@ def pipeline_with_dlq():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
         dead_letter_queue=dlq,
@@ -59,7 +56,7 @@ def dry_run_pipeline():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=repo,
         publisher=pub,
         config=PipelineConfig(
@@ -77,7 +74,7 @@ def pipeline_high_threshold():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
         config=PipelineConfig(
@@ -95,7 +92,7 @@ def pipeline_low_threshold():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
         config=PipelineConfig(
@@ -113,7 +110,7 @@ def pipeline_no_rules():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[]),
+        enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
         config=PipelineConfig(
@@ -130,7 +127,7 @@ def pipeline_wrong_domain():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
         config=PipelineConfig(
@@ -159,19 +156,13 @@ class TestErrorHandling:
         assert entry.event.event_id == high_quality_event.event_id
         assert "rule blew up" in entry.error.message or "test_rule" in entry.error.message
 
-    def test_translation_error_adds_to_dlq(
+    def test_enricher_error_adds_to_dlq(
         self, pipeline_with_dlq, high_quality_event
     ) -> None:
-        """TranslationRuleError → event in DLQ."""
+        """Enricher raising → event in DLQ (signal-only path)."""
         pipeline, dlq = pipeline_with_dlq
-        pipeline._validator = SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
-        )
-        pipeline._translator = MagicMock()
-        pipeline._translator.translate = MagicMock(
-            side_effect=TranslationRuleError(
-                "translate failed", rule_name="r", domain="LOGISTICS"
-            )
+        pipeline._enricher.enrich = MagicMock(
+            side_effect=RuntimeError("enrich failed")
         )
         result = pipeline.process_single(high_quality_event)
         assert result.success is False
@@ -201,7 +192,7 @@ class TestErrorHandling:
             validator=SignalValidator(
                 rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
             ),
-            translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+            enricher=SignalEnricher(),
             repository=repo,
             publisher=None,
             config=PipelineConfig(
@@ -225,7 +216,7 @@ class TestErrorHandling:
             validator=SignalValidator(
                 rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
             ),
-            translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+            enricher=SignalEnricher(),
             repository=repo,
             publisher=pub,
             config=PipelineConfig(
@@ -374,22 +365,20 @@ class TestConfidenceFiltering:
 
 
 class TestNoApplicableRules:
-    """Events with no matching rules."""
+    """Signal-only path: validation pass always yields one signal."""
 
-    def test_no_translation_rules_returns_empty(
+    def test_enricher_always_produces_signal_with_rules(
         self, pipeline_no_rules, high_quality_event
     ) -> None:
-        """No translation rules → empty signals, events_no_impact=1."""
+        """Enricher with empty keyword config still produces one signal when validation passes."""
         result = pipeline_no_rules.process_single(high_quality_event)
         assert result.success is True
-        assert len(result.signals) == 0
-        assert result.stats.events_no_impact == 1
+        assert len(result.signals) == 1
 
-    def test_no_matching_domain_returns_empty(
+    def test_signal_only_ignores_target_domain(
         self, pipeline_wrong_domain, high_quality_event
     ) -> None:
-        """Event domain doesn't match any rule → empty signals."""
+        """Target domain is legacy; signal-only path produces one signal when validation passes."""
         result = pipeline_wrong_domain.process_single(high_quality_event)
         assert result.success is True
-        assert len(result.signals) == 0
-        assert result.stats.events_no_impact == 1
+        assert len(result.signals) == 1

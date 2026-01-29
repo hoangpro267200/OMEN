@@ -8,23 +8,23 @@ All calculations reference documented methodologies (Phase 5).
 
 from datetime import datetime
 
-from ....models.common import ImpactDomain, SignalCategory
-from ....models.validated_signal import ValidatedSignal
-from ....models.impact_assessment import (
+from omen.domain.models.common import ImpactDomain, SignalCategory
+from omen.domain.models.validated_signal import ValidatedSignal
+from omen.domain.models.explanation import ExplanationStep
+from omen_impact.assessment import (
     ImpactMetric,
     UncertaintyBounds,
     AffectedRoute,
     AffectedSystem,
 )
-from ....models.explanation import ExplanationStep
-from ....methodology.red_sea_impact import (
+from omen_impact.methodology.red_sea_impact import (
     TRANSIT_TIME_METHODOLOGY,
     FUEL_COST_METHODOLOGY,
     FREIGHT_RATE_METHODOLOGY,
     INSURANCE_METHODOLOGY,
 )
-from ..base import BaseTranslationRule, TranslationResult
-from .parameters import RED_SEA_PARAMS, get_param
+from omen_impact.rules.base import BaseTranslationRule, TranslationResult
+from omen_impact.rules.logistics.parameters import RED_SEA_PARAMS, get_param
 
 
 class RedSeaDisruptionRule(BaseTranslationRule):
@@ -293,7 +293,7 @@ class RedSeaDisruptionRule(BaseTranslationRule):
             f"Based on Clarksons Research (2024), Cape of Good Hope reroute adds {m0.value:.1f} days "
             f"(range: {m0.uncertainty.lower:.1f}-{m0.uncertainty.upper:.1f}). "
             f"Lloyd's List data indicates {m1.value:.1f}% fuel consumption increase. "
-            f"Freightos index suggests {m2.value:.1f}% freight rate pressure "
+            f"Freightos index indicates {m2.value:.1f}% freight rate change "
             f"(high uncertainty: {m2.uncertainty.lower:.1f}-{m2.uncertainty.upper:.1f}% due to market volatility). "
             f"Overall severity: {severity:.0%}."
         )

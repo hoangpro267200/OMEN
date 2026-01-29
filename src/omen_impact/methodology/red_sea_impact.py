@@ -2,11 +2,12 @@
 Complete methodology documentation for Red Sea disruption impact calculations.
 
 Documents all formulas, sources, and parameters (fixes ISSUE-010, onset/duration).
+Lives in omen_impact; uses omen.domain.methodology.base for types.
 """
 
 from datetime import date
 
-from .base import Methodology, SourceCitation, ValidationStatus
+from omen.domain.methodology.base import Methodology, SourceCitation, ValidationStatus
 
 # ==================== SOURCE CITATIONS ====================
 

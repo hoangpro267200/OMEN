@@ -1,22 +1,23 @@
-"""Layer 3 orchestration: Impact translation service."""
+"""Impact translation service. Isolated from OMEN core."""
 
 import logging
 from datetime import datetime
 from typing import List
 
 from omen.domain.models.validated_signal import ValidatedSignal
-from omen.domain.models.impact_assessment import (
+from omen.domain.models.common import ImpactDomain
+from omen.domain.models.context import ProcessingContext
+from omen.domain.models.explanation import ExplanationChain, ExplanationStep
+
+from omen_impact.assessment import (
     ImpactAssessment,
     ImpactMetric,
     AffectedRoute,
     AffectedSystem,
     UncertaintyBounds,
 )
-from omen.domain.models.common import ImpactDomain, RulesetVersion
-from omen.domain.models.context import ProcessingContext
-from omen.domain.models.explanation import ExplanationChain, ExplanationStep
-from omen.domain.rules.translation.base import ImpactTranslationRule, TranslationResult
-from omen.domain.methodology.red_sea_impact import TIMING_METHODOLOGY
+from omen_impact.rules.base import ImpactTranslationRule, TranslationResult
+from omen_impact.methodology.red_sea_impact import TIMING_METHODOLOGY
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ class ImpactTranslator:
         Args:
             rules: List of translation rules to try
             fallback_enabled: If True, when no rule matches for LOGISTICS,
-                return a generic "Potential Warning" assessment.
+                return a generic high-probability indicator assessment.
         """
         self.rules = rules
         self._fallback_enabled = fallback_enabled
@@ -79,7 +80,7 @@ class ImpactTranslator:
         Catches rule errors and continues with other rules.
         Returns None if no rules produced results.
         When fallback_enabled and domain is LOGISTICS, returns a generic
-        "Potential Warning" assessment if no rule matches.
+        generic high-probability indicator assessment if no rule matches.
         """
         applicable_rules = [
             r for r in self.rules
@@ -142,7 +143,7 @@ class ImpactTranslator:
             applied_rule_names.append(rule_name)
 
         if max_severity >= 0.8:
-            severity_label = "CRITICAL"
+            severity_label = "VERY_HIGH"
         elif max_severity >= 0.6:
             severity_label = "HIGH"
         elif max_severity >= 0.4:
@@ -200,7 +201,7 @@ class ImpactTranslator:
         context: ProcessingContext,
     ) -> ImpactAssessment:
         """
-        Create a generic "Potential Warning" assessment when no rule matches.
+        Create a generic high-probability indicator assessment when no rule matches.
 
         Used for LOGISTICS when fallback_enabled and event passed validation
         but no Red Sea / Panama / Strike etc. rule applied.
@@ -254,7 +255,7 @@ class ImpactTranslator:
         reasoning = (
             f"No specific translation rule matched. Generated generic assessment "
             f"based on probability ({prob:.0%}) and logistics relevance. "
-            f"Manual review recommended."
+            f"No specific categorization rule matched; generic classification applied."
         )
         step = ExplanationStep.create(
             step_id=1,
@@ -283,7 +284,7 @@ class ImpactTranslator:
 
         summary = (
             f"Signal indicates {prob:.0%} probability. Generic logistics impact "
-            f"(potential disruption level {val}%). No specific model applied; review recommended."
+            f"(potential disruption level {val}%). No specific model applied; evidence may be limited."
         )
 
         return ImpactAssessment(
@@ -302,7 +303,7 @@ class ImpactTranslator:
             impact_summary=summary,
             assumptions=[
                 "No specific translation rule matched; generic probability-based assessment.",
-                "Manual review recommended for operational decisions.",
+                "Fallback assessment; source data incomplete.",
             ],
             ruleset_version=context.ruleset_version,
             translation_rules_applied=[],

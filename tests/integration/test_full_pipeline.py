@@ -7,20 +7,19 @@ from omen.adapters.outbound.console_publisher import ConsolePublisher
 from omen.adapters.persistence.in_memory_repository import InMemorySignalRepository
 from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import RedSeaDisruptionRule
 
 
 def test_full_pipeline_integration():
     """Test full pipeline with stub source and current components."""
     validator = SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)])
-    translator = ImpactTranslator(rules=[RedSeaDisruptionRule()])
+    enricher = SignalEnricher()
     repository = InMemorySignalRepository()
     publisher = ConsolePublisher()
     pipeline = OmenPipeline(
         validator=validator,
-        translator=translator,
+        enricher=enricher,
         repository=repository,
         publisher=publisher,
         config=PipelineConfig.default(),

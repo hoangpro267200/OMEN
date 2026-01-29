@@ -88,7 +88,7 @@ class TestAPIResponseIntegrity:
     """Test that API responses contain only real data."""
 
     def test_live_process_returns_traceable_data(self, test_client):
-        """Every field in /live/process response should be traceable."""
+        """Every field in /live/process response is pure signal contract (traceable)."""
         response = test_client.post("/api/v1/live/process", params={"limit": 5})
         if response.status_code != 200:
             pytest.skip("API not available or Polymarket unreachable")
@@ -96,27 +96,24 @@ class TestAPIResponseIntegrity:
         for signal in signals:
             assert "probability" in signal
             assert 0 <= signal["probability"] <= 1
-            if signal.get("confidence_breakdown"):
-                breakdown = signal["confidence_breakdown"]
-                for key in ["liquidity", "geographic"]:
-                    assert key in breakdown
-                    assert 0 <= breakdown[key] <= 1
-            for metric in signal.get("metrics", []):
-                if metric.get("value") is not None:
-                    assert "methodology_name" in metric or metric.get("value") is None
-                if metric.get("uncertainty"):
-                    unc = metric["uncertainty"]
-                    assert "lower" in unc and "upper" in unc
-                    assert unc["lower"] <= metric["value"] <= unc["upper"]
-            for route in signal.get("affected_routes", []):
-                if route.get("origin"):
-                    assert "lat" in route["origin"]
-                    assert -90 <= route["origin"]["lat"] <= 90
+            assert "confidence_score" in signal
+            assert 0 <= signal["confidence_score"] <= 1
+            assert "confidence_level" in signal
+            assert "trace_id" in signal
+            assert "signal_id" in signal
+            assert "source_event_id" in signal
+            # No impact fields in pure contract
+            assert "severity" not in signal or signal.get("severity") is None
+            assert "urgency" not in signal or signal.get("urgency") is None
+            assert "is_actionable" not in signal or signal.get("is_actionable") is None
 
     def test_stats_reflect_actual_processing(self, test_client):
-        """Stats endpoint should return actual metrics, not hardcoded."""
+        """Stats endpoint returns signal-quality metrics (no impact fields)."""
         response1 = test_client.get("/api/v1/stats")
         stats1 = response1.json()
+        assert "events_processed" in stats1
+        assert "critical_alerts" not in stats1
+        assert "total_risk_exposure" not in stats1
         initial_processed = stats1["events_processed"]
         test_client.post("/api/v1/live/process", params={"limit": 5})
         response2 = test_client.get("/api/v1/stats")
@@ -142,8 +139,8 @@ class TestMethodologyProvenance:
         if response.status_code != 200:
             pytest.skip("Methodology API not available")
         methodologies = response.json()
-        assert "impact" in methodologies
         assert "validation" in methodologies
+        # Impact methodologies moved to omen_impact (consumer responsibility)
         for category in methodologies.values():
             for method in category:
                 assert "name" in method
@@ -151,16 +148,11 @@ class TestMethodologyProvenance:
                 assert "validation_status" in method
 
     def test_metrics_reference_methodologies(self, test_client):
-        """Impact metrics should reference their methodology when value present."""
+        """Pure contract has no impact metrics; evidence/trace_id satisfy traceability."""
         response = test_client.post("/api/v1/live/process", params={"limit": 3})
         if response.status_code != 200:
             pytest.skip("API not available")
         signals = response.json()
         for signal in signals:
-            for metric in signal.get("metrics", []):
-                if metric.get("value") is None:
-                    continue
-                assert "methodology_name" in metric, (
-                    f"Metric {metric.get('name')} missing methodology"
-                )
-                assert "methodology_version" in metric
+            assert "trace_id" in signal
+            assert "evidence" in signal or "validation_scores" in signal or "confidence_factors" in signal

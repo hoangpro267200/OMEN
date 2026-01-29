@@ -2,6 +2,7 @@ import type { DataSourceInfo } from '../../hooks/useDataSource';
 
 interface DataSourceBannerProps {
   source: DataSourceInfo;
+  onRetry?: () => void;
 }
 
 const STYLES: Record<
@@ -14,7 +15,7 @@ const STYLES: Record<
   error: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: '✕' },
 };
 
-export function DataSourceBanner({ source }: DataSourceBannerProps) {
+export function DataSourceBanner({ source, onRetry }: DataSourceBannerProps) {
   const s = STYLES[source.type];
   const label =
     source.type === 'demo'
@@ -31,19 +32,30 @@ export function DataSourceBanner({ source }: DataSourceBannerProps) {
 
   return (
     <div className={`mx-6 mt-4 px-4 py-3 rounded-lg border ${s.bg} ${s.border}`}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{s.icon}</span>
-          <div>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg shrink-0">{s.icon}</span>
+          <div className="min-w-0">
             {label ? <span className="font-medium block">{label}</span> : null}
             <p className="text-sm opacity-90">{source.message}</p>
           </div>
         </div>
-        {source.timestamp ? (
-          <span className="text-xs opacity-60 shrink-0">
-            Cập nhật: {new Date(source.timestamp).toLocaleTimeString('vi-VN')}
-          </span>
-        ) : null}
+        <div className="flex items-center gap-3 shrink-0">
+          {source.timestamp ? (
+            <span className="text-xs opacity-60">
+              Cập nhật: {new Date(source.timestamp).toLocaleTimeString('vi-VN')}
+            </span>
+          ) : null}
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="px-3 py-1.5 rounded text-sm font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30"
+            >
+              Thử lại
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

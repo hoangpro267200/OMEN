@@ -16,11 +16,8 @@ from omen.application.pipeline import PipelineConfig
 from omen.domain.models.common import ImpactDomain, RulesetVersion
 from omen.domain.models.context import ProcessingContext
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import (
-    RedSeaDisruptionRule,
-)
 from omen.adapters.persistence.async_in_memory_repository import (
     AsyncInMemorySignalRepository,
 )
@@ -34,7 +31,7 @@ def async_pipeline() -> AsyncOmenPipeline:
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=AsyncInMemorySignalRepository(),
         publisher=None,
         config=PipelineConfig(

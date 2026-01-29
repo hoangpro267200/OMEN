@@ -34,9 +34,8 @@ from omen.adapters.persistence.async_in_memory_repository import (
 from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.application.async_pipeline import AsyncOmenPipeline
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import RedSeaDisruptionRule
 from omen.adapters.outbound.console_publisher import ConsolePublisher
 from omen.infrastructure.dead_letter import DeadLetterQueue
 
@@ -213,13 +212,13 @@ def in_memory_repository() -> InMemorySignalRepository:
 def pipeline(
     in_memory_repository: InMemorySignalRepository,
 ) -> OmenPipeline:
-    """OmenPipeline with LiquidityValidationRule, RedSeaDisruptionRule, stub repo and console publisher."""
+    """OmenPipeline with LiquidityValidationRule, enricher, stub repo and console publisher."""
     validator = SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)])
-    translator = ImpactTranslator(rules=[RedSeaDisruptionRule()])
+    enricher = SignalEnricher()
     publisher = ConsolePublisher()
     return OmenPipeline(
         validator=validator,
-        translator=translator,
+        enricher=enricher,
         repository=in_memory_repository,
         publisher=publisher,
         config=PipelineConfig.default(),
@@ -250,7 +249,7 @@ def pipeline_with_dlq():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
         dead_letter_queue=dlq,
@@ -272,7 +271,7 @@ def dry_run_pipeline():
         validator=SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=repo,
         publisher=pub,
         config=PipelineConfig(
@@ -288,9 +287,9 @@ def async_pipeline() -> AsyncOmenPipeline:
     """Async pipeline for behavior testing."""
     return AsyncOmenPipeline(
         validator=SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
+            rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
         ),
-        translator=ImpactTranslator(rules=[RedSeaDisruptionRule()]),
+        enricher=SignalEnricher(),
         repository=AsyncInMemorySignalRepository(),
         publisher=None,
         config=PipelineConfig(

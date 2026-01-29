@@ -13,9 +13,8 @@ from omen.domain.errors import (
 from omen.infrastructure.dead_letter import DeadLetterQueue
 from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.domain.services.signal_validator import SignalValidator
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.translation.logistics.red_sea_disruption import RedSeaDisruptionRule
 from omen.adapters.persistence.in_memory_repository import InMemorySignalRepository
 from omen.adapters.outbound.console_publisher import ConsolePublisher
 from omen.domain.models.common import ImpactDomain, RulesetVersion
@@ -65,7 +64,7 @@ class TestPipelineErrorHandling:
         validator = SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
         )
-        translator = ImpactTranslator(rules=[RedSeaDisruptionRule()])
+        enricher = SignalEnricher()
         repo = InMemorySignalRepository()
         pub = ConsolePublisher()
         config = PipelineConfig(
@@ -75,7 +74,7 @@ class TestPipelineErrorHandling:
         )
         return OmenPipeline(
             validator=validator,
-            translator=translator,
+            enricher=enricher,
             repository=repo,
             publisher=pub,
             dead_letter_queue=dlq,

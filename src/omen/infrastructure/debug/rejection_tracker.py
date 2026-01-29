@@ -71,7 +71,7 @@ class PassedRecord:
     title: str
     probability: float
     confidence: float
-    severity: str
+    confidence_level: str
 
     metrics_count: int = 0
     routes_count: int = 0
@@ -85,7 +85,7 @@ class PassedRecord:
             "title": self.title,
             "probability": self.probability,
             "confidence": self.confidence,
-            "severity": self.severity,
+            "confidence_level": self.confidence_level,
             "metrics_count": self.metrics_count,
             "routes_count": self.routes_count,
         }
@@ -152,7 +152,7 @@ class RejectionTracker:
         title: str,
         probability: float,
         confidence: float,
-        severity: str,
+        confidence_level: str,
         metrics_count: int = 0,
         routes_count: int = 0,
     ) -> None:
@@ -165,7 +165,7 @@ class RejectionTracker:
             title=title,
             probability=probability,
             confidence=confidence,
-            severity=severity,
+            confidence_level=confidence_level,
             metrics_count=metrics_count,
             routes_count=routes_count,
         )

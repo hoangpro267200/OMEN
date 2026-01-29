@@ -14,11 +14,6 @@ from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.application.ports.output_publisher import OutputPublisher
 from omen.application.ports.signal_repository import SignalRepository
 from omen.config import OmenConfig, get_config
-from omen.domain.rules.translation.logistics.red_sea_disruption import (
-    RedSeaDisruptionRule,
-)
-from omen.domain.rules.translation.logistics.port_closure import PortClosureRule
-from omen.domain.rules.translation.logistics.strike_impact import StrikeImpactRule
 from omen.domain.rules.validation.anomaly_detection_rule import AnomalyDetectionRule
 from omen.domain.rules.validation.geographic_relevance_rule import (
     GeographicRelevanceRule,
@@ -27,7 +22,7 @@ from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
 from omen.domain.rules.validation.semantic_relevance_rule import (
     SemanticRelevanceRule,
 )
-from omen.domain.services.impact_translator import ImpactTranslator
+from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.services.signal_validator import SignalValidator
 from omen.infrastructure.dead_letter import DeadLetterQueue
 
@@ -39,11 +34,12 @@ class Container:
 
     Use create_default() for production-style wiring,
     or create_for_testing() for tests (no external I/O).
+    Impact/legacy pipeline: use the omen_impact package (LegacyPipeline, ImpactTranslator).
     """
 
     config: OmenConfig
     validator: SignalValidator
-    translator: ImpactTranslator
+    enricher: SignalEnricher
     repository: SignalRepository
     publisher: OutputPublisher
     pipeline: OmenPipeline
@@ -61,13 +57,7 @@ class Container:
                 GeographicRelevanceRule(),
             ]
         )
-        translator = ImpactTranslator(
-            rules=[
-                RedSeaDisruptionRule(),
-                PortClosureRule(),
-                StrikeImpactRule(),
-            ]
-        )
+        enricher = SignalEnricher()
         repository = InMemorySignalRepository()
         if config.webhook_url:
             publisher = WebhookPublisher(
@@ -86,7 +76,7 @@ class Container:
         )
         pipeline = OmenPipeline(
             validator=validator,
-            translator=translator,
+            enricher=enricher,
             repository=repository,
             publisher=publisher,
             dead_letter_queue=dlq,
@@ -95,7 +85,7 @@ class Container:
         return cls(
             config=config,
             validator=validator,
-            translator=translator,
+            enricher=enricher,
             repository=repository,
             publisher=publisher,
             pipeline=pipeline,
@@ -112,13 +102,13 @@ class Container:
         validator = SignalValidator(
             rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
         )
-        translator = ImpactTranslator(rules=[RedSeaDisruptionRule()])
+        enricher = SignalEnricher()
         repository = InMemorySignalRepository()
         publisher = ConsolePublisher()
         dlq = DeadLetterQueue()
         pipeline = OmenPipeline(
             validator=validator,
-            translator=translator,
+            enricher=enricher,
             repository=repository,
             publisher=publisher,
             dead_letter_queue=dlq,
@@ -131,7 +121,7 @@ class Container:
         return cls(
             config=config,
             validator=validator,
-            translator=translator,
+            enricher=enricher,
             repository=repository,
             publisher=publisher,
             pipeline=pipeline,

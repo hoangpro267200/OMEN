@@ -43,7 +43,6 @@ class TestPipelineMetricsCollector:
             signals_generated=10,
             events_rejected=30,
             avg_confidence=0.82,
-            total_risk_exposure_usd=5_000_000,
         )
 
         stats = collector.get_stats()
@@ -64,8 +63,6 @@ class TestPipelineMetricsCollector:
         class FakeSignal:
             confidence_score = 0.75
             current_probability = 0.8
-            severity = 0.7
-            affected_routes = [None, None]
 
         collector.record_from_pipeline_result(
             events_received=1,
@@ -99,7 +96,7 @@ class TestActivityLogger:
         logger.log_signal_generated(
             signal_id="OMEN-TEST-001",
             title="Test Signal",
-            severity_label="HIGH",
+            confidence_label="HIGH",
             confidence_level="HIGH",
         )
 

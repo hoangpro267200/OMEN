@@ -1,14 +1,16 @@
 """OMEN Main Pipeline.
 
-Orchestrates the 4-layer intelligence transformation:
-Layer 1 (Signal Sourcing) → Layer 2 (Validation) →
-Layer 3 (Impact Translation) → Layer 4 (Output)
+Default path: Layer 1 (Signal Sourcing) → Layer 2 (Validation) →
+Layer 3 (Enrichment) → Layer 4 (Pure OmenSignal output).
 
-The pipeline is:
-- Idempotent: Same input → same output
-- Explainable: Full audit trail
-- Deterministic: No randomness
+No impact translation in the default path. Impact assessment belongs
+in downstream consumers (e.g. RiskCast).
+
+Impact assessment is performed by downstream consumers (e.g. RiskCast).
+Legacy path: use omen_impact.LegacyPipeline and omen_impact.LegacyOmenSignal.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -19,11 +21,10 @@ from ..domain.models.common import RulesetVersion, ImpactDomain
 from ..domain.models.context import ProcessingContext
 from ..domain.models.raw_signal import RawSignalEvent
 from ..domain.models.validated_signal import ValidatedSignal
-from ..domain.models.impact_assessment import ImpactAssessment
 from ..domain.models.omen_signal import OmenSignal
 
 from ..domain.services.signal_validator import SignalValidator, ValidationOutcome
-from ..domain.services.impact_translator import ImpactTranslator
+from ..domain.services.signal_enricher import SignalEnricher
 from ..domain.errors import OmenError, PersistenceError, PublishError
 
 from ..infrastructure.dead_letter import DeadLetterQueue
@@ -33,7 +34,6 @@ from ..infrastructure.activity.activity_logger import get_activity_logger
 from ..infrastructure.realtime.price_streamer import get_price_streamer
 from ..infrastructure.debug.rejection_tracker import get_rejection_tracker
 
-from .ports.signal_source import SignalSource
 from .ports.signal_repository import SignalRepository
 from .ports.output_publisher import OutputPublisher
 from .dto.pipeline_result import PipelineResult, PipelineStats
@@ -63,39 +63,32 @@ class PipelineConfig:
 
 class OmenPipeline:
     """
-    The main OMEN intelligence pipeline.
+    The main OMEN intelligence pipeline (signal-only).
 
-    Responsible for the four irreversible transformations:
-    1. Convert raw prediction market data into credible signals
-    2. Eliminate noise, manipulation, and irrelevant events
-    3. Translate abstract probabilities into domain-specific impacts
-    4. Output structured intelligence objects
-
-    IDEMPOTENCY GUARANTEE:
-    Given the same RawSignalEvent (identified by event_id + observed_at),
-    the pipeline will produce identical outputs.
+    Stages: Validate → Enrich → OmenSignal (pure contract).
+    Produces structured signals with probability, confidence, and context.
+    No impact calculations — those belong in downstream consumers.
     """
 
     def __init__(
         self,
         validator: SignalValidator,
-        translator: ImpactTranslator,
+        enricher: SignalEnricher,
         repository: SignalRepository | None = None,
         publisher: OutputPublisher | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
         config: PipelineConfig | None = None,
     ):
         self._validator = validator
-        self._translator = translator
+        self._enricher = enricher
         self._repository = repository
         self._publisher = publisher
         self._dlq = dead_letter_queue if dead_letter_queue is not None else DeadLetterQueue()
         self._config = config or PipelineConfig.default()
 
         logger.info(
-            "Pipeline initialized with ruleset %s, targeting domains %s",
+            "Pipeline initialized (signal-only) with ruleset %s",
             self._config.ruleset_version,
-            self._config.target_domains,
         )
 
     def _record_metrics(self, result: PipelineResult) -> None:
@@ -231,42 +224,35 @@ class OmenPipeline:
         except Exception as e:
             logger.warning("Failed to log validation activity: %s", e)
 
-        # === LAYER 3: IMPACT TRANSLATION ===
-        assessments: list[ImpactAssessment] = []
-        for domain in self._config.target_domains:
-            assessment = self._translator.translate(
-                validated_signal,
-                domain=domain,
-                context=ctx,
-            )
-            if assessment:
-                assessments.append(assessment)
-                logger.info(
-                    "Generated assessment for %s: severity=%.2f",
-                    domain.value,
-                    assessment.overall_severity,
-                )
+        # === LAYER 3: ENRICHMENT (no impact translation) ===
+        validation_context: dict = {
+            "confidence_factors": {
+                "liquidity": validated_signal.liquidity_score,
+                "geographic": next(
+                    (r.score for r in validated_signal.validation_results if r.rule_name == "geographic_relevance"),
+                    0.5,
+                ),
+                "source_reliability": 0.85,
+            },
+            "validation_results": validated_signal.validation_results,
+        }
+        enrichment = self._enricher.enrich(event, validation_context)
 
-        if not assessments:
+        # === LAYER 4: PURE OMEN SIGNAL ===
+        try:
+            signal = OmenSignal.from_validated_event(validated_signal, enrichment)
+        except Exception as e:
+            logger.warning("Failed to build OmenSignal: %s", e)
             try:
-                tracker = get_rejection_tracker()
-                tracker.record_rejection(
+                get_rejection_tracker().record_rejection(
                     event_id=str(event.event_id),
-                    stage="translation",
-                    reason="No applicable translation rule or insufficient data for impact calculation",
+                    stage="generation",
+                    reason=str(e),
                     title=event.title,
                     probability=event.probability,
-                    liquidity=event.market.current_liquidity_usd,
-                    keywords_found=list(event.keywords) if event.keywords else [],
-                    details={
-                        "available_rules": [getattr(r, "name", str(r)) for r in self._translator.rules],
-                        "event_keywords": list(event.keywords) if event.keywords else [],
-                    },
                 )
-            except Exception as e:
-                logger.warning("Failed to record translation rejection: %s", e)
-            logger.info("Event %s produced no impact assessments", event.event_id)
-            stats.events_no_impact = 1
+            except Exception as e2:
+                logger.warning("Failed to record generation rejection: %s", e2)
             stats.processing_time_ms = (
                 (datetime.utcnow() - started_at).total_seconds() * 1000
             )
@@ -274,94 +260,86 @@ class OmenPipeline:
             self._record_metrics(result)
             return result
 
-        stats.assessments_generated = len(assessments)
-
-        # === LAYER 4: OUTPUT GENERATION ===
-        signals: list[OmenSignal] = []
-        for assessment in assessments:
-            signal = OmenSignal.from_impact_assessment(
-                assessment,
-                ruleset_version=ctx.ruleset_version,
-                generated_at=ctx.processing_time,
-            )
-            if signal.confidence_score < self._config.min_confidence_for_output:
-                try:
-                    get_rejection_tracker().record_rejection(
-                        event_id=str(event.event_id),
-                        stage="generation",
-                        reason=f"Below confidence threshold ({signal.confidence_score:.2f} < {self._config.min_confidence_for_output})",
-                        title=event.title,
-                        probability=event.probability,
-                        details={"confidence_score": signal.confidence_score},
-                    )
-                except Exception as e:
-                    logger.warning("Failed to record generation rejection: %s", e)
-                logger.info(
-                    "Signal %s below confidence threshold (%.2f < %s)",
-                    signal.signal_id,
-                    signal.confidence_score,
-                    self._config.min_confidence_for_output,
-                )
-                continue
+        if signal.confidence_score < self._config.min_confidence_for_output:
             try:
-                get_rejection_tracker().record_passed(
-                    signal_id=signal.signal_id,
+                get_rejection_tracker().record_rejection(
                     event_id=str(event.event_id),
-                    title=signal.title,
-                    probability=signal.current_probability,
-                    confidence=signal.confidence_score,
-                    severity=signal.severity_label,
-                    metrics_count=len(signal.key_metrics) if signal.key_metrics else 0,
-                    routes_count=len(signal.affected_routes) if signal.affected_routes else 0,
+                    stage="generation",
+                    reason=f"Below confidence threshold ({signal.confidence_score:.2f} < {self._config.min_confidence_for_output})",
+                    title=event.title,
+                    probability=event.probability,
+                    details={"confidence_score": signal.confidence_score},
                 )
             except Exception as e:
-                logger.warning("Failed to record passed signal: %s", e)
-            signals.append(signal)
-            try:
-                history_store = get_signal_history_store()
-                history_store.record(
-                    signal_id=signal.signal_id,
-                    probability=signal.current_probability,
-                    source="polymarket_gamma",
-                    market_id=str(event.market.market_id),
-                )
-            except Exception as e:
-                logger.warning("Failed to record signal history: %s", e)
-            if signal.market_token_id:
-                try:
-                    get_price_streamer().register_signal(
-                        signal_id=signal.signal_id,
-                        token_id=signal.market_token_id,
-                        initial_price=signal.current_probability,
-                    )
-                except Exception as e:
-                    logger.warning("Failed to register signal for real-time: %s", e)
-            try:
-                get_activity_logger().log_signal_generated(
-                    signal_id=signal.signal_id,
-                    title=signal.title,
-                    severity_label=signal.severity_label,
-                    confidence_level=getattr(signal.confidence_level, "value", str(signal.confidence_level)),
-                )
-            except Exception as e:
-                logger.warning("Failed to log signal activity: %s", e)
+                logger.warning("Failed to record generation rejection: %s", e)
             logger.info(
-                "Generated OMEN signal: %s [%s] severity=%.2f",
+                "Signal %s below confidence threshold (%.2f < %s)",
                 signal.signal_id,
-                signal.confidence_level.value,
-                signal.severity,
+                signal.confidence_score,
+                self._config.min_confidence_for_output,
             )
+            stats.processing_time_ms = (
+                (datetime.utcnow() - started_at).total_seconds() * 1000
+            )
+            result = PipelineResult(success=True, signals=[], stats=stats)
+            self._record_metrics(result)
+            return result
 
-        stats.signals_generated = len(signals)
-
-        # Log translation rules applied (first assessment only to avoid duplicates)
         try:
-            activity = get_activity_logger()
-            first = assessments[0]
-            for rule_name in getattr(first, "translation_rules_applied", None) or []:
-                activity.log_rule_applied(rule_name=rule_name, rule_version="1.0", signal_id=signals[0].signal_id if signals else None)
+            get_rejection_tracker().record_passed(
+                signal_id=signal.signal_id,
+                event_id=str(event.event_id),
+                title=signal.title,
+                probability=signal.probability,
+                confidence=signal.confidence_score,
+                confidence_level=signal.confidence_level.value,
+                metrics_count=0,
+                routes_count=0,
+            )
         except Exception as e:
-            logger.warning("Failed to log rule activity: %s", e)
+            logger.warning("Failed to record passed signal: %s", e)
+
+        signals: list[OmenSignal] = [signal]
+        stats.signals_generated = 1
+
+        try:
+            get_signal_history_store().record(
+                signal_id=signal.signal_id,
+                probability=signal.probability,
+                source="polymarket_gamma",
+                market_id=str(event.market.market_id),
+            )
+        except Exception as e:
+            logger.warning("Failed to record signal history: %s", e)
+
+        token_id = getattr(event.market, "condition_token_id", None) or (
+            (event.market.clob_token_ids or [None])[0] if getattr(event.market, "clob_token_ids", None) else None
+        )
+        if token_id:
+            try:
+                get_price_streamer().register_signal(
+                    signal_id=signal.signal_id,
+                    token_id=token_id,
+                    initial_price=signal.probability,
+                )
+            except Exception as e:
+                logger.warning("Failed to register signal for real-time: %s", e)
+
+        try:
+            get_activity_logger().log_signal_generated(
+                signal_id=signal.signal_id,
+                title=signal.title,
+                confidence_label=signal.confidence_level.value,
+                confidence_level=signal.confidence_level.value,
+            )
+        except Exception as e:
+            logger.warning("Failed to log signal activity: %s", e)
+
+        logger.info(
+            "Generated OMEN signal: %s [%s]",
+            signal.signal_id,
+            signal.confidence_level.value,
+        )
 
         # === PERSIST & PUBLISH (with error handling) ===
         if not self._config.enable_dry_run:

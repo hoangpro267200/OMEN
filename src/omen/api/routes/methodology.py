@@ -1,18 +1,15 @@
 """
 API endpoints for methodology documentation.
 
-Provides transparency into OMEN's calculations.
+Provides transparency into OMEN's validation calculations.
+Impact methodologies live in the omen_impact package (consumer responsibility).
 """
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Any
 
-from omen.domain.methodology import (
-    RED_SEA_METHODOLOGIES,
-    VALIDATION_METHODOLOGIES,
-    get_methodology,
-)
+from omen.domain.methodology import VALIDATION_METHODOLOGIES
 
 router = APIRouter(prefix="/methodology", tags=["Methodology"])
 
@@ -49,23 +46,11 @@ class MethodologyDetail(BaseModel):
 @router.get("", response_model=dict)
 async def list_methodologies():
     """
-    List all documented methodologies.
+    List documented validation methodologies.
 
-    Returns methodologies grouped by category:
-    - impact: Red Sea impact calculations
-    - validation: Signal validation rules
+    Impact methodologies (Red Sea, etc.) are in the omen_impact package.
     """
     return {
-        "impact": [
-            MethodologySummary(
-                name=m.name,
-                version=m.version,
-                description=m.description,
-                validation_status=m.validation_status.value,
-                primary_source=m.primary_source.to_string() if m.primary_source else None,
-            )
-            for m in RED_SEA_METHODOLOGIES.values()
-        ],
         "validation": [
             MethodologySummary(
                 name=m.name,
@@ -82,58 +67,32 @@ async def list_methodologies():
 @router.get("/for-metric/{metric_name}", response_model=MethodologyDetail)
 async def get_methodology_for_metric(metric_name: str):
     """
-    Get the methodology used to calculate a specific metric.
+    Get the methodology for a validation metric (e.g. liquidity, geographic).
 
-    Args:
-        metric_name: Name of the metric (e.g., 'transit_time_increase', 'fuel_cost_increase')
-
-    Returns:
-        Methodology used for that metric, or 404 if not found.
+    For impact metrics use the omen_impact package.
     """
-    metric_mapping = {
-        "transit_time_increase": "transit_time",
-        "transit_time": "transit_time",
-        "fuel_consumption_increase": "fuel_cost",
-        "fuel_cost_increase": "fuel_cost",
-        "fuel_cost": "fuel_cost",
-        "freight_rate_pressure": "freight_rate",
-        "freight_rate_increase": "freight_rate",
-        "freight_rate": "freight_rate",
-        "insurance_premium_increase": "insurance",
-        "insurance": "insurance",
-    }
-    methodology_name = metric_mapping.get(metric_name.lower())
-    if not methodology_name:
+    methodology = VALIDATION_METHODOLOGIES.get(metric_name.lower())
+    if not methodology:
         raise HTTPException(
             status_code=404,
-            detail=f"No methodology found for metric: {metric_name}",
+            detail=f"No validation methodology found for: {metric_name}. Impact metrics are in omen_impact.",
         )
-    methodology = RED_SEA_METHODOLOGIES.get(methodology_name)
-    if not methodology:
-        raise HTTPException(status_code=404, detail="Methodology not found")
     return MethodologyDetail(**methodology.to_dict())
 
 
 @router.get("/{category}/{name}", response_model=MethodologyDetail)
 async def get_methodology_detail(category: str, name: str):
     """
-    Get full details of a specific methodology.
+    Get full details of a validation methodology.
 
-    Args:
-        category: 'impact' or 'validation'
-        name: Methodology name (e.g., 'transit_time', 'liquidity')
-
-    Returns:
-        Complete methodology documentation.
+    category must be 'validation'. Impact methodologies are in omen_impact.
     """
-    if category == "impact":
-        methodology = RED_SEA_METHODOLOGIES.get(name)
-    elif category == "validation":
-        methodology = VALIDATION_METHODOLOGIES.get(name)
-    else:
-        raise HTTPException(status_code=404, detail=f"Unknown category: {category}")
-
+    if category != "validation":
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown category: {category}. Only 'validation' is exposed. Impact methodologies are in omen_impact.",
+        )
+    methodology = VALIDATION_METHODOLOGIES.get(name)
     if not methodology:
         raise HTTPException(status_code=404, detail=f"Methodology not found: {name}")
-
     return MethodologyDetail(**methodology.to_dict())

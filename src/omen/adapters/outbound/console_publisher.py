@@ -11,24 +11,22 @@ class ConsolePublisher(OutputPublisher):
     """Publishes OMEN signals to console/stdout."""
 
     def publish(self, signal: OmenSignal) -> bool:
-        """Publish signal to console."""
+        """Publish signal to console (pure contract fields only)."""
         output = {
             "timestamp": datetime.utcnow().isoformat(),
             "signal": {
                 "signal_id": signal.signal_id,
-                "event_id": signal.event_id,
+                "source_event_id": signal.source_event_id,
+                "title": signal.title,
+                "description": signal.description,
                 "category": signal.category.value,
-                "domain": signal.domain.value,
-                "severity": signal.severity,
-                "severity_label": signal.severity_label,
+                "probability": signal.probability,
+                "probability_source": signal.probability_source,
                 "confidence_level": signal.confidence_level.value,
                 "confidence_score": signal.confidence_score,
-                "probability": signal.current_probability,
-                "momentum": signal.probability_momentum,
-                "title": signal.title,
-                "summary": signal.summary,
-                "is_actionable": signal.is_actionable,
-                "urgency": signal.urgency,
+                "trace_id": signal.trace_id,
+                "ruleset_version": signal.ruleset_version,
+                "generated_at": signal.generated_at.isoformat(),
             },
         }
         print(json.dumps(output, indent=2))

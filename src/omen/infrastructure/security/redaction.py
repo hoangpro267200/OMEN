@@ -19,31 +19,12 @@ def redact_signal_for_external(
     include_confidence_breakdown: bool = False,
 ) -> dict[str, Any]:
     """
-    Redact an OmenSignal for external consumption.
-
-    Args:
-        signal: The signal to redact
-        include_explanation: Whether to include full explanation chain
-        include_confidence_breakdown: Whether to include confidence factors
-
-    Returns:
-        Redacted dictionary representation
+    Redact an OmenSignal (pure contract) for external consumption.
     """
     data = signal.model_dump(mode="json")
 
     for field_name in ALWAYS_REDACT:
         data.pop(field_name, None)
-
-    if not include_explanation:
-        if "explanation_chain" in data:
-            chain = data["explanation_chain"]
-            data["explanation_summary"] = {
-                "trace_id": chain.get("trace_id"),
-                "total_steps": chain.get("total_steps"),
-                "started_at": chain.get("started_at"),
-                "completed_at": chain.get("completed_at"),
-            }
-            del data["explanation_chain"]
 
     if not include_confidence_breakdown:
         if "confidence_factors" in data:
@@ -71,7 +52,7 @@ def redact_for_api(
     detail_level: str = "standard",
 ) -> dict[str, Any]:
     """
-    Redact signal for API response.
+    Redact signal (pure contract) for API response.
 
     Args:
         signal: The signal
@@ -80,17 +61,16 @@ def redact_for_api(
     if detail_level == "minimal":
         return {
             "signal_id": signal.signal_id,
+            "source_event_id": signal.source_event_id,
             "title": signal.title,
+            "probability": signal.probability,
             "confidence_level": signal.confidence_level.value,
-            "severity": signal.severity,
-            "is_actionable": signal.is_actionable,
-            "urgency": signal.urgency,
+            "trace_id": signal.trace_id,
             "generated_at": signal.generated_at.isoformat(),
         }
     if detail_level == "full":
         return redact_signal_for_external(
             signal,
-            include_explanation=True,
             include_confidence_breakdown=True,
         )
     return redact_signal_for_external(signal)

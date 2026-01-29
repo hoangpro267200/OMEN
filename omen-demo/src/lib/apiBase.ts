@@ -15,3 +15,9 @@ function normalizeOmenApiBase(): string {
 }
 
 export const OMEN_API_BASE = normalizeOmenApiBase();
+
+/** Base URL without /api/v1 for health checks. */
+export function getOmenBaseUrl(): string {
+  const base = OMEN_API_BASE.replace(/\/api\/v1\/?$/, '');
+  return base || 'http://localhost:8000';
+}

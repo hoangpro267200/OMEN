@@ -108,7 +108,7 @@ async def stream_prices():
 
         if streamer.get_registered_count() == 0:
             warning_data = json.dumps({
-                "type": "warning",
+                "type": "indicator",
                 "message": "No signals registered for real-time updates. Process signals first, then call /subscribe.",
             })
             yield f"event: status\ndata: {warning_data}\n\n"
