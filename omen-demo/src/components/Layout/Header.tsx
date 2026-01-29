@@ -17,6 +17,8 @@ interface HeaderProps {
   dataSource?: DataSourceInfo;
   /** Total signal count from backend (stats.signals_generated). Used for badge when live so it shows real count, not loaded-page size. */
   signalsCount?: number;
+  /** When false, skips polling /realtime/status to avoid console errors when backend is down or using demo data. */
+  enableRealtimePolling?: boolean;
 }
 
 function LiveClock() {
@@ -59,8 +61,9 @@ export function Header({
   className,
   dataSource,
   signalsCount,
+  enableRealtimePolling = true,
 }: HeaderProps) {
-  const realtimeStatus = useRealtimeStatus();
+  const realtimeStatus = useRealtimeStatus({ enabled: enableRealtimePolling });
   const statusConfig = {
     OPERATIONAL: {
       label: 'VẬN HÀNH',

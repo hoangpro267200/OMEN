@@ -32,6 +32,8 @@ dependencies = [
     "tenacity>=8.0.0",
     "pyjwt>=2.8.0",
     "websockets>=12.0",
+    "filelock>=3.13.0",
+    "aiosqlite>=0.19.0",
 ]
 
 [project.optional-dependencies]
@@ -51,7 +53,7 @@ omen-pipeline = "omen.scripts.run_pipeline:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["omen", "omen_impact"]
+packages = ["omen", "omen_impact", "riskcast"]
 
 [tool.black]
 line-length = 100

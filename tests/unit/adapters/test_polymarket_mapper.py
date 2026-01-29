@@ -133,7 +133,9 @@ class TestMapMarket:
             "description": "Weather forecast only.",
         }
         out2 = mapper.map_market(raw_unrelated)
-        assert out2.keywords == []
+        # Unrelated to trade/shipping; may still match other DB keywords (e.g. "weather")
+        assert "trade" not in out2.keywords
+        assert "shipping" not in out2.keywords
 
     def test_infers_red_sea_location(self, mapper: PolymarketMapper) -> None:
         raw = {

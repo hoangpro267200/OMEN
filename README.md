@@ -24,13 +24,14 @@
 
 ## 1. Tổng quan OMEN
 
-**OMEN** là một **động cơ trí tuệ (intelligence engine)**, không phải ứng dụng end-user. Nó đọc **niềm tin tập thể dưới ràng buộc tài chính** (thị trường dự đoán) và biến nó thành **tác động có thể giải thích, xác định và tái lập**.
+**OMEN** là một **Signal Intelligence Engine** (động cơ trí tuệ tín hiệu), không phải ứng dụng end-user. Nó đọc **niềm tin tập thể dưới ràng buộc tài chính** (thị trường dự đoán) và biến nó thành **tín hiệu xác suất đã được kiểm định, có ngữ cảnh và có thể tái lập**.
 
-**Sứ mệnh:**
+**Sứ mệnh (phiên bản signal-only):**
 
 - **Đầu vào:** Dữ liệu thô từ prediction markets (Polymarket, v.v.) đã được chuẩn hóa.
-- **Biến đổi:** Bốn lớp cố định: Thu thập → Kiểm định → Dịch tác động → Xuất bản.
-- **Đầu ra:** Đối tượng **OmenSignal** — hợp đồng ổn định cho downstream (RiskCast, BI, webhook, v.v.).
+- **Biến đổi:** Ba lớp cố định: Thu thập → Kiểm định → Sinh tín hiệu (`OmenSignal`).
+- **Đầu ra:** Đối tượng **OmenSignal** — **hợp đồng tín hiệu** ổn định cho downstream (RiskCast, BI, webhook, v.v.).
+- **Impact assessment / translation:** Được thực hiện bởi **hệ thống downstream** (ví dụ package `omen_impact`), **KHÔNG** còn nằm trong core `src/omen/`.
 
 **Nguyên tắc bất di bất dịch:**
 
@@ -59,21 +60,28 @@ Mã nguồn chính: `src/omen/` — xem `src/omen/application/pipeline.py` cho l
 
 ### 3.1 Belief-as-signal (Niềm tin là tín hiệu)
 
-Giá trên prediction market (ví dụ “75% Yes”) phản ánh niềm tin có tiền đặt cọc. OMEN coi đó là **tín hiệu thô**, chuẩn hóa thành `RawSignalEvent` (Layer 1), rồi mới lọc và dịch sang tác động (xem `src/omen/domain/models/raw_signal.py`).
+Giá trên prediction market (ví dụ “75% Yes”) phản ánh niềm tin có tiền đặt cọc. OMEN coi đó là **tín hiệu thô**, chuẩn hóa thành `RawSignalEvent` (Layer 1), rồi kiểm định → sinh **tín hiệu chuẩn hóa (`OmenSignal`)**. Việc dịch sang **tác động / severity / delay / exposure** được đẩy sang downstream (plugin `omen_impact`, hệ thống RiskCast, v.v.).
 
 ### 3.2 Liquidity as information (Thanh khoản là thông tin)
 
 `MarketMetadata.total_volume_usd` và `current_liquidity_usd` là proxy cho độ tin cậy của thị trường. Rule **LiquidityValidationRule** (xem `src/omen/domain/rules/validation/liquidity_rule.py`) loại bỏ market quá non: ngưỡng mặc định `min_liquidity_usd` (config, thường $1000).
 
-### 3.3 Deterministic translation (Dịch tác động xác định)
+### 3.3 Deterministic signalization (Sinh tín hiệu xác định)
 
-Layer 3 không dùng xác suất ngẫu nhiên. Mỗi **ImpactTranslationRule** nhận `ValidatedSignal` + `ProcessingContext` và trả về `TranslationResult` (metrics, routes, systems, severity, explanation). Cùng input + cùng ruleset → cùng output. Giao diện: `src/omen/domain/rules/translation/base.py` (Protocol `ImpactTranslationRule`).
+Signal pipeline trong `src/omen/` **không** dùng ngẫu nhiên. Từ `RawSignalEvent` + `ruleset_version` cố định, OMEN đi qua các bước validation, enrichment, classification để tạo ra `OmenSignal`:
+
+- `probability` được giữ nguyên từ market (hoặc fallback rõ ràng).
+- `confidence_score`, `confidence_level`, `confidence_factors` được tính từ các rule validation.
+- `signal_type`, `status`, `impact_hints` được sinh từ **SignalClassifier** (semantic + routing, **không** phải impact).
+- `trace_id`, `input_event_hash`, `ruleset_version`, `generated_at`, `observed_at` đảm bảo có thể replay và audit.
+
+**Impact translation** (metrics, delay, severity, risk…) nay nằm trong namespace **`src/omen_impact/`** và không phải một phần của Signal Intelligence Engine core.
 
 ---
 
 ## 4. Kiến trúc hệ thống
 
-OMEN tuân theo **Clean / Hexagonal**: domain độc lập với adapter, giao tiếp qua port (interface).
+OMEN tuân theo **Clean / Hexagonal**: domain độc lập với adapter, giao tiếp qua port (interface). Phần **impact assessment** (trước đây nằm trong domain) đã được tách riêng thành module **`omen_impact`** để giữ core `src/omen/` thuần tín hiệu.
 
 ```
                     ┌─────────────────────────────────────────────────────────┐
@@ -89,10 +97,10 @@ OMEN tuân theo **Clean / Hexagonal**: domain độc lập với adapter, giao t
                                               ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  LỚP DOMAIN (src/omen/domain/) — không phụ thuộc framework / I/O             │
-│  models/     raw_signal, validated_signal, impact_assessment, omen_signal,    │
+│  models/     raw_signal, validated_signal, omen_signal, enums, impact_hints, │
 │              common, context, explanation                                    │
-│  rules/      base.Rule, validation/*, translation/base, translation/logistics│
-│  services/   signal_validator, impact_translator                             │
+│  rules/      base.Rule, validation/*                                        │
+│  services/   signal_validator, signal_enricher, signal_classifier            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                               │
                                               ▼
@@ -132,16 +140,15 @@ OMEN tuân theo **Clean / Hexagonal**: domain độc lập với adapter, giao t
 
 ---
 
-## 5. Pipeline 4 lớp trí tuệ
+## 5. Pipeline tín hiệu (signal-only)
 
-Luồng xử lý nằm trong `OmenPipeline._process_single_inner` (xem `src/omen/application/pipeline.py`).
+Luồng xử lý hiện tại nằm trong `OmenPipeline._process_single_inner` (xem `src/omen/application/pipeline.py`).
 
-| Lớp | Đầu vào | Đầu ra | Invariant / Điều kiện |
-|-----|---------|--------|------------------------|
-| **Layer 1** | API thị trường (qua adapter) | **RawSignalEvent** | Chuẩn hóa bắt buộc: `event_id`, `title`, `probability` ∈ [0,1], `market.total_volume_usd`, `market.current_liquidity_usd`. `input_event_hash` tính từ tập trường cố định (xem docstring trong `raw_signal.py`). |
-| **Layer 2** | RawSignalEvent | **ValidatedSignal** hoặc reject | Mọi rule validation phải pass (theo cấu hình). Reject → `PipelineResult(signals=[], validation_failures=...)`. Output có `explanation` (ExplanationChain), `overall_validation_score`, `deterministic_trace_id`. |
-| **Layer 3** | ValidatedSignal | **ImpactAssessment** (hoặc không có nếu không rule nào áp dụng) | Chỉ rules có `domain` ∈ `target_domains` và `is_applicable(signal)==True` mới chạy. `explanation_chain` và `explanation_steps` bắt buộc không rỗng. |
-| **Layer 4** | ImpactAssessment | **OmenSignal** | `OmenSignal.from_impact_assessment(...)`. Chỉ emit nếu `confidence_score >= min_confidence_for_output`. Mỗi signal có `input_event_hash`, `ruleset_version`, `deterministic_trace_id`. |
+| Lớp        | Đầu vào                      | Đầu ra            | Invariant / Điều kiện |
+|------------|-----------------------------|-------------------|------------------------|
+| **Layer 1**| API thị trường (qua adapter)| **RawSignalEvent**| Chuẩn hóa bắt buộc: `event_id`, `title`, `probability` ∈ [0,1], `market.total_volume_usd`, `market.current_liquidity_usd`. `input_event_hash` tính từ tập trường cố định (xem docstring trong `raw_signal.py`). |
+| **Layer 2**| RawSignalEvent              | **ValidatedSignal** hoặc reject | Mọi rule validation phải pass (theo cấu hình). Reject → `PipelineResult(signals=[], validation_failures=...)`. Output có `explanation` (ExplanationChain), `overall_validation_score`, `deterministic_trace_id`. |
+| **Layer 3**| ValidatedSignal             | **OmenSignal**    | `OmenSignal.from_validated_event(...)` sinh ra tín hiệu duy nhất chứa: probability, confidence, temporal/geographic context, evidence, classification (`signal_type`), lifecycle `status`, routing hints (`impact_hints`). **KHÔNG** tính impact / severity / delay. |
 
 **Idempotency:** Trước Layer 2, pipeline gọi `repository.find_by_hash(event.input_event_hash)`. Nếu đã có signal cho hash đó thì trả về kết quả cache, không chạy lại (xem `_process_single_inner`).
 
@@ -216,101 +223,72 @@ Trường được dùng cho dedupe/replay: `input_event_hash` (computed từ `e
 }
 ```
 
-### 6.3 ImpactAssessment (Layer 3)
+### 6.3 Legacy ImpactAssessment (đã tách sang `omen_impact`)
 
-Định nghĩa: `src/omen/domain/models/impact_assessment.py`.
+Các model **ImpactAssessment** và bộ rule dịch tác động (delay, severity, risk…) đã được
+di chuyển sang namespace `src/omen_impact/` để giữ core `src/omen/` thuần tín hiệu.
+Xem thêm: `src/omen_impact/assessment.py`, `src/omen_impact/rules/logistics/*`.
 
-```json
-{
-  "event_id": "polymarket-0xabc123",
-  "source_signal": { "...": "ValidatedSignal reference ..." },
-  "domain": "LOGISTICS",
-  "metrics": [
-    {
-      "name": "transit_time_increase",
-      "value": 5.4,
-      "unit": "days",
-      "uncertainty": { "lower": 4.3, "upper": 7.0, "confidence_interval": 0.8 },
-      "confidence": 0.75,
-      "evidence_type": "historical",
-      "evidence_source": "Drewry Q1 2024"
-    }
-  ],
-  "affected_routes": [
-    {
-      "route_id": "ASIA-EU-SUEZ",
-      "route_name": "Asia to Europe via Suez",
-      "origin_region": "East Asia",
-      "destination_region": "Northern Europe",
-      "impact_severity": 0.72,
-      "alternative_routes": ["ASIA-EU-CAPE"],
-      "estimated_delay_days": 5.4,
-      "delay_uncertainty": null
-    }
-  ],
-  "affected_systems": [],
-  "overall_severity": 0.72,
-  "severity_label": "High",
-  "expected_onset_hours": 24,
-  "expected_duration_hours": 720,
-  "explanation_steps": [
-    {
-      "step_id": 1,
-      "rule_name": "red_sea_disruption_logistics",
-      "rule_version": "1.0.0",
-      "reasoning": "Red Sea disruption at 72% adds 5.4 days transit",
-      "confidence_contribution": 0.25,
-      "timestamp": "2025-01-15T10:00:02Z"
-    }
-  ],
-  "explanation_chain": { "trace_id": "...", "steps": [...], "total_steps": 1, "started_at": "...", "completed_at": null },
-  "impact_summary": "Suez blocade probability 72% implies +5.4 days transit Asia–Europe.",
-  "assumptions": ["Baseline transit 21 days", "Cape diversion +14 days"],
-  "ruleset_version": "v1.0.0",
-  "translation_rules_applied": ["red_sea_disruption_logistics"],
-  "assessed_at": "2025-01-15T10:00:02Z"
-}
-```
+### 6.4 OmenSignal — Hợp đồng tín hiệu (signal-only)
 
-### 6.4 OmenSignal (Layer 4 — Hợp đồng downstream)
+Định nghĩa: `src/omen/domain/models/omen_signal.py`. Đây là **signal contract** mà downstream (RiskCast, BI, webhook consumer) sử dụng.
 
-Định nghĩa: `src/omen/domain/models/omen_signal.py`. Đây là **contract** mà sản phẩm downstream (RiskCast, BI, webhook consumer) kỳ vọng.
+Ví dụ dạng JSON (đơn giản hóa):
 
 ```json
 {
-  "signal_id": "OMEN-A1B2C3D4E5F6",
-  "event_id": "polymarket-0xabc123",
+  "signal_id": "OMEN-9C4860E23B54",
+  "source_event_id": "polymarket-677404",
+  "signal_type": "GEOPOLITICAL_CONFLICT",
+  "status": "MONITORING",
+  "impact_hints": {
+    "domains": ["logistics", "shipping", "energy"],
+    "direction": "negative",
+    "affected_asset_types": ["ports", "vessels"],
+    "keywords": ["military", "clash", "missile"]
+  },
+  "title": "China x India military clash by December 31, 2026?",
+  "description": "Market resolves YES if ...",
+  "probability": 0.175,
+  "probability_source": "polymarket",
+  "probability_is_estimate": false,
+  "confidence_score": 0.5717,
+  "confidence_level": "MEDIUM",
+  "confidence_factors": {
+    "liquidity": 0.16,
+    "geographic": 0.7,
+    "source_reliability": 0.85
+  },
   "category": "GEOPOLITICAL",
-  "subcategory": null,
-  "domain": "LOGISTICS",
-  "current_probability": 0.72,
-  "probability_momentum": "STABLE",
-  "probability_change_24h": null,
-  "confidence_level": "HIGH",
-  "confidence_score": 0.82,
-  "confidence_factors": { "signal_strength": 0.85, "liquidity_score": 0.9, "validation_score": 0.9 },
-  "severity": 0.72,
-  "severity_label": "High",
-  "key_metrics": [{ "name": "transit_time_increase", "value": 5.4, "unit": "days", "uncertainty": { "lower": 4.3, "upper": 7.0 }, "confidence": 0.75, "evidence_source": "Drewry Q1 2024" }],
-  "affected_routes": [{ "route_id": "ASIA-EU-SUEZ", "route_name": "Asia to Europe via Suez", "origin_region": "East Asia", "destination_region": "Northern Europe", "impact_severity": 0.72 }],
-  "affected_systems": [],
-  "affected_regions": ["East Asia", "Northern Europe"],
-  "expected_onset_hours": 24,
-  "expected_duration_hours": 720,
-  "title": "Will the Suez Canal be blocked by Dec 31?",
-  "summary": "Suez blocade probability 72% implies +5.4 days transit Asia–Europe.",
-  "detailed_explanation": "Suez blocade probability 72% implies +5.4 days transit...\n\nAssumptions:\n  • Baseline transit 21 days\n  • Cape diversion +14 days",
-  "explanation_chain": { "trace_id": "...", "steps": [...], "total_steps": 3, "started_at": "...", "completed_at": "..." },
-  "input_event_hash": "f7e8d9c0b1a2...",
+  "tags": ["china", "india", "military"],
+  "geographic": {
+    "regions": ["china", "india"],
+    "chokepoints": []
+  },
+  "temporal": {
+    "event_horizon": "2025-12-31T12:00:00+00:00",
+    "resolution_date": "2025-12-31T12:00:00+00:00"
+  },
+  "evidence": [
+    {
+      "source": "polymarket",
+      "source_type": "market",
+      "url": "https://polymarket.com/event/china-x-india-military-clash-by-december-31"
+    }
+  ],
+  "trace_id": "9c4860e23b540dc5",
   "ruleset_version": "v1.0.0",
-  "deterministic_trace_id": "a1b2c3d4e5f6...",
-  "source_market": "polymarket",
-  "market_url": "https://polymarket.com/event/...",
-  "generated_at": "2025-01-15T10:00:02Z"
+  "source_url": "https://polymarket.com/event/china-x-india-military-clash-by-december-31",
+  "observed_at": "2026-01-29T01:36:22.371805Z",
+  "generated_at": "2026-01-29T01:36:22.411726Z",
+  "confidence_method": "weighted_factors_v1"
 }
 ```
 
-Các trường computed: `is_actionable` (HIGH/MEDIUM confidence + có route/system + severity ≥ 0.3), `urgency` (từ `expected_onset_hours` và severity). Chi tiết: `src/omen/domain/models/omen_signal.py`.
+Lưu ý quan trọng:
+
+- **KHÔNG CÓ**: `delay_days`, `severity`, `urgency`, `is_actionable`, `risk_exposure`, `recommended_action`, `impact_metrics` — đây là trách nhiệm của downstream (ví dụ `omen_impact`, RiskCast).
+- **Chỉ có**: tín hiệu xác suất, confidence, ngữ cảnh, classification & routing metadata (`signal_type`, `status`, `impact_hints`).
 
 ---
 

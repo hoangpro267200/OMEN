@@ -159,15 +159,16 @@ export function useRealtimePrices(signalIds: string[]): RealtimeStatus {
   return status;
 }
 
-/** Fetch /realtime/status for header. Backs off on failure to avoid console spam. */
+/** Fetch /realtime/status for header. Backs off on failure to avoid console spam. Only runs when enabled (e.g. when using live backend). */
 const REALTIME_POLL_OK_MS = 10_000;
 const REALTIME_POLL_BACKOFF_MS = 30_000;
 
-export function useRealtimeStatus(): {
+export function useRealtimeStatus(options?: { enabled?: boolean }): {
   registered_signals: number;
   websocket_connected: boolean;
   status: string;
 } | null {
+  const enabled = options?.enabled ?? true;
   const [data, setData] = useState<{
     registered_signals: number;
     websocket_connected: boolean;
@@ -175,6 +176,7 @@ export function useRealtimeStatus(): {
   } | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -210,7 +212,7 @@ export function useRealtimeStatus(): {
       cancelled = true;
       if (timeoutId != null) clearTimeout(timeoutId);
     };
-  }, []);
+  }, [enabled]);
 
   return data;
 }

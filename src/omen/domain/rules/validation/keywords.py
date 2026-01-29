@@ -92,6 +92,8 @@ LOGISTICS_KEYWORDS: dict[str, list[str]] = {
         "dispute",
         "crisis",
         "escalation",
+        "strike",
+        "closure",
     ],
     "infrastructure": [
         "port",

@@ -29,6 +29,12 @@ from omen.domain.models.raw_signal import RawSignalEvent, MarketMetadata
 from omen.domain.models.validated_signal import ValidatedSignal, ValidationResult
 from omen.domain.models.enums import SignalType, SignalStatus, ImpactDirection, AffectedDomain
 from omen.domain.models.impact_hints import ImpactHints
+from omen.domain.models.signal_event import (
+    SignalEvent,
+    LedgerRecord,
+    SCHEMA_VERSION,
+    generate_input_event_hash,
+)
 
 __all__ = [
     "RawSignalEvent",
@@ -62,4 +68,8 @@ __all__ = [
     "ImpactDirection",
     "AffectedDomain",
     "ImpactHints",
+    "SignalEvent",
+    "LedgerRecord",
+    "SCHEMA_VERSION",
+    "generate_input_event_hash",
 ]

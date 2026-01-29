@@ -69,7 +69,11 @@ vi.mock('../hooks/useDataSource', () => ({
 
 vi.mock('../hooks/useRealtimePrices', () => ({
   useRealtimePrices: vi.fn(() => ({ error: null })),
-  useRealtimeStatus: vi.fn(() => ({ connected: true, error: null })),
+  useRealtimeStatus: vi.fn(() => ({
+    registered_signals: 0,
+    websocket_connected: true,
+    status: 'idle',
+  })),
 }));
 
 function renderApp() {

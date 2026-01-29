@@ -181,6 +181,7 @@ function App() {
         latencyMs={stats.system_latency_ms}
         dataSource={dataSource}
         signalsCount={dataSource.type === 'live' ? (stats.signals_generated ?? signals.length) : undefined}
+        enableRealtimePolling={dataSource.type === 'live'}
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden pt-16 pb-12">
