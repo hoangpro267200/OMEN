@@ -13,7 +13,7 @@ import hashlib
 import json
 import zlib
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .omen_signal import OmenSignal
 
@@ -33,6 +33,8 @@ class SignalEvent(BaseModel):
     Immutability: Once created, a SignalEvent MUST NOT be modified.
     Updates = new SignalEvent with new signal_id.
     """
+    
+    model_config = ConfigDict(frozen=True)
 
     # === SCHEMA VERSION ===
     schema_version: str = Field(
@@ -146,6 +148,8 @@ class LedgerRecord(BaseModel):
     Format for JSONL storage:
     {"checksum":"crc32:...","length":1234,"signal":{...}}
     """
+    
+    model_config = ConfigDict(frozen=True)
 
     checksum: str = Field(
         description="CRC32 checksum of signal JSON",

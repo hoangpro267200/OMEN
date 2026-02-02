@@ -17,18 +17,19 @@ This signal does NOT contain:
 
 Downstream consumers are responsible for translating signals into
 domain-specific impact and decisions.
+
+NOTE: No logging in domain layer - maintain purity for determinism and testability.
 """
 
 from __future__ import annotations
 
 import hashlib
-import logging
 import re
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 if TYPE_CHECKING:
     from .validated_signal import ValidatedSignal
@@ -36,8 +37,6 @@ if TYPE_CHECKING:
 from .enums import SignalType, SignalStatus
 from .impact_hints import ImpactHints
 from ..services.signal_classifier import SignalClassifier
-
-logger = logging.getLogger(__name__)
 
 # Module-level classifier instance
 _classifier = SignalClassifier()
@@ -70,30 +69,27 @@ def _generate_deterministic_trace_id(
     return full_hash[:16]
 
 
-def _validate_temporal_consistency(title: str, resolution_date: Optional[datetime]) -> None:
+def _validate_temporal_consistency(title: str, resolution_date: Optional[datetime]) -> bool:
     """
-    Log a warning if the year mentioned in the title does not match the
-    market resolution_date year.
+    Check if the year mentioned in the title matches the market resolution_date year.
 
     This is a data-quality check only and does NOT affect processing.
+    
+    Returns:
+        True if consistent (or cannot check), False if inconsistent.
     """
     if not resolution_date or not title:
-        return
+        return True  # Cannot check, assume consistent
 
     match = re.search(r"\b(20\d{2})\b", title)
     if not match:
-        return
+        return True  # No year in title, assume consistent
 
     title_year = int(match.group(1))
     horizon_year = resolution_date.year
-    if title_year != horizon_year:
-        logger.warning(
-            "Temporal inconsistency detected: title year %s, resolution_date year %s. "
-            "Title: %r",
-            title_year,
-            horizon_year,
-            title[:80],
-        )
+    # Domain layer is pure - return result instead of logging
+    # Caller can track inconsistency via signal metadata if needed
+    return title_year == horizon_year
 
 
 class ConfidenceLevel(str, Enum):
@@ -124,6 +120,9 @@ class SignalCategory(str, Enum):
 
 class GeographicContext(BaseModel):
     """Geographic context of the signal."""
+    
+    model_config = ConfigDict(frozen=True)
+    
     regions: list[str] = Field(
         default_factory=list,
         description="Regions mentioned or implied (e.g., 'Red Sea', 'Asia', 'Europe')",
@@ -140,6 +139,9 @@ class GeographicContext(BaseModel):
 
 class TemporalContext(BaseModel):
     """Temporal context of the signal."""
+    
+    model_config = ConfigDict(frozen=True)
+    
     event_horizon: Optional[str] = Field(
         default=None,
         description="When the event might occur (e.g., '2026-06-30', 'Q2 2026')",
@@ -156,6 +158,9 @@ class TemporalContext(BaseModel):
 
 class UncertaintyBounds(BaseModel):
     """Uncertainty bounds for a value."""
+    
+    model_config = ConfigDict(frozen=True)
+    
     lower: float
     upper: float
     confidence_interval: str = Field(
@@ -166,6 +171,9 @@ class UncertaintyBounds(BaseModel):
 
 class EvidenceItem(BaseModel):
     """Single piece of evidence supporting the signal."""
+    
+    model_config = ConfigDict(frozen=True)
+    
     source: str = Field(description="Source name (e.g., 'Polymarket', 'Drewry')")
     source_type: str = Field(description="Type: 'market', 'research', 'news', 'internal'")
     value: Optional[str] = Field(default=None, description="The evidence value/quote")
@@ -175,6 +183,9 @@ class EvidenceItem(BaseModel):
 
 class ValidationScore(BaseModel):
     """Score from a validation rule."""
+    
+    model_config = ConfigDict(frozen=True)
+    
     rule_name: str
     rule_version: str
     score: float = Field(ge=0, le=1)
@@ -188,6 +199,8 @@ class OmenSignal(BaseModel):
     This is a signal, not a decision or recommendation.
     Downstream consumers use it for their own impact and decisions.
     """
+    
+    model_config = ConfigDict(frozen=True)
 
     # === IDENTIFICATION ===
     signal_id: str = Field(
@@ -323,9 +336,9 @@ class OmenSignal(BaseModel):
         default=None,
         description="When source data was observed (from source system)",
     )
-    generated_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="When this signal was generated",
+    generated_at: Optional[datetime] = Field(
+        default=None,
+        description="When this signal was generated (set from ProcessingContext)",
     )
 
     # === VALIDATION HELPERS ===
@@ -467,7 +480,7 @@ class OmenSignal(BaseModel):
             ruleset_version=ruleset,
             source_url=event.market.market_url,
             observed_at=getattr(event, "observed_at", None),
-            generated_at=getattr(validated_signal, "validated_at", datetime.utcnow()),
+            generated_at=getattr(validated_signal, "validated_at", None),
             # === NEW FIELDS ===
             signal_type=signal_type,
             status=status,

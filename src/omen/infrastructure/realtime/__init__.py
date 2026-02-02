@@ -1,5 +1,17 @@
-"""Real-time streaming infrastructure."""
+"""Real-time infrastructure components."""
 
-from omen.infrastructure.realtime.price_streamer import PriceStreamer, SignalPriceUpdate
+from omen.infrastructure.realtime.redis_pubsub import (
+    RedisPubSubManager,
+    RedisMessage,
+    get_pubsub_manager,
+    initialize_pubsub,
+    shutdown_pubsub,
+)
 
-__all__ = ["PriceStreamer", "SignalPriceUpdate"]
+__all__ = [
+    "RedisPubSubManager",
+    "RedisMessage",
+    "get_pubsub_manager",
+    "initialize_pubsub",
+    "shutdown_pubsub",
+]

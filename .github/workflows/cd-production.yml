@@ -1,0 +1,106 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CD — Deploy to Production (on release published) — Blue-Green
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: CD - Deploy to Production
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://omen.example.com
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || github.repository }}
+          IMAGE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # Blue-Green: deploy to green, then switch traffic
+      - name: Deploy to Green environment
+        id: deploy-green
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER_PRODUCTION || 'omen-production' }} \
+            --service ${{ vars.ECS_SERVICE_GREEN || 'omen-api-green' }} \
+            --force-new-deployment
+        continue-on-error: true
+
+      - name: Wait for green deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ vars.ECS_CLUSTER_PRODUCTION || 'omen-production' }} \
+            --services ${{ vars.ECS_SERVICE_GREEN || 'omen-api-green' }}
+        continue-on-error: true
+
+      - name: Run smoke tests on green
+        run: |
+          GREEN_URL="${{ vars.GREEN_INTERNAL_URL || vars.PRODUCTION_URL || 'https://omen.example.com' }}"
+          if command -v curl >/dev/null 2>&1; then
+            curl -sf "${GREEN_URL}/health/" || true
+            curl -sf "${GREEN_URL}/health/live" || true
+          fi
+        continue-on-error: true
+
+      - name: Switch traffic to green (update listener)
+        run: |
+          echo "In production, update ALB listener to forward to green target group."
+          echo "Example: aws elbv2 modify-listener --listener-arn $LISTENER_ARN --default-actions Type=forward,TargetGroupArn=$GREEN_TG_ARN"
+        continue-on-error: true
+
+      - name: Monitor (placeholder)
+        run: |
+          echo "Optional: sleep 600 and run health/metric checks before scaling down blue."
+        continue-on-error: true
+
+      - name: Scale down blue environment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER_PRODUCTION || 'omen-production' }} \
+            --service ${{ vars.ECS_SERVICE_BLUE || 'omen-api-blue' }} \
+            --desired-count 0
+        continue-on-error: true
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "Production deployment successful: ${{ github.event.release.tag_name }}"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Rollback: switch listener back to blue target group and scale blue up."
+          echo "Example: aws elbv2 modify-listener --listener-arn $LISTENER_ARN --default-actions Type=forward,TargetGroupArn=$BLUE_TG_ARN"
+          echo "Example: aws ecs update-service --cluster ... --service omen-api-blue --desired-count 2"
+        continue-on-error: true

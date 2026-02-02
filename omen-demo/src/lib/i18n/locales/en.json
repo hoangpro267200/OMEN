@@ -1,0 +1,98 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Try Again",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "viewAll": "View All",
+    "noData": "No data available"
+  },
+  "nav": {
+    "overview": "Overview",
+    "partitions": "Partitions",
+    "signals": "Signals",
+    "ingestDemo": "Ingest Demo",
+    "ledgerProof": "Ledger Proof"
+  },
+  "overview": {
+    "title": "OMEN Signal Intelligence",
+    "subtitle": "Dual-path pipeline for logistics risk signals",
+    "signalsToday": "Signals Today",
+    "hotPathOk": "Hot Path OK",
+    "duplicates": "Duplicates",
+    "partitions": "Partitions",
+    "lastReconcile": "Last Reconcile",
+    "tagline": "Ledger first. Hot path second. Nothing lost."
+  },
+  "partitions": {
+    "title": "Partitions",
+    "subtitle": "Ledger partitions by emitted_at date. Sealed = immutable.",
+    "partitionDate": "Partition Date",
+    "type": "Type",
+    "status": "Status",
+    "records": "Records",
+    "highwater": "Highwater",
+    "segments": "Segments",
+    "reconcile": "Reconcile",
+    "sealed": "Sealed",
+    "open": "Open",
+    "main": "Main",
+    "late": "Late"
+  },
+  "partitionDetail": {
+    "backToPartitions": "Back to Partitions",
+    "completenessCheck": "Completeness Check",
+    "ledger": "Ledger (Source of Truth)",
+    "processed": "RiskCast (Processed)",
+    "missing": "Missing",
+    "runReconcile": "Run Reconcile",
+    "reconcileSuccess": "Reconcile Complete",
+    "replayed": "Replayed {{count}} signals"
+  },
+  "signals": {
+    "title": "Signals",
+    "subtitle": "Browse and search emitted signals. Click to view full envelope.",
+    "searchPlaceholder": "Search by signal_id, trace_id, source_event_id...",
+    "emittedAt": "Emitted At",
+    "signalId": "Signal ID",
+    "category": "Category",
+    "probability": "Probability",
+    "confidence": "Confidence"
+  },
+  "ingestDemo": {
+    "title": "Ingest Demo: Idempotent Delivery",
+    "subtitle": "POST the same signal multiple times. First gets 200 + ack_id. Duplicates get 409 + SAME ack_id.",
+    "sendOne": "Send 1 Request",
+    "sendFive": "Send 5 Duplicates",
+    "sendTwenty": "Send 20 Duplicates",
+    "clear": "Clear",
+    "accepted": "Accepted",
+    "duplicateCount": "Duplicates",
+    "lastAckId": "Last Ack ID"
+  },
+  "ledgerProof": {
+    "title": "Ledger Proof: WAL Framing & Crash Safety",
+    "subtitle": "Every signal is written as a framed record: [length][crc][payload].",
+    "frameStructure": "Frame Structure",
+    "crashSimulator": "Crash-Tail Simulator",
+    "simulateCrash": "Simulate Crash",
+    "runRead": "Run Read Demo",
+    "proofSuccess": "No corrupted records despite crash"
+  },
+  "status": {
+    "healthy": "Healthy",
+    "completed": "Completed",
+    "partial": "Partial",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "delivered": "Delivered",
+    "duplicate": "Duplicate"
+  }
+}

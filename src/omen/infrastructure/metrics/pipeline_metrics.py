@@ -11,7 +11,7 @@ Risk quantification is consumer responsibility; not computed here.
 
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import statistics
 import threading
@@ -72,7 +72,7 @@ class PipelineMetricsCollector:
         self._total_signals_generated = 0
         self._total_events_rejected = 0
 
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now(timezone.utc)
 
     def start_batch(self) -> None:
         """Mark the start of a processing batch."""
@@ -97,7 +97,7 @@ class PipelineMetricsCollector:
         total_time_ms: Optional[float] = None,
     ) -> None:
         """Complete a processing batch and record metrics."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         total_time = total_time_ms
         if total_time is None and self._current_batch_start is not None:
             total_time = (time.perf_counter() - self._current_batch_start) * 1000
@@ -179,7 +179,7 @@ class PipelineMetricsCollector:
             health = self._source_health[source_name]
             health.status = status
             if not error:
-                health.last_successful_fetch = datetime.utcnow()
+                health.last_successful_fetch = datetime.now(timezone.utc)
             alpha = 0.3
             health.avg_latency_ms = alpha * latency_ms + (1 - alpha) * health.avg_latency_ms
             health.error_rate = alpha * (1.0 if error else 0.0) + (1 - alpha) * health.error_rate
@@ -189,7 +189,7 @@ class PipelineMetricsCollector:
     def get_stats(self) -> dict[str, Any]:
         """Get current system statistics from actual batches."""
         with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             cutoff = now - self._window
             recent = [b for b in self._batches if b.timestamp > cutoff]
 

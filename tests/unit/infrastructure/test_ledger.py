@@ -228,12 +228,13 @@ def test_query_by_category(tmp_path: Path):
     writer.write(_make_event("OMEN-CAT2", category=SignalCategory.OTHER))
     writer.write(_make_event("OMEN-CAT3", category=SignalCategory.GEOPOLITICAL))
     reader = LedgerReader(tmp_path)
-    today = date.today()
+    # Use UTC date since events are timestamped with UTC
+    utc_today = datetime.now(timezone.utc).date()
     events = list(
         reader.query_by_category(
             SignalCategory.GEOPOLITICAL.value,
-            today,
-            today,
+            utc_today,
+            utc_today,
             validate=True,
         )
     )

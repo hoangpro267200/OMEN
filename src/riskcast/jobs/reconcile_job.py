@@ -436,19 +436,36 @@ class ReconcileJob:
         return results
 
 
+def _env(key: str, default: str) -> str:
+    """Get env var (import here to avoid circular deps)."""
+    import os
+    return os.environ.get(key, default)
+
+
 async def run_reconcile_job(
-    ledger_path: str = "/var/lib/omen/ledger",
+    ledger_path: str | None = None,
     since_days: int = 7,
+    riskcast_ingest_url: str | None = None,
+    api_key: str | None = None,
 ) -> list[ReconcileResult]:
     """
     Entry point for reconcile job.
 
     Usage:
         python -m riskcast.jobs.reconcile_job
+        python -m riskcast.jobs.reconcile_job --loop --interval 300
 
-    Or in cron:
-        0 * * * * python -m riskcast.jobs.reconcile_job
+    Env: RISKCAST_LEDGER_BASE_PATH, RISKCAST_INGEST_URL, RISKCAST_API_KEYS (first key).
     """
+    ledger_path = ledger_path or _env("RISKCAST_LEDGER_BASE_PATH", "/var/lib/omen/ledger")
+    ingest_url = riskcast_ingest_url or _env(
+        "RISKCAST_INGEST_URL", "http://localhost:8001/api/v1/signals/ingest"
+    )
+    key = api_key
+    if key is None:
+        keys = _env("RISKCAST_API_KEYS", "riskcast-internal-key").strip().split(",")
+        key = keys[0].strip() if keys else "riskcast-internal-key"
+
     ledger = LedgerClient(ledger_path)
     signal_store = get_store()
     reconcile_store = get_reconcile_store()
@@ -457,8 +474,8 @@ async def run_reconcile_job(
         ledger_client=ledger,
         signal_store=signal_store,
         reconcile_store=reconcile_store,
-        riskcast_ingest_url="http://localhost:8001/api/v1/signals/ingest",
-        api_key="riskcast-internal-key",
+        riskcast_ingest_url=ingest_url,
+        api_key=key,
     )
 
     results = await job.run(since_days=since_days)
@@ -471,6 +488,7 @@ async def run_reconcile_job(
 
 
 if __name__ == "__main__":
+    import argparse
     import sys
 
     logging.basicConfig(
@@ -478,9 +496,56 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    results = asyncio.run(run_reconcile_job())
+    parser = argparse.ArgumentParser(description="RiskCast reconcile job")
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Run reconcile in a loop",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=300,
+        metavar="SECONDS",
+        help="Seconds between reconcile runs when --loop (default: 300)",
+    )
+    parser.add_argument(
+        "--ledger-path",
+        type=str,
+        default=None,
+        help="Ledger base path (default: RISKCAST_LEDGER_BASE_PATH or /var/lib/omen/ledger)",
+    )
+    parser.add_argument(
+        "--since-days",
+        type=int,
+        default=7,
+        help="Reconcile partitions from last N days (default: 7)",
+    )
+    args = parser.parse_args()
 
-    failed = [r for r in results if r.status == ReconcileStatus.FAILED]
-    if failed:
-        sys.exit(1)
-    sys.exit(0)
+    if args.loop:
+        logger.info("Reconcile job starting in loop mode (interval=%ss)", args.interval)
+
+        async def loop_run() -> None:
+            while True:
+                try:
+                    await run_reconcile_job(
+                        ledger_path=args.ledger_path,
+                        since_days=args.since_days,
+                    )
+                except Exception as e:
+                    logger.exception("Reconcile run failed: %s", e)
+                await asyncio.sleep(args.interval)
+
+        asyncio.run(loop_run())
+    else:
+        results = asyncio.run(
+            run_reconcile_job(
+                ledger_path=args.ledger_path,
+                since_days=args.since_days,
+            )
+        )
+        failed = [r for r in results if r.status == ReconcileStatus.FAILED]
+        if failed:
+            sys.exit(1)
+        sys.exit(0)

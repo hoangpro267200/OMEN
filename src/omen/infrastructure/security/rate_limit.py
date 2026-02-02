@@ -4,7 +4,7 @@ Rate limiting for OMEN API.
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Awaitable
 
 from fastapi import Request, status
@@ -47,7 +47,7 @@ class TokenBucketRateLimiter:
             Tuple of (allowed, headers_dict)
         """
         async with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             if client_id not in self._buckets:
                 self._buckets[client_id] = RateLimitState(

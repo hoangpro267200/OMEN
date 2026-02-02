@@ -1,7 +1,7 @@
 """
 Live Polymarket API client (Gamma API).
 
-Base URL: https://gamma-api.polymarket.com
+Base URL from POLYMARKET_GAMMA_API_URL (default: https://gamma-api.polymarket.com).
 No API key required for public read endpoints.
 """
 
@@ -13,6 +13,8 @@ import httpx
 
 from omen.domain.errors import SourceRateLimitedError, SourceUnavailableError
 from omen.infrastructure.retry import create_source_circuit_breaker
+from omen.polymarket_settings import get_polymarket_settings
+from omen.adapters.inbound.polymarket.http_retry import run_with_retry
 
 
 def _log_source_failure(source_name: str, start: float, error_message: str) -> None:
@@ -43,22 +45,27 @@ class PolymarketLiveClient:
     """
     Client for Polymarket Gamma API (live event/market data).
 
-    Use for demo and live integrations. For existing tests, the original
-    PolymarketClient remains unchanged.
+    URL and timeouts from POLYMARKET_* env. Uses trust_env for proxy (HTTP_PROXY/HTTPS_PROXY).
     """
-
-    GAMMA_BASE_URL = "https://gamma-api.polymarket.com"
-    CLOB_BASE_URL = "https://clob.polymarket.com"
 
     def __init__(
         self,
-        timeout: float = 30.0,
+        timeout: float | None = None,
         use_gamma: bool = True,
+        gamma_url: str | None = None,
+        clob_url: str | None = None,
     ):
-        self._timeout = timeout
-        self._base_url = self.GAMMA_BASE_URL if use_gamma else self.CLOB_BASE_URL
+        s = get_polymarket_settings()
+        self._timeout = timeout if timeout is not None else s.timeout_s
+        self._gamma_url = (gamma_url or s.gamma_api_url).rstrip("/")
+        self._clob_url = (clob_url or s.clob_api_url).rstrip("/")
+        self._base_url = self._gamma_url if use_gamma else self._clob_url
         self._circuit = create_source_circuit_breaker("polymarket_live")
-        self._client = httpx.Client(timeout=timeout)
+        self._client = httpx.Client(
+            timeout=self._timeout,
+            trust_env=s.httpx_trust_env,
+            headers={"User-Agent": s.user_agent},
+        )
 
     def fetch_events(
         self,
@@ -80,13 +87,17 @@ class PolymarketLiveClient:
         start = time.perf_counter()
         try:
             params: dict[str, Any] = {"limit": limit}
-            if self._base_url == self.GAMMA_BASE_URL:
+            if self._base_url == self._gamma_url:
                 params["active"] = str(active).lower()
                 params["closed"] = str(closed).lower()
-            response = self._client.get(
-                f"{self._base_url}/events",
-                params=params,
-            )
+
+            def _do_request() -> httpx.Response:
+                return self._client.get(
+                    f"{self._base_url}/events",
+                    params=params,
+                )
+
+            response = run_with_retry(_do_request)
             response.raise_for_status()
             self._circuit.record_success()
             data = response.json()
@@ -111,13 +122,8 @@ class PolymarketLiveClient:
             except Exception:
                 pass
             return out
-        except httpx.TimeoutException as e:
-            self._circuit.record_failure(e)
-            _log_source_failure("Polymarket", start, str(e))
-            raise SourceUnavailableError(
-                f"Polymarket timeout: {e}",
-                context={"event": "timeout"},
-            ) from e
+        except SourceRateLimitedError:
+            raise
         except httpx.HTTPStatusError as e:
             self._circuit.record_failure(e)
             _log_source_failure("Polymarket", start, str(e))
@@ -132,6 +138,8 @@ class PolymarketLiveClient:
                 f"Polymarket HTTP error: {e}",
                 context={"status_code": e.response.status_code},
             ) from e
+        except SourceUnavailableError:
+            raise
         except Exception as e:
             self._circuit.record_failure(e)
             _log_source_failure("Polymarket", start, str(e))
@@ -148,8 +156,12 @@ class PolymarketLiveClient:
                 context={"circuit_state": self._circuit.state.value},
             )
         try:
-            url = f"{self._base_url}/markets"
-            response = self._client.get(url, params={"limit": limit})
+            def _do_request() -> httpx.Response:
+                return self._client.get(
+                    f"{self._base_url}/markets",
+                    params={"limit": limit},
+                )
+            response = run_with_retry(_do_request)
             response.raise_for_status()
             self._circuit.record_success()
             data = response.json()

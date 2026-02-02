@@ -191,3 +191,21 @@ export interface ActivityFeedItem {
   message: string;
   time: string;
 }
+
+/* Re-export API-aligned OMEN types (SignalEvent, OmenSignalResponse, etc.) */
+export type {
+  OmenSignalResponse,
+  SignalEventEnvelope,
+  SignalListResponse,
+  PipelineStatsResponse,
+  GeographicContextResponse,
+  TemporalContextResponse,
+  EvidenceResponse,
+  ImpactHintsResponse,
+  LedgerRecordResponse,
+  SignalType,
+  SignalStatus,
+  ConfidenceLevel,
+  DeliveryStatus,
+} from '../lib/omen-types';
+export type { SignalCategory as ApiSignalCategory } from '../lib/omen-types';

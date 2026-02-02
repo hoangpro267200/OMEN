@@ -223,10 +223,11 @@ _reconcile_store: Optional[ReconcileStateStore] = None
 
 
 def get_reconcile_store() -> ReconcileStateStore:
-    """Return singleton ReconcileStateStore (default path)."""
+    """Return singleton ReconcileStateStore (path from RISKCAST_DB_PATH env)."""
     global _reconcile_store
     if _reconcile_store is None:
-        _reconcile_store = ReconcileStateStore(
-            "/var/lib/riskcast/reconcile_state.db"
-        )
+        import os
+        db_path = os.environ.get("RISKCAST_DB_PATH", "/var/lib/riskcast/signals.db")
+        state_path = str(Path(db_path).parent / "reconcile_state.db")
+        _reconcile_store = ReconcileStateStore(state_path)
     return _reconcile_store

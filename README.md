@@ -2,6 +2,59 @@
 
 **Phiên bản:** 0.1.0 · **Python:** 3.10+ · **Trạng thái:** Alpha
 
+Enterprise-grade event processing pipeline với signal-only architecture, reconciliation, và observability.
+
+---
+
+## 📖 Documentation & Quick links
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | High-level architecture, components, data flow |
+| [API Reference](docs/api.md) | REST API, authentication, endpoints |
+| [Deployment Guide](docs/deployment.md) | Production deployment, Docker, Terraform |
+| [Runbooks](docs/runbooks/README.md) | Incident response, rollback, RiskCast/Ledger issues |
+| [Development Guide](docs/development.md) | Local setup, testing, contributing |
+| [Onboarding](docs/onboarding.md) | Day-one setup and first run |
+
+### Quick Start
+
+```bash
+# Backend
+git clone <repo> && cd OMEN
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+cp .env.example .env
+uvicorn omen.main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend (demo UI)
+cd omen-demo && npm ci && npm run dev   # http://localhost:5174
+```
+
+### Testing
+
+```bash
+pytest tests/                          # Unit + integration
+pytest tests/integration/ -v           # Integration only
+cd omen-demo && npm run test           # Frontend unit
+cd omen-demo && npm run test:e2e       # E2E (Playwright)
+python tests/performance/test_load.py  # Load test (optional)
+```
+
+### Monitoring & Security
+
+- **Health:** `GET /health/`, `GET /health/live`
+- **Metrics:** Prometheus at `GET /metrics`
+- **Auth:** API key via `X-API-Key` for `/api/v1/signals` and protected routes
+- **Security:** See [docs/architecture.md](docs/architecture.md#security-architecture) and [ADR-005](docs/adr/005-security-model.md)
+
+### Polymarket & networking (proxy / firewall)
+
+- **Endpoints** and timeouts are configurable via `.env`: `POLYMARKET_GAMMA_API_URL`, `POLYMARKET_CLOB_API_URL`, `POLYMARKET_WS_URL`, `POLYMARKET_API_URL`, `POLYMARKET_TIMEOUT_S`, etc. See [.env.example](.env.example).
+- **Proxy:** Use standard env only: `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`. With `POLYMARKET_HTTPX_TRUST_ENV=true` (default), httpx uses these automatically (suitable for corporate proxy).
+- **Diagnostic:** Run `python -m scripts.polymarket_doctor` from repo root to check DNS, TCP connectivity, and HTTP to Gamma/CLOB; it reports connection refused (e.g. WinError 10061) and suggests enabling proxy or allowlisting.
+- **Recommendation:** Run on a network that is not blocked (e.g. home or cloud VM), or ask IT to allowlist: `gamma-api.polymarket.com`, `clob.polymarket.com`, `api.polymarket.com`, `ws-subscriptions-clob.polymarket.com`. No instructions for bypassing geography or ToS; only valid configuration.
+
 ---
 
 ## Mục lục
@@ -359,6 +412,14 @@ pip install -e ".[dev]"
 cp .env.example .env
 # Chỉnh .env nếu cần (OMEN_*, OMEN_SECURITY_*)
 ```
+
+**Chẩn đoán mạng Polymarket (nếu gọi API Polymarket bị chặn / proxy):**
+
+```bash
+python -m scripts.polymarket_doctor
+```
+
+Script kiểm tra DNS, TCP 443, và GET tới Gamma/CLOB; báo lỗi connection refused (WinError 10061) và gợi ý cấu hình proxy hoặc allowlist. Xem thêm [Polymarket & networking](#polymarket--networking-proxy--firewall) ở trên.
 
 **Chạy pipeline (CLI):**
 

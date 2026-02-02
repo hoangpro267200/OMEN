@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import jwt
@@ -25,9 +25,11 @@ async def verify_api_key(
     config: Annotated[SecurityConfig, Depends(get_security_config)],
 ) -> str:
     """
-    Verify API key from header.
+    Verify API key from header using secure hashed verification.
 
-    Returns the validated API key for audit logging.
+    Returns the validated API key ID for audit logging.
+    Uses ApiKeyManager for secure hash-based verification.
+    Keys are NEVER compared in plaintext - only hashes are compared.
     """
     if not api_key:
         raise HTTPException(
@@ -36,9 +38,15 @@ async def verify_api_key(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    for valid_key in config.api_keys:
-        if secrets.compare_digest(api_key, valid_key):
-            return api_key
+    # Use ApiKeyManager for secure hash-based verification
+    from omen.infrastructure.security.api_key_manager import get_api_key_manager
+    
+    manager = get_api_key_manager()
+    record = manager.verify_key(api_key)
+    
+    if record:
+        # Return key_id for audit logging (never return the actual key)
+        return record.key_id
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,7 +75,7 @@ def create_access_token(
     config: SecurityConfig,
 ) -> str:
     """Create a JWT access token."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "exp": now + timedelta(hours=config.jwt_expiry_hours),

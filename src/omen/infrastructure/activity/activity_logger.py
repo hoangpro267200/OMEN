@@ -6,7 +6,7 @@ NOT pre-populated demo data.
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 import threading
 import uuid
@@ -82,7 +82,7 @@ class ActivityLogger:
                 id=str(uuid.uuid4())[:8],
                 type="signal",
                 message=f"Tín hiệu được tạo: {signal_id} — {(title or '')[:50]}",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 signal_id=signal_id,
                 confidence_label=confidence_label,
             )
@@ -93,7 +93,7 @@ class ActivityLogger:
                     id=str(uuid.uuid4())[:8],
                     type="alert",
                     message=f"High-confidence signal ({confidence_label}): {signal_id}",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     signal_id=signal_id,
                     confidence_label=confidence_label,
                 )
@@ -115,7 +115,7 @@ class ActivityLogger:
                     id=str(uuid.uuid4())[:8],
                     type="validation",
                     message=f"Sự kiện đã được xác thực: {short_id}...",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     event_id=event_id,
                     rule_name=rule_name,
                 )
@@ -126,7 +126,7 @@ class ActivityLogger:
                     id=str(uuid.uuid4())[:8],
                     type="validation",
                     message=f"Sự kiện bị từ chối: {short_id}... — {reason or 'Unknown'}",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     event_id=event_id,
                     rule_name=rule_name,
                 )
@@ -146,7 +146,7 @@ class ActivityLogger:
                 id=str(uuid.uuid4())[:8],
                 type="rule",
                 message=f"Quy tắc được áp dụng: {rule_name} v{rule_version}{contrib}",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 signal_id=signal_id or None,
                 rule_name=rule_name,
             )
@@ -167,7 +167,7 @@ class ActivityLogger:
                     id=str(uuid.uuid4())[:8],
                     type="source",
                     message=f"{source_name}: Đã nhận {events_count} sự kiện ({latency_ms:.0f}ms)",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     source_name=source_name,
                 )
             )
@@ -177,7 +177,7 @@ class ActivityLogger:
                     id=str(uuid.uuid4())[:8],
                     type="error",
                     message=f"{source_name}: Lỗi kết nối — {error_message or 'Unknown'}",
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     source_name=source_name,
                     error_code=error_message,
                 )
@@ -190,7 +190,7 @@ class ActivityLogger:
                 id=str(uuid.uuid4())[:8],
                 type="system",
                 message=message,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
             )
         )
 

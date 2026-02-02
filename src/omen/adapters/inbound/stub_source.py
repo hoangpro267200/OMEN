@@ -3,7 +3,7 @@
 Provides predictable, reproducible test data.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Iterator
 
 from ...domain.models.raw_signal import RawSignalEvent, MarketMetadata
@@ -76,7 +76,7 @@ class StubSignalSource(SignalSource):
                     current_liquidity_usd=75000.0,
                     num_traders=1200
                 ),
-                observed_at=datetime.utcnow()
+                observed_at=datetime.now(timezone.utc)
             ),
             # Low-liquidity event (should be filtered)
             RawSignalEvent(
@@ -93,7 +93,7 @@ class StubSignalSource(SignalSource):
                     total_volume_usd=500.0,
                     current_liquidity_usd=100.0,  # Below threshold
                 ),
-                observed_at=datetime.utcnow()
+                observed_at=datetime.now(timezone.utc)
             ),
         ]
     
@@ -105,7 +105,7 @@ class StubSignalSource(SignalSource):
     ) -> RawSignalEvent:
         """Factory for Red Sea test events with configurable params."""
         return RawSignalEvent(
-            event_id=EventId(f"test-rs-{datetime.utcnow().timestamp()}"),
+            event_id=EventId(f"test-rs-{datetime.now(timezone.utc).timestamp()}"),
             title="Red Sea shipping disruption",
             probability=probability,
             keywords=["red sea", "shipping", "houthi"],

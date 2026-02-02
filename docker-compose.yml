@@ -1,27 +1,48 @@
-version: '3.8'
+# ═══════════════════════════════════════════════════════════════════════════════
+# OMEN Development Docker Compose
+# ═══════════════════════════════════════════════════════════════════════════════
+version: '3.9'
 
 services:
-  # Future: PostgreSQL database
-  # postgres:
-  #   image: postgres:15-alpine
-  #   environment:
-  #     POSTGRES_DB: omen
-  #     POSTGRES_USER: omen
-  #     POSTGRES_PASSWORD: omen
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
+  omen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OMEN_LEDGER_BASE_PATH=/data/ledger
+      - OMEN_RISKCAST_URL=http://riskcast:8001
+      - OMEN_SECURITY_API_KEYS=dev-key-123
+      - OMEN_LOG_LEVEL=DEBUG
+      - OMEN_LOG_FORMAT=pretty
+    volumes:
+      - ./src:/app/src:ro
+      - ledger_data:/data/ledger
+    command: python -m uvicorn omen.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - omen-network
 
-  # Future: Kafka for event streaming
-  # kafka:
-  #   image: confluentinc/cp-kafka:latest
-  #   ports:
-  #     - "9092:9092"
-  #   environment:
-  #     KAFKA_BROKER_ID: 1
-  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+  riskcast:
+    build:
+      context: .
+      dockerfile: Dockerfile.riskcast
+    ports:
+      - "8001:8001"
+    environment:
+      - RISKCAST_DB_PATH=/data/riskcast/signals.db
+      - RISKCAST_SECURITY_API_KEYS=dev-key-123
+      - RISKCAST_LOG_LEVEL=DEBUG
+    volumes:
+      - ./src:/app/src:ro
+      - riskcast_data:/data/riskcast
+    command: python -m uvicorn riskcast.api.app:app --host 0.0.0.0 --port 8001 --reload
+    networks:
+      - omen-network
 
 volumes:
-  postgres_data:
+  ledger_data:
+  riskcast_data:
+
+networks:
+  omen-network:

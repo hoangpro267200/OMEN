@@ -1,18 +1,26 @@
 """
 Polymarket WebSocket client for real-time price streaming.
 
-WebSocket URL: wss://ws-subscriptions-clob.polymarket.com/ws/market
+WebSocket URL from POLYMARKET_WS_URL (default: wss://ws-subscriptions-clob.polymarket.com/ws/market).
+Reconnect with exponential backoff, max cap 30s.
 """
 
 import asyncio
 import json
+import logging
+import random
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable
 
 import websockets
 
 from omen.domain.errors import SourceUnavailableError
+from omen.polymarket_settings import get_polymarket_settings
+
+logger = logging.getLogger(__name__)
+
+MAX_RECONNECT_BACKOFF_S = 30.0
 
 
 @dataclass
@@ -27,22 +35,23 @@ class PriceUpdate:
     timestamp: datetime
 
 
+def _reconnect_backoff(attempt: int, base_s: float) -> float:
+    """Exponential backoff with jitter, capped at MAX_RECONNECT_BACKOFF_S."""
+    wait = base_s * (2**attempt) + random.uniform(0, 0.5)
+    return min(wait, MAX_RECONNECT_BACKOFF_S)
+
+
 class PolymarketWebSocketClient:
     """
     WebSocket client for real-time Polymarket price updates.
 
-    Usage:
-        client = PolymarketWebSocketClient()
-        await client.connect()
-        await client.subscribe(["token_id_1", "token_id_2"])
-
-        async for update in client.listen():
-            print(f"Price update: {update}")
+    URL from POLYMARKET_WS_URL. Reconnects with backoff on disconnect/timeout.
     """
 
-    WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
-
-    def __init__(self) -> None:
+    def __init__(self, ws_url: str | None = None):
+        s = get_polymarket_settings()
+        self._ws_url = (ws_url or s.ws_url).rstrip("/")
+        self._backoff_base = s.retry_backoff_s
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._subscribed_tokens: set[str] = set()
         self._callbacks: list[Callable[[PriceUpdate], None]] = []
@@ -54,7 +63,7 @@ class PolymarketWebSocketClient:
             return
         try:
             self._ws = await websockets.connect(
-                self.WS_URL,
+                self._ws_url,
                 ping_interval=30,
                 ping_timeout=10,
             )
@@ -112,9 +121,7 @@ class PolymarketWebSocketClient:
         """
         Listen for price updates (async generator).
 
-        Usage:
-            async for update in client.listen():
-                process(update)
+        Reconnects with backoff on disconnect/timeout and resubscribes.
         """
         if not self._ws:
             raise SourceUnavailableError("WebSocket not connected")
@@ -123,20 +130,17 @@ class PolymarketWebSocketClient:
             try:
                 message = await asyncio.wait_for(
                     self._ws.recv(),
-                    timeout=60.0,  # Reconnect if no message in 60s
+                    timeout=60.0,
                 )
 
-                # Skip empty or non-JSON messages (pings, pongs, etc.)
                 if not message or not message.strip():
                     continue
 
                 try:
                     data = json.loads(message)
                 except json.JSONDecodeError:
-                    # Ignore non-JSON messages (control frames, heartbeats)
                     continue
 
-                # Parse different message types
                 if data.get("type") == "price_change":
                     update = PriceUpdate(
                         market_id=data.get("market", "") or "",
@@ -144,41 +148,44 @@ class PolymarketWebSocketClient:
                         price=float(data.get("price", 0)),
                         side=data.get("side", "") or "",
                         size=float(data.get("size", 0)),
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                     )
-
-                    # Call registered callbacks
                     for callback in self._callbacks:
                         callback(update)
-
                     yield update
 
             except asyncio.TimeoutError:
-                # Send ping to keep connection alive
                 if self._ws:
                     await self._ws.ping()
             except websockets.ConnectionClosed:
-                # Attempt reconnect
                 await self._reconnect()
             except Exception as e:
-                # Log only unexpected errors, not transient network issues
                 if "Expecting value" not in str(e):
-                    print(f"WebSocket error: {e}")  # noqa: T201
+                    logger.warning("WebSocket error: %s", e)
                 await asyncio.sleep(1)
 
     async def _reconnect(self) -> None:
-        """Attempt to reconnect and resubscribe."""
+        """Reconnect with exponential backoff and resubscribe. Max backoff 30s."""
         tokens = list(self._subscribed_tokens)
         self._subscribed_tokens.clear()
         self._ws = None
 
-        for attempt in range(3):
+        for attempt in range(get_polymarket_settings().retry_max + 1):
             try:
                 await self.connect()
                 if tokens:
                     await self.subscribe(tokens)
                 return
-            except Exception:
-                await asyncio.sleep(2**attempt)
+            except Exception as e:
+                if attempt == get_polymarket_settings().retry_max:
+                    raise SourceUnavailableError("WebSocket reconnection failed") from e
+                wait = _reconnect_backoff(attempt, self._backoff_base)
+                logger.warning(
+                    "WebSocket reconnect attempt %s failed, retrying in %.1fs: %s",
+                    attempt + 1,
+                    wait,
+                    e,
+                )
+                await asyncio.sleep(wait)
 
         raise SourceUnavailableError("WebSocket reconnection failed")

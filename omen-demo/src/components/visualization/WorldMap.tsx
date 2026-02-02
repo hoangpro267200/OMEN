@@ -62,7 +62,7 @@ export function WorldMap({ routes, chokepoints, className }: WorldMapProps) {
       </div>
       <div
         className="relative w-full overflow-hidden rounded-lg border border-[var(--border-subtle)]"
-        style={{ background: 'var(--bg-base)', minHeight: 400 }}
+        style={{ background: 'var(--bg-primary)', minHeight: 400 }}
       >
         <ComposableMap
           projection="geoMercator"

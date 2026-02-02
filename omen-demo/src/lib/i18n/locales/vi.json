@@ -1,0 +1,98 @@
+{
+  "common": {
+    "loading": "Đang tải...",
+    "error": "Lỗi",
+    "retry": "Thử lại",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "delete": "Xóa",
+    "search": "Tìm kiếm",
+    "filter": "Lọc",
+    "clear": "Xóa",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép!",
+    "viewAll": "Xem tất cả",
+    "noData": "Không có dữ liệu"
+  },
+  "nav": {
+    "overview": "Tổng quan",
+    "partitions": "Phân vùng",
+    "signals": "Tín hiệu",
+    "ingestDemo": "Demo Ingest",
+    "ledgerProof": "Chứng minh Ledger"
+  },
+  "overview": {
+    "title": "OMEN Signal Intelligence",
+    "subtitle": "Pipeline đường kép cho tín hiệu rủi ro logistics",
+    "signalsToday": "Tín hiệu hôm nay",
+    "hotPathOk": "Hot Path OK",
+    "duplicates": "Trùng lặp",
+    "partitions": "Phân vùng",
+    "lastReconcile": "Reconcile cuối",
+    "tagline": "Ledger trước. Hot path sau. Không mất gì."
+  },
+  "partitions": {
+    "title": "Phân vùng",
+    "subtitle": "Phân vùng ledger theo ngày emitted_at. Sealed = bất biến.",
+    "partitionDate": "Ngày phân vùng",
+    "type": "Loại",
+    "status": "Trạng thái",
+    "records": "Bản ghi",
+    "highwater": "Highwater",
+    "segments": "Segments",
+    "reconcile": "Reconcile",
+    "sealed": "Đã seal",
+    "open": "Đang mở",
+    "main": "Chính",
+    "late": "Muộn"
+  },
+  "partitionDetail": {
+    "backToPartitions": "Quay lại Phân vùng",
+    "completenessCheck": "Kiểm tra hoàn chỉnh",
+    "ledger": "Ledger (Nguồn sự thật)",
+    "processed": "RiskCast (Đã xử lý)",
+    "missing": "Thiếu",
+    "runReconcile": "Chạy Reconcile",
+    "reconcileSuccess": "Reconcile hoàn tất",
+    "replayed": "Đã replay {{count}} tín hiệu"
+  },
+  "signals": {
+    "title": "Tín hiệu",
+    "subtitle": "Duyệt và tìm tín hiệu đã emit. Nhấp để xem envelope đầy đủ.",
+    "searchPlaceholder": "Tìm theo signal_id, trace_id, source_event_id...",
+    "emittedAt": "Emitted At",
+    "signalId": "Signal ID",
+    "category": "Danh mục",
+    "probability": "Xác suất",
+    "confidence": "Độ tin cậy"
+  },
+  "ingestDemo": {
+    "title": "Demo Ingest: Giao nhận Idempotent",
+    "subtitle": "POST cùng một tín hiệu nhiều lần. Lần đầu 200 + ack_id. Trùng lặp 409 + CÙNG ack_id.",
+    "sendOne": "Gửi 1 Request",
+    "sendFive": "Gửi 5 Trùng lặp",
+    "sendTwenty": "Gửi 20 Trùng lặp",
+    "clear": "Xóa",
+    "accepted": "Đã chấp nhận",
+    "duplicateCount": "Trùng lặp",
+    "lastAckId": "Ack ID cuối"
+  },
+  "ledgerProof": {
+    "title": "Chứng minh Ledger: WAL Framing & Crash Safety",
+    "subtitle": "Mỗi tín hiệu được ghi dưới dạng bản ghi có khung: [length][crc][payload].",
+    "frameStructure": "Cấu trúc Frame",
+    "crashSimulator": "Mô phỏng Crash-Tail",
+    "simulateCrash": "Mô phỏng Crash",
+    "runRead": "Chạy Demo Đọc",
+    "proofSuccess": "Không có bản ghi bị hỏng dù crash"
+  },
+  "status": {
+    "healthy": "Khỏe mạnh",
+    "completed": "Hoàn thành",
+    "partial": "Một phần",
+    "failed": "Thất bại",
+    "skipped": "Bỏ qua",
+    "delivered": "Đã gửi",
+    "duplicate": "Trùng lặp"
+  }
+}

@@ -5,17 +5,27 @@ Fetches from Gamma API, runs OMEN pipeline, returns results for the React app.
 All data in responses is traceable to pipeline or storage — no synthetic fabrication.
 
 Signal-only contract: endpoints return SignalResponse only. No impact-shaped types.
+
+Security: Requires WRITE_SIGNALS scope for processing operations.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query
 
 from omen.application.container import get_container
 from omen.domain.errors import SourceUnavailableError
 from omen.adapters.inbound.polymarket.source import PolymarketSignalSource
 from omen.api.models.responses import SignalResponse
+from omen.api.errors import not_found, service_unavailable, internal_error
+from omen.infrastructure.security.auth import verify_api_key
+from omen.infrastructure.security.rbac import Scopes, require_scopes
 
 
 router = APIRouter(prefix="/live", tags=["Live Data"])
+
+# Security dependencies for live processing routes
+_write_deps = [Depends(verify_api_key), Depends(require_scopes([Scopes.WRITE_SIGNALS]))]
 
 
 # =============================================================================
@@ -26,7 +36,7 @@ router = APIRouter(prefix="/live", tags=["Live Data"])
 
 
 @router.post(
-    "/process",
+    "/signals",
     response_model=list[SignalResponse],
     summary="Process market events into signals",
     description="""
@@ -40,12 +50,15 @@ router = APIRouter(prefix="/live", tags=["Live Data"])
     - Time-horizon or relevance determination
     - High-confidence or relevance assessment
     - Risk quantification
+    
+    **Requires scope:** `write:signals`
     """,
+    dependencies=_write_deps,
 )
 async def process_live_events(
     limit: int = Query(default=500, le=2000),
     min_liquidity: float = Query(default=1000),
-):
+) -> list[SignalResponse]:
     """Fetch and process events through OMEN pipeline. Returns pure signal contract only."""
     try:
         container = get_container()
@@ -64,23 +77,27 @@ async def process_live_events(
                     out.append(SignalResponse.from_domain(s))
         return out
     except SourceUnavailableError as e:
-        raise HTTPException(status_code=503, detail=f"Polymarket unavailable: {e}")
+        raise service_unavailable("Polymarket", f"Polymarket unavailable: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), include_trace=True)
 
 
-@router.post("/process-single")
+@router.post("/signals/{event_id}", dependencies=_write_deps)
 async def process_single_event(
-    event_id: str = Query(..., alias="event_id"),
-):
-    """Process a single event by ID. Returns pure signal or rejection reason."""
+    event_id: str,
+) -> dict[str, Any]:
+    """
+    Process a single event by ID. Returns pure signal or rejection reason.
+    
+    **Requires scope:** `write:signals`
+    """
     try:
         source = PolymarketSignalSource(logistics_only=False)
         container = get_container()
         pipeline = container.pipeline
         event = source.fetch_by_id(event_id)
         if event is None:
-            raise HTTPException(status_code=404, detail=f"Event {event_id!r} not found")
+            raise not_found("Event", event_id)
         res = pipeline.process_single(event)
         if res.success and res.signals:
             return {
@@ -101,9 +118,7 @@ async def process_single_event(
                 if res.validation_failures else "No applicable rules"
             ),
         }
-    except HTTPException:
-        raise
     except SourceUnavailableError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        raise service_unavailable("Polymarket", str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(str(e), include_trace=True)

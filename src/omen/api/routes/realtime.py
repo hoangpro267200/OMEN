@@ -4,12 +4,14 @@ Real-time price streaming via Server-Sent Events.
 
 import json
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from omen.infrastructure.realtime.price_streamer import get_price_streamer
+from omen.infrastructure.security.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["Real-time"])
@@ -50,7 +52,10 @@ async def get_streamer():
 
 
 @router.post("/subscribe", response_model=SubscribeResponse)
-async def subscribe_signals(request: SubscribeRequest) -> SubscribeResponse:
+async def subscribe_signals(
+    request: SubscribeRequest,
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> SubscribeResponse:
     """
     Subscribe to real-time price updates for signals.
 
@@ -83,7 +88,9 @@ async def subscribe_signals(request: SubscribeRequest) -> SubscribeResponse:
 
 
 @router.get("/prices")
-async def stream_prices():
+async def stream_prices(
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> StreamingResponse:
     """
     Server-Sent Events stream of real-time price updates.
 
@@ -148,7 +155,9 @@ async def stream_prices():
 
 
 @router.get("/status", response_model=RealtimeStatus)
-async def get_realtime_status() -> RealtimeStatus:
+async def get_realtime_status(
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> RealtimeStatus:
     """Get current status of real-time streaming."""
     streamer = get_price_streamer()
     ws = getattr(streamer._ws_client, "_ws", None)
@@ -161,7 +170,10 @@ async def get_realtime_status() -> RealtimeStatus:
 
 
 @router.post("/unsubscribe")
-async def unsubscribe_signals(request: SubscribeRequest):
+async def unsubscribe_signals(
+    request: SubscribeRequest,
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> dict[str, list[str]]:
     """Unsubscribe from signals."""
     streamer = get_price_streamer()
     token_ids = [
@@ -171,4 +183,4 @@ async def unsubscribe_signals(request: SubscribeRequest):
     ]
     if token_ids and hasattr(streamer._ws_client, "unsubscribe"):
         await streamer._ws_client.unsubscribe(token_ids)
-    return {"unsubscribed": request.signal_ids }
+    return {"unsubscribed": request.signal_ids}

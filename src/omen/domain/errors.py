@@ -2,21 +2,32 @@
 OMEN Error Hierarchy.
 
 All errors are explicit, typed, and carry context for debugging.
+Timestamps are injected via TimeProvider for determinism.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 
 class OmenError(Exception):
     """Base error for all OMEN exceptions."""
 
-    def __init__(self, message: str, context: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        timestamp: Optional[datetime] = None,
+    ):
         super().__init__(message)
         self.message = message
         self.context = context or {}
-        self.timestamp = datetime.utcnow()
+        # Use injected timestamp or get from TimeProvider
+        if timestamp is not None:
+            self.timestamp = timestamp
+        else:
+            from omen.application.ports.time_provider import utc_now
+            self.timestamp = utc_now()
 
     def to_dict(self) -> dict[str, Any]:
         return {

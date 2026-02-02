@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
-@dataclass
+@dataclass(frozen=True)
 class PredictionRecord:
-    """A historical prediction to validate."""
+    """A historical prediction to validate. Immutable."""
 
     signal_id: str
     metric_name: str
@@ -22,9 +22,9 @@ class PredictionRecord:
     event_probability: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class OutcomeRecord:
-    """Actual outcome for validation."""
+    """Actual outcome for validation. Immutable."""
 
     signal_id: str
     metric_name: str
@@ -33,9 +33,9 @@ class OutcomeRecord:
     source: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class CalibrationComparison:
-    """Result of validating a prediction against outcome."""
+    """Result of validating a prediction against outcome. Immutable."""
 
     signal_id: str
     metric_name: str

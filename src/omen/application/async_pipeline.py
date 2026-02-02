@@ -5,7 +5,7 @@ High-performance async implementation for production workloads.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import AsyncIterator, Sequence
 
 from omen.application.dto.pipeline_result import PipelineResult, PipelineStats
@@ -68,7 +68,7 @@ class AsyncOmenPipeline:
         context: ProcessingContext | None,
     ) -> PipelineResult:
         ctx = context or ProcessingContext.create(self._config.ruleset_version)
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         stats = PipelineStats(events_received=1)
 
         try:
@@ -79,7 +79,7 @@ class AsyncOmenPipeline:
                 if existing is not None:
                     stats.events_deduplicated = 1
                     stats.processing_time_ms = (
-                        datetime.utcnow() - started_at
+                        datetime.now(timezone.utc) - started_at
                     ).total_seconds() * 1000
                     return PipelineResult(
                         success=True,
@@ -97,7 +97,7 @@ class AsyncOmenPipeline:
             if not validation_outcome.passed:
                 stats.events_rejected_validation = 1
                 stats.processing_time_ms = (
-                    datetime.utcnow() - started_at
+                    datetime.now(timezone.utc) - started_at
                 ).total_seconds() * 1000
                 return PipelineResult(
                     success=True,
@@ -110,7 +110,7 @@ class AsyncOmenPipeline:
             if validated_signal is None:
                 stats.events_rejected_validation = 1
                 stats.processing_time_ms = (
-                    datetime.utcnow() - started_at
+                    datetime.now(timezone.utc) - started_at
                 ).total_seconds() * 1000
                 return PipelineResult(
                     success=True,
@@ -141,13 +141,13 @@ class AsyncOmenPipeline:
                 signal = OmenSignal.from_validated_event(validated_signal, enrichment)
             except Exception:
                 stats.processing_time_ms = (
-                    datetime.utcnow() - started_at
+                    datetime.now(timezone.utc) - started_at
                 ).total_seconds() * 1000
                 return PipelineResult(success=True, signals=[], stats=stats)
 
             if signal.confidence_score < self._config.min_confidence_for_output:
                 stats.processing_time_ms = (
-                    datetime.utcnow() - started_at
+                    datetime.now(timezone.utc) - started_at
                 ).total_seconds() * 1000
                 return PipelineResult(success=True, signals=[], stats=stats)
 
@@ -158,7 +158,7 @@ class AsyncOmenPipeline:
                 await self._persist_and_publish(signals)
 
             stats.processing_time_ms = (
-                datetime.utcnow() - started_at
+                datetime.now(timezone.utc) - started_at
             ).total_seconds() * 1000
             return PipelineResult(success=True, signals=signals, stats=stats)
 
@@ -166,7 +166,7 @@ class AsyncOmenPipeline:
             logger.exception("Error processing %s", event.event_id)
             stats.events_failed = 1
             stats.processing_time_ms = (
-                datetime.utcnow() - started_at
+                datetime.now(timezone.utc) - started_at
             ).total_seconds() * 1000
             return PipelineResult(success=False, error=str(e), stats=stats)
 

@@ -202,8 +202,10 @@ _store: Optional[SignalStore] = None
 
 
 def get_store() -> SignalStore:
-    """Return singleton SignalStore (default path)."""
+    """Return singleton SignalStore (path from RISKCAST_DB_PATH env)."""
     global _store
     if _store is None:
-        _store = SignalStore("/var/lib/riskcast/signals.db")
+        import os
+        path = os.environ.get("RISKCAST_DB_PATH", "/var/lib/riskcast/signals.db")
+        _store = SignalStore(path)
     return _store

@@ -1,7 +1,7 @@
 """Map Polymarket API responses to OMEN domain models."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from omen.adapters.inbound.polymarket.schemas import PolymarketEvent
@@ -76,7 +76,7 @@ class PolymarketMapper:
             keywords=keywords,
             inferred_locations=locations,
             market=market,
-            observed_at=self._parse_timestamp(raw.get("createdAt")) or datetime.utcnow(),
+            observed_at=self._parse_timestamp(raw.get("createdAt")) or datetime.now(timezone.utc),
             market_last_updated=None,
             raw_payload=raw,
         )
@@ -254,7 +254,7 @@ class PolymarketMapper:
             keywords=keywords,
             inferred_locations=locations,
             market=metadata,
-            observed_at=datetime.utcnow(),
+            observed_at=datetime.now(timezone.utc),
             market_last_updated=None,
             raw_payload={"event": event, "market": market},
         )

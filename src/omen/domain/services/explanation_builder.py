@@ -40,7 +40,7 @@ class ExplanationBuilder:
         self._reasoning_template: str | None = None
         self._confidence: float = 0.5
         self._confidence_factors: dict[str, float] = {}
-        self._start_time = datetime.utcnow()
+        self._start_time = context.processing_time
 
     def for_rule(self, name: str, version: str) -> "ExplanationBuilder":
         self._rule_name = name
@@ -108,7 +108,8 @@ class ExplanationBuilder:
             raise ValueError("Rule name and version required")
         if not self._reasoning:
             raise ValueError("Reasoning required")
-        duration_ms = (datetime.utcnow() - self._start_time).total_seconds() * 1000
+        # Use context time for determinism; duration may be 0 in replay scenarios
+        duration_ms = (self._context.processing_time - self._start_time).total_seconds() * 1000
         return ExplanationStep(
             step_id=self._step_id,
             rule_name=self._rule_name,

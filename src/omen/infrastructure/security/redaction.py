@@ -1,10 +1,65 @@
 """
-Field redaction for external data sharing.
+Field redaction for external data sharing and secret redaction for logs.
 """
 
+import logging
+import re
 from typing import Any
 
 from omen.domain.models.omen_signal import OmenSignal
+
+# Patterns to redact from log/string output (secrets)
+REDACT_PATTERNS = [
+    (re.compile(r'(api[_-]?key["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(password["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(secret["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(bearer\s+)[\w.-]+', re.I), r"\1[REDACTED]"),
+    (re.compile(r'(authorization["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
+    (re.compile(r"omen_[\w.-]{32,}", re.I), "[REDACTED_KEY]"),
+]
+
+
+def redact_secrets(text: str) -> str:
+    """Redact sensitive data from text (for logs, error messages)."""
+    for pattern, replacement in REDACT_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def redact_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Redact sensitive data from dictionary (keys and string values)."""
+    sensitive_keys = {"api_key", "password", "secret", "token", "authorization"}
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        if key.lower() in sensitive_keys:
+            result[key] = "[REDACTED]"
+        elif isinstance(value, dict):
+            result[key] = redact_dict(value)
+        elif isinstance(value, str):
+            result[key] = redact_secrets(value)
+        else:
+            result[key] = value
+    return result
+
+
+class RedactingFormatter(logging.Formatter):
+    """Log formatter that redacts secrets from the formatted message."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        original = super().format(record)
+        return redact_secrets(original)
+
+
+class RedactingWrapperFormatter(logging.Formatter):
+    """Wraps another formatter and redacts secrets from its output."""
+
+    def __init__(self, inner: logging.Formatter) -> None:
+        super().__init__()
+        self._inner = inner
+
+    def format(self, record: logging.LogRecord) -> str:
+        original = self._inner.format(record)
+        return redact_secrets(original)
 
 # Fields to always redact when publishing externally
 ALWAYS_REDACT = {

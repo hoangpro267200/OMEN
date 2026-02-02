@@ -4,12 +4,13 @@ System statistics — signal-quality metrics only.
 No impact metrics (no high-confidence counts as alerts, risk quantification, severity, or time-horizon labels).
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
+from omen.infrastructure.security.auth import verify_api_key
 
 try:
     import psutil
@@ -73,7 +74,9 @@ class SystemStatsResponse(BaseModel):
 
 
 @router.get("", response_model=SystemStatsResponse)
-async def get_system_stats() -> SystemStatsResponse:
+async def get_system_stats(
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> SystemStatsResponse:
     """
     Get current system statistics (signal-quality only).
 

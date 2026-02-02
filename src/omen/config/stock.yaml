@@ -1,0 +1,354 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# OMEN Stock/Index/Forex/Bond Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+# This file configures the stock adapter for fetching market data.
+# Supports: yfinance (global), vnstock (Vietnam)
+
+settings:
+  # Default provider: yfinance, vnstock, both, mock
+  default_provider: both
+  
+  # Timeouts and retries
+  timeout_seconds: 30.0
+  retry_attempts: 3
+  retry_backoff_seconds: 1.0
+  
+  # Historical data lookback
+  lookback_days: 30
+
+spike_detection:
+  # Default threshold for spike detection (%)
+  default_threshold_pct: 3.0
+  
+  # Z-score threshold for anomaly detection
+  zscore_threshold: 2.0
+  
+  # Severity levels (percentage change thresholds)
+  severity_levels:
+    minor:
+      min_pct: 1.0
+      max_pct: 3.0
+    moderate:
+      min_pct: 3.0
+      max_pct: 5.0
+    major:
+      min_pct: 5.0
+      max_pct: 10.0
+    extreme:
+      min_pct: 10.0
+      max_pct: null  # No upper bound
+
+scoring:
+  # Maximum confidence boost from stock signals
+  max_confidence_boost: 0.10
+  
+  # Category weights for scoring
+  category_weights:
+    volatility: 1.0      # VIX - highest weight
+    bond: 0.9            # Interest rates
+    forex: 0.8           # Currency movements
+    index: 0.7           # Market indices
+    commodity: 0.6       # Already covered by commodity adapter
+    stock: 0.5           # Individual stocks
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WATCHLIST - Symbols to monitor
+# ═══════════════════════════════════════════════════════════════════════════════
+watchlist:
+  # === GLOBAL INDICES ===
+  - symbol: SPX
+    name: S&P 500
+    yf_symbol: "^GSPC"
+    category: index
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 2.0
+    impact_hint: "US market sentiment indicator"
+
+  - symbol: NDX
+    name: NASDAQ 100
+    yf_symbol: "^NDX"
+    category: index
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 2.5
+    impact_hint: "Tech sector sentiment"
+
+  - symbol: DJI
+    name: Dow Jones Industrial
+    yf_symbol: "^DJI"
+    category: index
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 2.0
+    impact_hint: "Industrial sector sentiment"
+
+  - symbol: VIX
+    name: CBOE Volatility Index
+    yf_symbol: "^VIX"
+    category: volatility
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 15.0
+    impact_hint: "Market fear gauge - spikes indicate risk-off sentiment"
+
+  # === FOREX / CURRENCIES ===
+  - symbol: DXY
+    name: US Dollar Index
+    yf_symbol: "DX-Y.NYB"
+    category: forex
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 1.0
+    impact_hint: "USD strength affects global trade"
+
+  - symbol: EURUSD
+    name: EUR/USD
+    yf_symbol: "EURUSD=X"
+    category: forex
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 1.0
+    impact_hint: "Euro strength vs USD"
+
+  - symbol: USDJPY
+    name: USD/JPY
+    yf_symbol: "JPY=X"
+    category: forex
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 1.5
+    impact_hint: "Yen carry trade indicator"
+
+  - symbol: USDVND
+    name: USD/VND
+    yf_symbol: "VND=X"
+    category: forex
+    provider: yfinance
+    region: vietnam
+    spike_threshold_pct: 0.5
+    impact_hint: "VND exchange rate affects Vietnam imports/exports"
+
+  - symbol: USDCNY
+    name: USD/CNY
+    yf_symbol: "CNY=X"
+    category: forex
+    provider: yfinance
+    region: asia
+    spike_threshold_pct: 0.5
+    impact_hint: "Yuan affects China trade"
+
+  # === BONDS / YIELDS ===
+  - symbol: US10Y
+    name: US 10-Year Treasury Yield
+    yf_symbol: "^TNX"
+    category: bond
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 5.0
+    impact_hint: "Benchmark risk-free rate, affects all asset valuations"
+
+  - symbol: US2Y
+    name: US 2-Year Treasury Yield
+    yf_symbol: "^IRX"
+    category: bond
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 5.0
+    impact_hint: "Short-term rate expectations"
+
+  - symbol: US30Y
+    name: US 30-Year Treasury Yield
+    yf_symbol: "^TYX"
+    category: bond
+    provider: yfinance
+    region: us
+    spike_threshold_pct: 5.0
+    impact_hint: "Long-term inflation expectations"
+
+  # === COMMODITIES (supplement to AlphaVantage) ===
+  - symbol: GOLD
+    name: Gold Futures
+    yf_symbol: "GC=F"
+    category: commodity
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 2.0
+    impact_hint: "Safe haven demand indicator"
+
+  - symbol: SILVER
+    name: Silver Futures
+    yf_symbol: "SI=F"
+    category: commodity
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 3.0
+    impact_hint: "Industrial + safe haven demand"
+
+  - symbol: WTI
+    name: WTI Crude Oil
+    yf_symbol: "CL=F"
+    category: commodity
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 4.0
+    impact_hint: "US oil benchmark, affects energy costs"
+
+  - symbol: BRENT
+    name: Brent Crude Oil
+    yf_symbol: "BZ=F"
+    category: commodity
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 4.0
+    impact_hint: "Global oil benchmark"
+
+  - symbol: NATGAS
+    name: Natural Gas Futures
+    yf_symbol: "NG=F"
+    category: commodity
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 5.0
+    impact_hint: "Energy/heating costs, LNG supply"
+
+  - symbol: COPPER
+    name: Copper Futures
+    yf_symbol: "HG=F"
+    category: commodity
+    provider: yfinance
+    region: global
+    spike_threshold_pct: 3.0
+    impact_hint: "Industrial demand indicator (Dr. Copper)"
+
+  # === VIETNAM INDICES ===
+  - symbol: VNINDEX
+    name: VN-Index
+    vn_symbol: VNINDEX
+    category: index
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 2.0
+    impact_hint: "Vietnam stock market sentiment"
+
+  - symbol: VN30
+    name: VN30 Index
+    vn_symbol: VN30
+    category: index
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 2.5
+    impact_hint: "Vietnam blue chip sentiment"
+
+  - symbol: HNX
+    name: HNX Index
+    vn_symbol: HNX
+    category: index
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 3.0
+    impact_hint: "Vietnam small/mid cap sentiment"
+
+  # === VIETNAM TOP STOCKS ===
+  - symbol: VNM
+    name: Vinamilk
+    vn_symbol: VNM
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam consumer sector leader"
+
+  - symbol: VIC
+    name: Vingroup
+    vn_symbol: VIC
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam largest conglomerate"
+
+  - symbol: VHM
+    name: Vinhomes
+    vn_symbol: VHM
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam real estate leader"
+
+  - symbol: VCB
+    name: Vietcombank
+    vn_symbol: VCB
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 3.0
+    impact_hint: "Vietnam banking sector leader"
+
+  - symbol: FPT
+    name: FPT Corporation
+    vn_symbol: FPT
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam tech sector leader"
+
+  - symbol: HPG
+    name: Hoa Phat Group
+    vn_symbol: HPG
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam steel/manufacturing leader"
+
+  - symbol: MSN
+    name: Masan Group
+    vn_symbol: MSN
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam consumer/retail conglomerate"
+
+  - symbol: MWG
+    name: Mobile World Group
+    vn_symbol: MWG
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 4.0
+    impact_hint: "Vietnam retail sector leader"
+
+  - symbol: TCB
+    name: Techcombank
+    vn_symbol: TCB
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 3.5
+    impact_hint: "Vietnam private banking leader"
+
+  - symbol: ACB
+    name: Asia Commercial Bank
+    vn_symbol: ACB
+    category: stock
+    provider: vnstock
+    region: vietnam
+    currency: VND
+    spike_threshold_pct: 3.5
+    impact_hint: "Vietnam banking sector"

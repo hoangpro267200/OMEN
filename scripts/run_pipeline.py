@@ -54,8 +54,14 @@ def main() -> None:
     if args.source == "stub":
         source = StubSignalSource()
     else:
-        print("Only stub source is implemented.", file=sys.stderr)
-        sys.exit(1)
+        # Use Polymarket source
+        from omen.adapters.inbound.polymarket.source import PolymarketSignalSource
+        from omen.adapters.inbound.polymarket.live_client import PolymarketLiveClient
+        from omen.adapters.inbound.polymarket.mapper import PolymarketMapper
+        
+        client = PolymarketLiveClient()
+        mapper = PolymarketMapper()
+        source = PolymarketSignalSource(client=client, mapper=mapper, logistics_only=False)
 
     print("OMEN Pipeline")
     print("=" * 50)

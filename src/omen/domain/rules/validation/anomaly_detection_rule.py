@@ -5,7 +5,7 @@ Detects suspicious patterns that may indicate manipulation or low-quality signal
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...models.raw_signal import RawSignalEvent
 from ...models.validated_signal import ValidationResult
@@ -14,9 +14,9 @@ from ...models.explanation import ExplanationStep
 from ..base import Rule
 
 
-@dataclass
+@dataclass(frozen=True)
 class AnomalyConfig:
-    """Thresholds for anomaly detection."""
+    """Thresholds for anomaly detection. Immutable."""
 
     min_probability: float = 0.05  # Too extreme = suspicious
     max_probability: float = 0.95
@@ -117,7 +117,7 @@ class AnomalyDetectionRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this validation."""
-        ts = processing_time if processing_time is not None else datetime.utcnow()
+        ts = processing_time or datetime.now(timezone.utc)
         return ExplanationStep(
             step_id=1,
             rule_name=self.name,

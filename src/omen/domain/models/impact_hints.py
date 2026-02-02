@@ -16,7 +16,7 @@ ImpactHints does NOT provide:
 ❌ Recommendations
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from .enums import AffectedDomain, ImpactDirection
 
@@ -26,6 +26,8 @@ class ImpactHints(BaseModel):
     Routing metadata for downstream systems.
     NOT impact assessment.
     """
+    
+    model_config = ConfigDict(frozen=True)
 
     domains: list[AffectedDomain] = Field(
         default_factory=list,

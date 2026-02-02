@@ -1,20 +1,23 @@
 """
 Polymarket CLOB API client for real-time market data.
 
-Base URL: https://clob.polymarket.com
+Base URL from POLYMARKET_CLOB_API_URL (default: https://clob.polymarket.com).
 Docs: https://docs.polymarket.com
-
-CLOB = Central Limit Order Book
-Provides: Real-time prices, orderbook depth, trades
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+import logging
+from typing import Any
 
 import httpx
 
 from omen.domain.errors import SourceUnavailableError
 from omen.infrastructure.retry import CircuitBreaker
+from omen.polymarket_settings import get_polymarket_settings
+from omen.adapters.inbound.polymarket.http_retry import run_with_retry
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -43,8 +46,8 @@ class Orderbook:
     """Full orderbook for a market."""
 
     token_id: str
-    bids: list[OrderbookLevel]  # Sorted high to low
-    asks: list[OrderbookLevel]  # Sorted low to high
+    bids: list[OrderbookLevel]
+    asks: list[OrderbookLevel]
     spread: float
     mid_price: float
     total_bid_liquidity: float
@@ -55,46 +58,42 @@ class PolymarketCLOBClient:
     """
     Client for Polymarket CLOB API.
 
-    Endpoints:
-    - GET /price?token_id=X&side=BUY|SELL - Price for specific token/side
-    - GET /book?token_id=X - Full orderbook (or order book endpoint)
-    - GET /midpoint?token_id=X - Just midpoint price
+    URL and timeouts from POLYMARKET_* env. Uses trust_env for proxy.
     """
 
-    BASE_URL = "https://clob.polymarket.com"
-
-    def __init__(self, timeout: int = 10):
-        self._timeout = timeout
+    def __init__(self, timeout: float | int | None = None, clob_url: str | None = None):
+        s = get_polymarket_settings()
+        self._base_url = (clob_url or s.clob_api_url).rstrip("/")
+        self._timeout = timeout if timeout is not None else s.timeout_s
         self._circuit = CircuitBreaker(name="polymarket-clob", failure_threshold=5)
-        self._client = httpx.Client(timeout=timeout)
+        self._client = httpx.Client(
+            timeout=self._timeout,
+            trust_env=s.httpx_trust_env,
+            headers={"User-Agent": s.user_agent},
+        )
 
     def get_price(self, token_id: str) -> CLOBPrice:
         """
         Get current price for a specific market token.
 
         Uses Polymarket /price with side=BUY and side=SELL to derive bid/ask.
-        Falls back to /midpoint if needed.
-
-        Args:
-            token_id: The condition token ID (from Gamma API market.conditionId)
-
-        Returns:
-            CLOBPrice with bid/ask/spread data
         """
         if not self._circuit.is_available():
             raise SourceUnavailableError("CLOB circuit breaker open")
 
         try:
-            # Polymarket /price requires token_id and side (BUY | SELL)
-            # BUY -> ask price, SELL -> bid price
-            ask_resp = self._client.get(
-                f"{self.BASE_URL}/price",
-                params={"token_id": token_id, "side": "BUY"},
-            )
-            bid_resp = self._client.get(
-                f"{self.BASE_URL}/price",
-                params={"token_id": token_id, "side": "SELL"},
-            )
+            def do_ask() -> httpx.Response:
+                return self._client.get(
+                    f"{self._base_url}/price",
+                    params={"token_id": token_id, "side": "BUY"},
+                )
+            def do_bid() -> httpx.Response:
+                return self._client.get(
+                    f"{self._base_url}/price",
+                    params={"token_id": token_id, "side": "SELL"},
+                )
+            ask_resp = run_with_retry(do_ask)
+            bid_resp = run_with_retry(do_bid)
             ask_resp.raise_for_status()
             bid_resp.raise_for_status()
 
@@ -111,8 +110,8 @@ class PolymarketCLOBClient:
                 best_ask=best_ask,
                 mid_price=(best_bid + best_ask) / 2,
                 spread=best_ask - best_bid,
-                last_trade_price=None,  # requires separate endpoint if needed
-                timestamp=datetime.utcnow(),
+                last_trade_price=None,
+                timestamp=datetime.now(timezone.utc),
             )
 
         except httpx.TimeoutException as e:
@@ -133,22 +132,19 @@ class PolymarketCLOBClient:
         return results
 
     def get_orderbook(self, token_id: str) -> Orderbook:
-        """
-        Get full orderbook for a market.
-
-        Returns bids and asks with size at each price level.
-        Useful for calculating liquidity depth.
-        """
+        """Get full orderbook for a market."""
         if not self._circuit.is_available():
             raise SourceUnavailableError("CLOB circuit breaker open")
 
         try:
-            response = self._client.get(
-                f"{self.BASE_URL}/book",
-                params={"token_id": token_id},
-            )
+            def do_request() -> httpx.Response:
+                return self._client.get(
+                    f"{self._base_url}/book",
+                    params={"token_id": token_id},
+                )
+            response = run_with_retry(do_request)
             response.raise_for_status()
-            data = response.json()
+            data: dict[str, Any] = response.json()
 
             self._circuit.record_success()
 
@@ -181,10 +177,12 @@ class PolymarketCLOBClient:
     def get_midpoint(self, token_id: str) -> float:
         """Get just the midpoint price (fastest)."""
         try:
-            response = self._client.get(
-                f"{self.BASE_URL}/midpoint",
-                params={"token_id": token_id},
-            )
+            def do_request() -> httpx.Response:
+                return self._client.get(
+                    f"{self._base_url}/midpoint",
+                    params={"token_id": token_id},
+                )
+            response = run_with_retry(do_request)
             response.raise_for_status()
             data = response.json()
             mid = data.get("mid") or data.get("midpoint") or data.get("price")

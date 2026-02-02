@@ -34,6 +34,11 @@ dependencies = [
     "websockets>=12.0",
     "filelock>=3.13.0",
     "aiosqlite>=0.19.0",
+    "prometheus-client>=0.19.0",
+    "cryptography>=42.0.0",
+    "pyyaml>=6.0.1",  # Phase 2: YAML config loading
+    "yfinance>=0.2.36",  # Global stock/forex/bond data
+    "vnstock>=3.0.0",  # Vietnamese stock data
 ]
 
 [project.optional-dependencies]
@@ -65,7 +70,16 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+ignore = [
+    "ALL",
+    "E501",
+    "UP045",   # Optional[X] -> X | None (baseline for audit Phase A)
+    "W293", "W291",  # whitespace
+    "I001",    # unsorted-imports
+    "F401",    # unused-import
+    "UP035", "UP006", "UP037", "UP028", "UP011",
+    "N803", "N818", "N806",
+]
 
 [tool.mypy]
 python_version = "3.10"

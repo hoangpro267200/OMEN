@@ -5,8 +5,9 @@ Security audit logging for OMEN.
 import json
 import logging
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
+from functools import wraps
 from typing import Any, Literal
 
 
@@ -79,7 +80,7 @@ class AuditLogger:
         """Log successful authentication."""
         self.log(
             AuditEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 event_type=AuditEventType.AUTH_SUCCESS,
                 client_id=client_id,
                 ip_address=ip_address,
@@ -99,7 +100,7 @@ class AuditLogger:
         """Log failed authentication."""
         self.log(
             AuditEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 event_type=AuditEventType.AUTH_FAILURE,
                 client_id=None,
                 ip_address=ip_address,
@@ -119,7 +120,7 @@ class AuditLogger:
         """Log rate limit exceeded."""
         self.log(
             AuditEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 event_type=AuditEventType.RATE_LIMIT_HIT,
                 client_id=client_id,
                 ip_address=ip_address,
@@ -139,7 +140,7 @@ class AuditLogger:
         """Log signal access."""
         self.log(
             AuditEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 event_type=AuditEventType.SIGNAL_ACCESSED,
                 client_id=client_id,
                 ip_address=None,
@@ -152,6 +153,124 @@ class AuditLogger:
 
 
 _audit_logger: AuditLogger | None = None
+
+# Structured audit log for sensitive operations (actor, resource, action)
+audit_logger = logging.getLogger("omen.audit")
+
+
+@dataclass
+class AuditEventStructured:
+    """Structured audit event for sensitive operations."""
+
+    timestamp: str
+    event_type: str
+    actor: str  # API key ID or "system"
+    resource: str
+    action: str
+    status: str  # "success" or "failure"
+    details: dict[str, Any] | None = None
+    ip_address: str | None = None
+
+
+def log_audit_event(event: AuditEventStructured) -> None:
+    """Log audit event in structured JSON format."""
+    audit_logger.info(json.dumps(asdict(event), default=str))
+
+
+def audit_action(event_type: str, resource: str, action: str):
+    """Decorator to log audit event on success/failure."""
+
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            request = kwargs.get("request") or (args[0] if args else None)
+            actor = (
+                getattr(request.state, "api_key_id", "unknown")
+                if request and hasattr(request, "state")
+                else "system"
+            )
+            ip = (
+                request.client.host
+                if request and getattr(request, "client", None)
+                else None
+            )
+            try:
+                result = await func(*args, **kwargs)
+                log_audit_event(
+                    AuditEventStructured(
+                        timestamp=datetime.now(timezone.utc).isoformat() + "Z",
+                        event_type=event_type,
+                        actor=actor,
+                        resource=resource,
+                        action=action,
+                        status="success",
+                        ip_address=ip,
+                    )
+                )
+                return result
+            except Exception as e:
+                log_audit_event(
+                    AuditEventStructured(
+                        timestamp=datetime.now(timezone.utc).isoformat() + "Z",
+                        event_type=event_type,
+                        actor=actor,
+                        resource=resource,
+                        action=action,
+                        status="failure",
+                        details={"error": str(e)},
+                        ip_address=ip,
+                    )
+                )
+                raise
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            request = kwargs.get("request") or (args[0] if args else None)
+            actor = (
+                getattr(request.state, "api_key_id", "unknown")
+                if request and hasattr(request, "state")
+                else "system"
+            )
+            ip = (
+                request.client.host
+                if request and getattr(request, "client", None)
+                else None
+            )
+            try:
+                result = func(*args, **kwargs)
+                log_audit_event(
+                    AuditEventStructured(
+                        timestamp=datetime.now(timezone.utc).isoformat() + "Z",
+                        event_type=event_type,
+                        actor=actor,
+                        resource=resource,
+                        action=action,
+                        status="success",
+                        ip_address=ip,
+                    )
+                )
+                return result
+            except Exception as e:
+                log_audit_event(
+                    AuditEventStructured(
+                        timestamp=datetime.now(timezone.utc).isoformat() + "Z",
+                        event_type=event_type,
+                        actor=actor,
+                        resource=resource,
+                        action=action,
+                        status="failure",
+                        details={"error": str(e)},
+                        ip_address=ip,
+                    )
+                )
+                raise
+
+        import asyncio
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        return sync_wrapper
+
+    return decorator
 
 
 def get_audit_logger() -> AuditLogger:

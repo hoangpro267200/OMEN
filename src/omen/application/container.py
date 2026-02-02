@@ -2,8 +2,18 @@
 Dependency injection container for OMEN.
 
 Composition root where all components are wired together.
+
+IMPORTANT: For production deployments:
+- Set OMEN_ENV=production
+- Set DATABASE_URL for PostgreSQL persistence
+- Set REDIS_URL for distributed rate limiting (optional)
+
+In production, signals are persisted to PostgreSQL for horizontal scaling.
+In development (default), signals use in-memory storage.
 """
 
+import logging
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -26,6 +36,8 @@ from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.services.signal_validator import SignalValidator
 from omen.infrastructure.dead_letter import DeadLetterQueue
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class Container:
@@ -47,8 +59,19 @@ class Container:
 
     @classmethod
     def create_default(cls) -> "Container":
-        """Create container with default production configuration."""
+        """
+        Create container with default configuration.
+        
+        In production (OMEN_ENV=production):
+        - Uses PostgreSQL for signal persistence (requires DATABASE_URL)
+        - Falls back to in-memory if DATABASE_URL not set (with warning)
+        
+        In development (default):
+        - Uses in-memory repository
+        """
         config = get_config()
+        env = os.getenv("OMEN_ENV", "development")
+        
         validator = SignalValidator(
             rules=[
                 LiquidityValidationRule(min_liquidity_usd=config.min_liquidity_usd),
@@ -58,7 +81,42 @@ class Container:
             ]
         )
         enricher = SignalEnricher()
-        repository = InMemorySignalRepository()
+        
+        # Repository selection based on environment
+        repository: SignalRepository
+        if env == "production":
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
+                try:
+                    # Import PostgreSQL repository lazily (may not be installed)
+                    from omen.adapters.persistence.postgres_repository import (
+                        PostgresSignalRepository,
+                    )
+                    repository = PostgresSignalRepository(dsn=database_url)
+                    logger.info("Using PostgreSQL repository for production")
+                except ImportError:
+                    logger.warning(
+                        "PostgreSQL adapter not available. Install with: pip install asyncpg. "
+                        "Falling back to in-memory repository (DATA WILL BE LOST ON RESTART)"
+                    )
+                    repository = InMemorySignalRepository()
+                except Exception as e:
+                    logger.error(
+                        "Failed to initialize PostgreSQL repository: %s. "
+                        "Falling back to in-memory (DATA WILL BE LOST ON RESTART)", e
+                    )
+                    repository = InMemorySignalRepository()
+            else:
+                logger.warning(
+                    "PRODUCTION MODE but DATABASE_URL not set! "
+                    "Using in-memory repository (DATA WILL BE LOST ON RESTART). "
+                    "Set DATABASE_URL for persistent storage."
+                )
+                repository = InMemorySignalRepository()
+        else:
+            repository = InMemorySignalRepository()
+            logger.debug("Using in-memory repository (development mode)")
+        
         if config.webhook_url:
             publisher = WebhookPublisher(
                 url=config.webhook_url,
@@ -129,7 +187,48 @@ class Container:
         )
 
 
-@lru_cache
+# Thread-safe container instance management
+# Using a simple module-level variable instead of @lru_cache to allow testing flexibility
+_container_instance: Container | None = None
+_container_lock = __import__("threading").Lock()
+
+
 def get_container() -> Container:
-    """Return the global container instance (cached)."""
-    return Container.create_default()
+    """
+    Return the container instance.
+    
+    Thread-safe singleton pattern that allows:
+    - Testing: call reset_container() between tests
+    - Production: efficient reuse of single instance
+    """
+    global _container_instance
+    if _container_instance is None:
+        with _container_lock:
+            # Double-check locking pattern
+            if _container_instance is None:
+                _container_instance = Container.create_default()
+    return _container_instance
+
+
+def reset_container() -> None:
+    """
+    Reset the container instance.
+    
+    Use in tests to ensure clean state between test cases.
+    NOT for production use.
+    """
+    global _container_instance
+    with _container_lock:
+        _container_instance = None
+
+
+def set_container(container: Container) -> None:
+    """
+    Set a custom container instance.
+    
+    Use in tests to inject mock dependencies.
+    NOT for production use.
+    """
+    global _container_instance
+    with _container_lock:
+        _container_instance = container

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 import threading
 
@@ -131,7 +131,7 @@ class RejectionTracker:
             event_id=event_id,
             stage=stage,
             reason=reason,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             title=title,
             probability=probability,
             liquidity=liquidity,
@@ -161,7 +161,7 @@ class RejectionTracker:
             signal_id=signal_id,
             event_id=event_id,
             stage="generated",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             title=title,
             probability=probability,
             confidence=confidence,

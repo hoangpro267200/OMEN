@@ -2,7 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Lock
 
 
@@ -60,7 +60,7 @@ class ThroughputStats:
 
     @property
     def events_per_second(self) -> float:
-        elapsed = (datetime.utcnow() - self.window_start).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.window_start).total_seconds()
         if elapsed == 0:
             return 0.0
         return self.events_processed / elapsed

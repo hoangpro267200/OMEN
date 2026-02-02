@@ -4,7 +4,7 @@ Signals that have passed all validation rules and deserve attention.
 Contains validation metadata for auditability.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field, computed_field
 
 from .common import (
@@ -67,7 +67,10 @@ class ValidatedSignal(BaseModel):
     
     # Versioning for reproducibility
     ruleset_version: RulesetVersion
-    validated_at: datetime = Field(default_factory=datetime.utcnow)
+    validated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When this signal was validated (timezone-aware UTC)",
+    )
     
     @computed_field
     @property

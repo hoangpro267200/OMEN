@@ -5,7 +5,7 @@ Uses tenacity for retry logic with exponential backoff.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from functools import wraps
 from threading import Lock
@@ -149,7 +149,7 @@ class CircuitBreaker:
     def _should_attempt_reset(self) -> bool:
         if self._last_failure_time is None:
             return True
-        return datetime.utcnow() - self._last_failure_time >= self.recovery_timeout
+        return datetime.now(timezone.utc) - self._last_failure_time >= self.recovery_timeout
 
     def record_success(self) -> None:
         with self._lock:
@@ -165,7 +165,7 @@ class CircuitBreaker:
     def record_failure(self, exception: Exception) -> None:
         with self._lock:
             self._failure_count += 1
-            self._last_failure_time = datetime.utcnow()
+            self._last_failure_time = datetime.now(timezone.utc)
 
             if self._state == CircuitState.HALF_OPEN:
                 self._state = CircuitState.OPEN

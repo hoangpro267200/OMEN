@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
@@ -7,9 +7,10 @@ interface CardProps {
   className?: string;
   glow?: boolean;
   hover?: boolean;
+  style?: CSSProperties;
 }
 
-export function Card({ children, className = '', glow, hover = true }: CardProps) {
+export function Card({ children, className = '', glow, hover = true, style }: CardProps) {
   const Comp = hover ? motion.div : 'div';
   const props = hover
     ? {
@@ -25,6 +26,7 @@ export function Card({ children, className = '', glow, hover = true }: CardProps
         glow && 'shadow-[var(--glow-blue)]',
         className
       )}
+      style={style}
       {...props}
     >
       {children}

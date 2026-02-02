@@ -13,6 +13,7 @@ Recovery:
 - CRC mismatch is logged and skipped
 """
 
+import gzip
 import json
 import logging
 import struct
@@ -97,7 +98,7 @@ class LedgerReader:
                 manifest_revision=manifest.get("manifest_revision", 0),
             )
 
-        segments = sorted(partition_dir.glob("signals-*.wal"))
+        segments = sorted(partition_dir.glob("signals-*.wal*"))
         total = sum(self._count_records_in_segment(s) for s in segments)
 
         return PartitionInfo(
@@ -141,8 +142,8 @@ class LedgerReader:
         partition_dir: Path,
         validate: bool,
     ) -> Iterator[SignalEvent]:
-        """Read all segments in partition directory."""
-        for segment in sorted(partition_dir.glob("signals-*.wal")):
+        """Read all segments in partition directory (.wal and .wal.gz)."""
+        for segment in sorted(partition_dir.glob("signals-*.wal*")):
             yield from self._read_segment(segment, validate)
 
     def _read_segment(
@@ -150,8 +151,9 @@ class LedgerReader:
         segment_path: Path,
         validate: bool,
     ) -> Iterator[SignalEvent]:
-        """Read framed records from segment file."""
-        with open(segment_path, "rb") as f:
+        """Read framed records from segment file (.wal or .wal.gz)."""
+        opener = gzip.open if segment_path.suffix == ".gz" else open
+        with opener(segment_path, "rb") as f:
             record_num = 0
 
             while True:
@@ -206,9 +208,10 @@ class LedgerReader:
                     continue
 
     def _count_records_in_segment(self, segment_path: Path) -> int:
-        """Count valid records in segment."""
+        """Count valid records in segment (.wal or .wal.gz)."""
         count = 0
-        with open(segment_path, "rb") as f:
+        opener = gzip.open if segment_path.suffix == ".gz" else open
+        with opener(segment_path, "rb") as f:
             while True:
                 header = f.read(FRAME_HEADER_SIZE)
                 if len(header) < FRAME_HEADER_SIZE:
@@ -259,7 +262,7 @@ class LedgerReader:
 
         count = sum(
             self._count_records_in_segment(s)
-            for s in partition_dir.glob("signals-*.wal")
+            for s in partition_dir.glob("signals-*.wal*")
         )
         return (count, 0)
 

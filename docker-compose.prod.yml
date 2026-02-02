@@ -1,0 +1,181 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# OMEN Production Docker Compose
+# ═══════════════════════════════════════════════════════════════════════════════
+version: '3.9'
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # OMEN API - Signal Intelligence
+  # ─────────────────────────────────────────────────────────────────────────────
+  omen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: omen:${VERSION:-latest}
+    container_name: omen-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OMEN_LEDGER_BASE_PATH=/data/ledger
+      - OMEN_RISKCAST_URL=http://riskcast:8001
+      - OMEN_SECURITY_API_KEYS=${OMEN_API_KEYS:?OMEN_API_KEYS required}
+      - OMEN_LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - OMEN_LOG_FORMAT=json
+    volumes:
+      - ledger_data:/data/ledger
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+    networks:
+      - omen-network
+    depends_on:
+      riskcast:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # RiskCast API - Signal Processing
+  # ─────────────────────────────────────────────────────────────────────────────
+  riskcast:
+    build:
+      context: .
+      dockerfile: Dockerfile.riskcast
+    image: riskcast:${VERSION:-latest}
+    container_name: riskcast-api
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - RISKCAST_DB_PATH=/data/riskcast/signals.db
+      - RISKCAST_SECURITY_API_KEYS=${RISKCAST_API_KEYS:?RISKCAST_API_KEYS required}
+      - RISKCAST_LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - riskcast_data:/data/riskcast
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - omen-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Reconcile Job - Periodic Sync
+  # ─────────────────────────────────────────────────────────────────────────────
+  reconcile:
+    build:
+      context: .
+      dockerfile: Dockerfile.riskcast
+    image: riskcast:${VERSION:-latest}
+    container_name: reconcile-job
+    command: python -m riskcast.jobs.reconcile_job --loop --interval 300
+    restart: unless-stopped
+    environment:
+      - RISKCAST_LEDGER_BASE_PATH=/data/ledger
+      - RISKCAST_DB_PATH=/data/riskcast/signals.db
+      - RISKCAST_INGEST_URL=http://riskcast:8001/api/v1/signals/ingest
+      - RISKCAST_API_KEYS=${RISKCAST_API_KEYS:?RISKCAST_API_KEYS required}
+      - RISKCAST_OMEN_URL=http://omen:8000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ledger_data:/data/ledger:ro
+      - riskcast_data:/data/riskcast
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - omen-network
+    depends_on:
+      omen:
+        condition: service_healthy
+      riskcast:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Prometheus - Metrics Collection
+  # ─────────────────────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - omen-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Grafana - Dashboards
+  # ─────────────────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - omen-network
+    depends_on:
+      - prometheus
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Volumes
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  ledger_data:
+    driver: local
+  riskcast_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Networks
+# ─────────────────────────────────────────────────────────────────────────────
+networks:
+  omen-network:
+    driver: bridge

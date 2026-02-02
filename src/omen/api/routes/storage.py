@@ -1,0 +1,53 @@
+"""Storage and lifecycle API routes."""
+
+from dataclasses import asdict
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends
+
+from omen.config import get_config
+from omen.infrastructure.ledger.lifecycle import LedgerLifecycleManager, StorageStats
+from omen.infrastructure.security.auth import verify_api_key
+
+router = APIRouter(tags=["storage"])
+
+
+@router.get("/storage/stats")
+async def get_storage_stats(
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> dict[str, Any]:
+    """Get ledger storage statistics."""
+    config = get_config()
+    manager = LedgerLifecycleManager(
+        config.ledger_base_path,
+        config.retention,
+        archive_path=config.retention.archive_path,
+    )
+    stats: StorageStats = manager.get_storage_stats()
+    return {
+        "stats": asdict(stats),
+        "config": {
+            "hot_retention_days": config.retention.hot_retention_days,
+            "warm_retention_days": config.retention.warm_retention_days,
+            "cold_retention_days": config.retention.cold_retention_days,
+            "delete_after_days": config.retention.delete_after_days,
+        },
+    }
+
+
+@router.post("/storage/lifecycle/tasks")
+async def create_lifecycle_tasks(
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> dict[str, Any]:
+    """Create and run lifecycle tasks (seal, compress, archive, delete)."""
+    config = get_config()
+    manager = LedgerLifecycleManager(
+        config.ledger_base_path,
+        config.retention,
+        archive_path=config.retention.archive_path,
+    )
+    results = await manager.run_lifecycle_tasks()
+    return {
+        "status": "completed",
+        "results": results,
+    }

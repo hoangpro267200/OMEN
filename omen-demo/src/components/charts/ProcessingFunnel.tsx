@@ -14,12 +14,12 @@ const STAGE_LABELS: Record<string, string> = {
 /** Tooltip khi không có số: chỉ ghi ngắn "Đã dịch —" tránh tràn */
 const TRANSLATED_NA_LABEL = 'Đã dịch —';
 
-/** Màu cột sáng, dễ nhìn trên nền tối */
+/** Stage colors from design system (CSS variables) */
 const STAGE_FILLS: Record<string, string> = {
-  'Raw events': '#60a5fa',
-  Validated: '#22d3ee',
-  Translated: '#34d399',
-  Signals: '#a78bfa',
+  'Raw events': 'var(--accent-blue)',
+  Validated: 'var(--accent-green)',
+  Translated: 'var(--accent-amber)',
+  Signals: 'var(--status-late)',
 };
 
 interface FunnelItem {
@@ -38,7 +38,7 @@ export function ProcessingFunnel({ data, className }: ProcessingFunnelProps) {
     () =>
       (data ?? []).map((d) => {
         const val = d?.value != null ? Number(d.value) : 0;
-        const fill = STAGE_FILLS[d?.stage ?? ''] ?? d?.fill ?? '#6b7280';
+        const fill = STAGE_FILLS[d?.stage ?? ''] ?? d?.fill ?? 'var(--text-muted)';
         const isTranslatedNa = d?.stage === 'Translated' && (d?.value == null || (typeof d.value === 'number' && Number.isNaN(d.value)));
         return {
           ...d,
@@ -59,20 +59,20 @@ export function ProcessingFunnel({ data, className }: ProcessingFunnelProps) {
       className={cn('overflow-hidden', className)}
       hover={false}
       style={{
-        background: 'linear-gradient(165deg, #1c2028 0%, #15181e 100%)',
-        border: '1px solid rgba(255,255,255,0.12)',
+        background: `linear-gradient(165deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%)`,
+        border: '1px solid var(--border-subtle)',
         boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
       }}
     >
       <div className="p-5">
-        <div className="text-xs font-semibold uppercase tracking-wider text-[#fde047] mb-4">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--accent-amber)] mb-4">
           Quy trình xử lý
         </div>
         <div
           className="rounded-xl p-4"
           style={{
-            background: 'rgba(30, 35, 45, 0.85)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-subtle)',
           }}
         >
           <ChartContainer height={160} minHeight={160} className="w-full min-w-[200px]">
@@ -87,7 +87,7 @@ export function ProcessingFunnel({ data, className }: ProcessingFunnelProps) {
                   <YAxis
                     type="category"
                     dataKey="stageLabel"
-                    tick={{ fill: '#fde047', fontSize: 13, fontWeight: 600 }}
+                    tick={{ fill: 'var(--accent-amber)', fontSize: 13, fontWeight: 600 }}
                     width={100}
                     axisLine={false}
                     tickLine={false}
@@ -123,13 +123,13 @@ export function ProcessingFunnel({ data, className }: ProcessingFunnelProps) {
                     <LabelList
                       dataKey="valueLabel"
                       position="right"
-                      style={{ fill: '#fde047', fontSize: 12, fontWeight: 600 }}
+                      style={{ fill: 'var(--accent-amber)', fontSize: 12, fontWeight: 600 }}
                     />
                     {displayData.map((entry) => (
                       <Cell
                         key={entry.stage}
                         fill={entry.fill}
-                        stroke="rgba(255,255,255,0.25)"
+                        stroke="var(--border-active)"
                         strokeWidth={1}
                       />
                     ))}

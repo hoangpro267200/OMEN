@@ -138,10 +138,10 @@ function App() {
       else counts.Low++;
     });
     return [
-      { name: 'Critical', value: counts.Critical, fill: '#ef4444' },
-      { name: 'High', value: counts.High, fill: '#f97316' },
-      { name: 'Medium', value: counts.Medium, fill: '#f59e0b' },
-      { name: 'Low', value: counts.Low, fill: '#10b981' },
+      { name: 'Critical', value: counts.Critical, fill: 'var(--accent-red)' },
+      { name: 'High', value: counts.High, fill: 'var(--accent-amber)' },
+      { name: 'Medium', value: counts.Medium, fill: 'var(--accent-amber)' },
+      { name: 'Low', value: counts.Low, fill: 'var(--accent-green)' },
     ];
   }, [signals]);
 
@@ -158,7 +158,7 @@ function App() {
 
   if (signalsLoading && (!signals || signals.length === 0)) {
     return (
-      <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-[var(--text-secondary)]">Đang tải dữ liệu từ Polymarket...</p>
@@ -173,7 +173,7 @@ function App() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-[var(--bg-base)] text-[var(--text-primary)]">
+    <div className="h-full min-h-0 flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <Header
         systemStatus="OPERATIONAL"
         isLive={dataSource.type === 'live'}

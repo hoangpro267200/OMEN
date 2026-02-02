@@ -1,0 +1,16 @@
+{
+  "include": ["src", "tests", "scripts", "omen-demo/src"],
+  "exclude": ["**/node_modules", "**/__pycache__", ".venv", "**/*.egg-info"],
+  "reportMissingImports": true,
+  "reportCallIssue": "none",
+  "reportArgumentType": "warning",
+  "reportOptionalMemberAccess": "warning",
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.11",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["src"]
+    }
+  ]
+}

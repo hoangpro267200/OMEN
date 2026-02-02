@@ -199,8 +199,53 @@ async def test_retry_config_used(tmp_path: Path):
             input_event={},
             observed_at=datetime.now(timezone.utc),
         )
+        post_call_count = emitter._client.post.call_count
 
     assert result.status == EmitStatus.LEDGER_ONLY
     assert result.ledger_partition is not None
     # Should have tried 2 times (max_attempts)
-    assert emitter._client.post.call_count == 2
+    assert post_call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_ledger_only_when_circuit_open(tmp_path: Path):
+    """When circuit breaker is OPEN, emit returns LEDGER_ONLY without calling RiskCast."""
+    ledger = LedgerWriter(tmp_path)
+    from omen.infrastructure.resilience.circuit_breaker import (
+        CircuitBreakerConfig,
+        CircuitState,
+    )
+
+    config = CircuitBreakerConfig(failure_threshold=1, timeout_seconds=60.0)
+    async with SignalEmitter(
+        ledger=ledger,
+        riskcast_url="http://localhost:9999",
+        api_key="test-key",
+        circuit_breaker_config=config,
+    ) as emitter:
+        # Open the circuit with one failure
+        mock_fail = MagicMock()
+        mock_fail.status_code = 503
+        mock_fail.text = "Unavailable"
+        emitter._client.post = AsyncMock(return_value=mock_fail)
+        await emitter.emit(
+            signal=_make_minimal_signal("OMEN-FAIL1"),
+            input_event={},
+            observed_at=datetime.now(timezone.utc),
+        )
+        assert emitter._circuit_breaker.state == CircuitState.OPEN
+
+        # Next emit should return LEDGER_ONLY without calling post again
+        post_before = emitter._client.post.call_count
+        result = await emitter.emit(
+            signal=_make_minimal_signal("OMEN-FAIL2"),
+            input_event={},
+            observed_at=datetime.now(timezone.utc),
+        )
+        post_after = emitter._client.post.call_count
+
+    assert result.status == EmitStatus.LEDGER_ONLY
+    assert result.ledger_partition is not None
+    assert "Circuit open" in (result.error or "")
+    # Circuit was open: no additional HTTP call for second emit
+    assert post_after == post_before

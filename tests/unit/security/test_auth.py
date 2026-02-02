@@ -51,7 +51,7 @@ def test_verify_webhook_signature_rejects_tampered_payload():
 def test_create_access_token_returns_jwt_string():
     """create_access_token returns a non-empty string."""
     config = SecurityConfig(
-        api_keys=[],
+        api_keys="",
         jwt_secret=SecretStr("test-secret"),
     )
     token = create_access_token("client-1", ["read"], config)

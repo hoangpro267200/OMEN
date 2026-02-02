@@ -19,6 +19,7 @@ import logging
 import os
 import struct
 import sys
+import time
 import zlib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -29,6 +30,15 @@ from filelock import FileLock
 from omen.domain.models.signal_event import SignalEvent
 
 logger = logging.getLogger(__name__)
+
+try:
+    from omen.infrastructure.observability.metrics import (
+        LEDGER_WRITES,
+        LEDGER_WRITE_DURATION,
+    )
+    _LEDGER_METRICS_AVAILABLE = True
+except ImportError:
+    _LEDGER_METRICS_AVAILABLE = False
 
 
 # Configuration
@@ -106,9 +116,18 @@ class LedgerWriter:
         Returns SignalEvent with ledger metadata populated.
         Raises LedgerWriteError on I/O failure (e.g. disk full).
         """
+        start = time.perf_counter()
         try:
-            return self._write_impl(event)
+            result = self._write_impl(event)
+            if _LEDGER_METRICS_AVAILABLE:
+                partition = result.ledger_partition or "unknown"
+                LEDGER_WRITES.labels(partition=partition, result="success").inc()
+                LEDGER_WRITE_DURATION.observe(time.perf_counter() - start)
+            return result
         except OSError as e:
+            if _LEDGER_METRICS_AVAILABLE:
+                LEDGER_WRITES.labels(partition="unknown", result="error").inc()
+                LEDGER_WRITE_DURATION.observe(time.perf_counter() - start)
             raise LedgerWriteError(str(e)) from e
 
     def _write_impl(self, event: SignalEvent) -> SignalEvent:
@@ -185,6 +204,20 @@ class LedgerWriter:
             f.write(header + payload_bytes)
             f.flush()
             os.fsync(f.fileno())
+
+    async def flush_and_close(self) -> None:
+        """
+        Flush and close any resources. Called during graceful shutdown.
+
+        This writer does not keep file handles open; each write uses
+        open/fsync/close. So this is a no-op except for logging.
+        Ensures any future implementation that keeps handles open can
+        flush and close here.
+        """
+        logger.info(
+            "LedgerWriter flush_and_close: no open file handles "
+            "(each write is already fsync'd and closed)."
+        )
 
     def _get_or_create_current_segment(self, partition_dir: Path) -> Path:
         """

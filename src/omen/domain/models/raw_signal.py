@@ -4,7 +4,7 @@ The entry point to OMEN. Represents unprocessed market data
 normalized into a common internal format.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from pydantic import BaseModel, Field, field_validator, computed_field
 
@@ -75,10 +75,16 @@ class RawSignalEvent(BaseModel):
     
     # Timestamps
     observed_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="When OMEN observed this data"
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When OMEN observed this data (timezone-aware UTC)"
     )
     market_last_updated: datetime | None = None
+    
+    # Source-specific metrics (AIS, Weather, Freight, etc.)
+    source_metrics: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Source-specific metrics and metadata",
+    )
     
     # Raw payload for debugging (not used in processing)
     raw_payload: dict[str, Any] | None = Field(

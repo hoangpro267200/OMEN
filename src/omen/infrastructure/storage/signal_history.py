@@ -7,7 +7,7 @@ In production, this would be backed by Redis, TimescaleDB, or similar.
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import threading
 
@@ -61,7 +61,7 @@ class SignalHistoryStore:
         - When CLOB API returns new price
         """
         point = ProbabilityPoint(
-            timestamp=timestamp or datetime.utcnow(),
+            timestamp=timestamp or datetime.now(timezone.utc),
             probability=probability,
             source=source,
             market_id=market_id,
@@ -74,7 +74,7 @@ class SignalHistoryStore:
             if len(history) > self._max_points:
                 history[:] = history[-self._max_points :]
 
-            cutoff = datetime.utcnow() - self._ttl
+            cutoff = datetime.now(timezone.utc) - self._ttl
             history[:] = [p for p in history if p.timestamp > cutoff]
 
     def get_history(
@@ -95,7 +95,7 @@ class SignalHistoryStore:
             if not history:
                 return []
 
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
             recent = [p for p in history if p.timestamp > cutoff]
 
             if not recent:
@@ -148,7 +148,7 @@ class SignalHistoryStore:
             if len(history) < 2:
                 return "UNKNOWN"
 
-            cutoff = datetime.utcnow() - timedelta(hours=window_hours)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
             recent = [p for p in history if p.timestamp > cutoff]
 
             if len(recent) < 2:

@@ -5,11 +5,14 @@ Provides transparency into OMEN's validation calculations.
 Impact methodologies live in the omen_impact package (consumer responsibility).
 """
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Annotated, Any, Optional
 
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from omen.api.errors import not_found
 from omen.domain.methodology import VALIDATION_METHODOLOGIES
+from omen.infrastructure.security.auth import verify_api_key
 
 router = APIRouter(prefix="/methodology", tags=["Methodology"])
 
@@ -43,8 +46,10 @@ class MethodologyDetail(BaseModel):
     version_info: dict = {}
 
 
-@router.get("", response_model=dict)
-async def list_methodologies():
+@router.get("", response_model=dict[str, list[MethodologySummary]])
+async def list_methodologies(
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> dict[str, list[MethodologySummary]]:
     """
     List documented validation methodologies.
 
@@ -65,7 +70,10 @@ async def list_methodologies():
 
 
 @router.get("/for-metric/{metric_name}", response_model=MethodologyDetail)
-async def get_methodology_for_metric(metric_name: str):
+async def get_methodology_for_metric(
+    metric_name: str,
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> MethodologyDetail:
     """
     Get the methodology for a validation metric (e.g. liquidity, geographic).
 
@@ -73,26 +81,24 @@ async def get_methodology_for_metric(metric_name: str):
     """
     methodology = VALIDATION_METHODOLOGIES.get(metric_name.lower())
     if not methodology:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No validation methodology found for: {metric_name}. Impact metrics are in omen_impact.",
-        )
+        raise not_found("Methodology", metric_name)
     return MethodologyDetail(**methodology.to_dict())
 
 
 @router.get("/{category}/{name}", response_model=MethodologyDetail)
-async def get_methodology_detail(category: str, name: str):
+async def get_methodology_detail(
+    category: str,
+    name: str,
+    api_key_id: Annotated[str, Depends(verify_api_key)],
+) -> MethodologyDetail:
     """
     Get full details of a validation methodology.
 
     category must be 'validation'. Impact methodologies are in omen_impact.
     """
     if category != "validation":
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unknown category: {category}. Only 'validation' is exposed. Impact methodologies are in omen_impact.",
-        )
+        raise not_found("Category", category)
     methodology = VALIDATION_METHODOLOGIES.get(name)
     if not methodology:
-        raise HTTPException(status_code=404, detail=f"Methodology not found: {name}")
+        raise not_found("Methodology", name)
     return MethodologyDetail(**methodology.to_dict())

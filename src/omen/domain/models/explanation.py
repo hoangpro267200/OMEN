@@ -128,6 +128,8 @@ class ExplanationChain(BaseModel):
     All timestamps derive from ProcessingContext.
     Enables full auditability and reproducibility.
     """
+    
+    model_config = {"frozen": True}
 
     trace_id: str = Field(..., description="Unique identifier for this trace")
     steps: list[ExplanationStep] = Field(default_factory=list)

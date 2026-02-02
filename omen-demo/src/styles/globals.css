@@ -1,106 +1,114 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/**
+ * OMEN Demo — Mission Control Design System
+ * Dark theme, high contrast, data-dense. NASA / Bloomberg / Palantir inspired.
+ */
 
+/* Tailwind must be imported first */
 @import "tailwindcss";
 
-:root {
-  /* === BACKGROUNDS (Layered depth system) === */
-  --bg-void: #000000;
-  --bg-base: #050507;
-  --bg-surface: #0a0b0f;
-  --bg-elevated: #101114;
-  --bg-overlay: #15171c;
-  --bg-hover: #1a1d24;
-  --bg-active: #22262f;
+/* Google Fonts - loaded after Tailwind base */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-  /* Legacy aliases */
-  --bg-primary: #050507;
-  --bg-secondary: #0a0b0f;
-  --bg-tertiary: #101114;
+/* ---------------------------------------------------------------------------
+   @theme — Tailwind 4 design tokens (generates utility classes)
+   --------------------------------------------------------------------------- */
+@theme {
+  /* OMEN colors → bg-primary, text-primary, border-subtle, etc. */
+  --color-bg-primary: #0a0a0f;
+  --color-bg-secondary: #12121a;
+  --color-bg-tertiary: #1a1a24;
+  --color-border-subtle: #2a2a3a;
+  --color-border-active: #3a3a4a;
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #8888a0;
+  --color-text-muted: #5a5a70;
+  --color-accent-blue: #3b82f6;
+  --color-accent-green: #22c55e;
+  --color-accent-amber: #f59e0b;
+  --color-accent-red: #ef4444;
+  --color-status-sealed: #22c55e;
+  --color-status-open: #f59e0b;
+  --color-status-late: #a855f7;
+  --color-status-failed: #ef4444;
+  --color-status-completed: #22c55e;
+  --color-status-partial: #f59e0b;
 
-  /* === BORDERS & LINES === */
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(59, 130, 246, 0.5);
-  --border-medium: rgba(255, 255, 255, 0.08);
-  --grid-line: rgba(255, 255, 255, 0.04);
+  /* Typography */
+  --font-display: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* === TEXT HIERARCHY === */
-  --text-primary: #ffffff;
-  --text-secondary: #b4b4b4;
-  --text-tertiary: #737373;
-  --text-muted: #525252;
-  --text-disabled: #404040;
+  /* Spacing scale (4px base): 4, 8, 12, 16, 24, 32, 48, 64, 96 */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+  --spacing-24: 96px;
 
-  /* === ACCENT COLORS === */
-  --accent-blue: #3b82f6;
-  --accent-blue-bright: #60a5fa;
-  --accent-cyan: #06b6d4;
-  --accent-cyan-bright: #22d3ee;
-  --accent-purple: #8b5cf6;
-  --accent-pink: #ec4899;
-  --accent-green: #10b981;
-  --accent-yellow: #f59e0b;
-  --accent-orange: #f97316;
-  --accent-red: #ef4444;
-
-  /* === SEMANTIC COLORS === */
-  --success: #10b981;
-  --success-bright: #34d399;
-  --warning: #f59e0b;
-  --warning-bright: #fbbf24;
-  --danger: #ef4444;
-  --danger-bright: #f87171;
-  --info: #3b82f6;
-
-  /* === SEVERITY SYSTEM === */
-  --severity-critical: #ef4444;
-  --severity-critical-glow: rgba(239, 68, 68, 0.4);
-  --severity-high: #f97316;
-  --severity-high-glow: rgba(249, 115, 22, 0.3);
-  --severity-medium: #f59e0b;
-  --severity-medium-glow: rgba(245, 158, 11, 0.3);
-  --severity-low: #10b981;
-  --severity-low-glow: rgba(16, 185, 129, 0.3);
-
-  /* === GRADIENTS === */
-  --gradient-blue: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  --gradient-cyan: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-  --gradient-purple: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  --gradient-gold: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  --gradient-green: linear-gradient(135deg, #10b981 0%, #059669 100%);
-
-  /* === CHART GRADIENTS === */
-  --chart-area-fill: linear-gradient(180deg, rgba(6, 182, 212, 0.3) 0%, rgba(6, 182, 212, 0) 100%);
-  --chart-danger-fill: linear-gradient(180deg, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0) 100%);
-
-  /* === GLOWS & SHADOWS === */
-  --glow-blue: 0 0 20px rgba(59, 130, 246, 0.4), 0 0 40px rgba(59, 130, 246, 0.2);
-  --glow-cyan: 0 0 20px rgba(6, 182, 212, 0.4), 0 0 40px rgba(6, 182, 212, 0.2);
-  --glow-danger: 0 0 20px rgba(239, 68, 68, 0.4), 0 0 40px rgba(239, 68, 68, 0.2);
-  --glow-success: 0 0 20px rgba(16, 185, 129, 0.4);
-  --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
-  --glow-red: 0 0 20px rgba(239, 68, 68, 0.3);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5), 0 10px 10px rgba(0, 0, 0, 0.3);
+  /* Border radius */
+  --radius-card: 8px;
+  --radius-button: 6px;
+  --radius-badge: 4px;
 }
 
-html, body, #root {
+/* ---------------------------------------------------------------------------
+   :root — Runtime CSS variables (for components that use var(--...))
+   --------------------------------------------------------------------------- */
+:root {
+  /* Base */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-tertiary: #1a1a24;
+
+  /* Borders */
+  --border-subtle: #2a2a3a;
+  --border-active: #3a3a4a;
+
+  /* Text */
+  --text-primary: #f0f0f5;
+  --text-secondary: #8888a0;
+  --text-muted: #5a5a70;
+
+  /* Accent — use sparingly */
+  --accent-blue: #3b82f6;
+  --accent-green: #22c55e;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+
+  /* Status specific */
+  --status-sealed: #22c55e;
+  --status-open: #f59e0b;
+  --status-late: #a855f7;
+  --status-failed: #ef4444;
+  --status-completed: #22c55e;
+  --status-partial: #f59e0b;
+
+  /* Radius */
+  --radius-card: 8px;
+  --radius-button: 6px;
+  --radius-badge: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   Base styles
+   --------------------------------------------------------------------------- */
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   overflow: hidden;
 }
 
 body {
-  font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--bg-base);
+  background: var(--bg-primary);
   color: var(--text-primary);
 }
 
@@ -108,11 +116,14 @@ body {
   box-sizing: border-box;
 }
 
+.font-display,
 .font-mono {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
 }
 
-/* Custom scrollbar */
+/* ---------------------------------------------------------------------------
+   Custom scrollbar
+   --------------------------------------------------------------------------- */
 .overflow-thin-scroll::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -122,14 +133,16 @@ body {
   border-radius: 2px;
 }
 .overflow-thin-scroll::-webkit-scrollbar-thumb {
-  background: var(--bg-hover);
+  background: var(--border-subtle);
   border-radius: 2px;
 }
 .overflow-thin-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
 
-/* Skeleton shimmer */
+/* ---------------------------------------------------------------------------
+   Skeleton shimmer
+   --------------------------------------------------------------------------- */
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -137,28 +150,86 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--bg-surface) 25%,
-    var(--bg-elevated) 50%,
-    var(--bg-surface) 75%
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Pulse for critical */
-@keyframes pulse-critical {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-  50% { opacity: 0.8; box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+/* ---------------------------------------------------------------------------
+   Status pulse (for StatusDot)
+   --------------------------------------------------------------------------- */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+  50% { opacity: 0.9; box-shadow: 0 0 0 6px transparent; }
 }
-.pulse-critical {
-  animation: pulse-critical 2s ease-in-out infinite;
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
 }
 
-/* Route flow animation */
-@keyframes dash-flow {
-  from { stroke-dashoffset: 24; }
-  to { stroke-dashoffset: 0; }
+/* ---------------------------------------------------------------------------
+   Demo Mode — auto-action highlight
+   --------------------------------------------------------------------------- */
+.demo-action-highlight {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
+  transition: outline-offset 0.15s ease;
 }
-.animate-dash-flow {
-  animation: dash-flow 1s linear infinite;
+
+/* ---------------------------------------------------------------------------
+   Demo mode enhancements (competition / projector)
+   --------------------------------------------------------------------------- */
+.demo-mode {
+  --text-size-multiplier: 1.15;
+  --bg-primary: #050508;
+  --text-primary: #ffffff;
+}
+
+/* Highlight animation for auto-actions */
+@keyframes demo-highlight {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+  50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.demo-highlight {
+  animation: demo-highlight 1.5s ease-out;
+  border-radius: 8px;
+}
+
+/* Counter pop animation */
+@keyframes counter-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.counter-pop {
+  animation: counter-pop 0.3s ease-out;
+}
+
+/* Success flash */
+@keyframes success-flash {
+  0% { background-color: transparent; }
+  50% { background-color: rgba(34, 197, 94, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.success-flash {
+  animation: success-flash 0.5s ease-out;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion — respect user preference
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

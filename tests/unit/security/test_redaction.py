@@ -1,6 +1,8 @@
-"""Tests for field redaction (pure OmenSignal contract)."""
+"""Tests for field redaction (pure OmenSignal contract) and secret redaction in logs."""
 
+import logging
 from datetime import datetime
+from io import StringIO
 
 import pytest
 
@@ -15,6 +17,10 @@ from omen.infrastructure.security.redaction import (
     redact_for_webhook,
     redact_for_api,
     redact_signal_for_external,
+    redact_secrets,
+    redact_dict,
+    RedactingFormatter,
+    RedactingWrapperFormatter,
     ALWAYS_REDACT,
 )
 
@@ -101,3 +107,64 @@ def test_redact_signal_for_external_full_detail(minimal_signal):
     )
     assert "trace_id" in out
     assert "_source_assessment" not in out
+
+
+# ─── Secret redaction (logs) ─────────────────────────────────────────────────
+
+
+def test_redact_secrets_redacts_api_key_like():
+    """redact_secrets redacts api_key=value and similar patterns."""
+    text = 'Request api_key=sk_live_abc123xyz'
+    out = redact_secrets(text)
+    assert "sk_live_abc123xyz" not in out
+    assert "[REDACTED]" in out
+    assert "api_key=" in out
+
+
+def test_redact_secrets_redacts_omen_key():
+    """redact_secrets redacts omen_ prefixed long keys (standalone or in header)."""
+    text = "Authorization: omen_AbCdEfGhIjKlMnOpQrStUvWxYz123456"
+    out = redact_secrets(text)
+    assert "omen_AbCdEfGhIjKlMnOpQrStUvWxYz123456" not in out
+    assert "[REDACTED]" in out or "[REDACTED_KEY]" in out
+    # Standalone omen_ key is replaced with [REDACTED_KEY]
+    out2 = redact_secrets("key=omen_AbCdEfGhIjKlMnOpQrStUvWxYz123456")
+    assert "omen_AbCdEfGhIjKlMnOpQrStUvWxYz123456" not in out2
+    assert "[REDACTED_KEY]" in out2
+
+
+def test_redact_secrets_redacts_bearer():
+    """redact_secrets redacts Bearer token."""
+    text = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.x"
+    out = redact_secrets(text)
+    assert "eyJhbGciOiJIUzI1NiJ9" not in out
+    assert "Bearer " in out
+    assert "[REDACTED]" in out
+
+
+def test_redact_dict_redacts_sensitive_keys():
+    """redact_dict replaces sensitive key values with [REDACTED]."""
+    data = {"user": "alice", "api_key": "secret123", "role": "admin"}
+    out = redact_dict(data)
+    assert out["user"] == "alice"
+    assert out["api_key"] == "[REDACTED]"
+    assert out["role"] == "admin"
+
+
+def test_log_output_does_not_contain_plaintext_api_key():
+    """Log output must not contain plaintext API keys (acceptance: grep returns 0)."""
+    plaintext_key = "omen_TestKey32CharsLongExactly!!!!!!!!"
+    log_capture = StringIO()
+    handler = logging.StreamHandler(log_capture)
+    handler.setFormatter(RedactingWrapperFormatter(logging.Formatter("%(message)s")))
+    logger = logging.getLogger("test.redaction")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        logger.info("Request with api_key=%s", plaintext_key)
+        logger.info("Header: Authorization: Bearer %s", plaintext_key)
+        output = log_capture.getvalue()
+        assert plaintext_key not in output, "Log output must not contain plaintext API key"
+        assert "[REDACTED]" in output or "[REDACTED_KEY]" in output
+    finally:
+        logger.removeHandler(handler)

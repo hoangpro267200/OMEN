@@ -21,9 +21,9 @@ class ValidationStatus(Enum):
     PRODUCTION = "production"
 
 
-@dataclass
+@dataclass(frozen=True)
 class SourceCitation:
-    """Citation for an evidence source."""
+    """Citation for an evidence source. Immutable."""
 
     title: str
     author: str

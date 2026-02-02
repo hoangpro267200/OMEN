@@ -127,6 +127,7 @@ class TestSaveAsync:
     ) -> None:
         """Saved signal retrievable by hash."""
         await async_repo.save_async(sample_signal)
+        assert sample_signal.input_event_hash is not None, "Expected input_event_hash to be set"
         found = await async_repo.find_by_hash_async(sample_signal.input_event_hash)
         assert found is not None
         assert found.signal_id == sample_signal.signal_id
@@ -144,6 +145,7 @@ class TestSaveAsync:
         assert await small_async_repo.find_by_id_async(s1.signal_id) is not None
         await small_async_repo.save_async(s3)
         assert await small_async_repo.find_by_id_async(s1.signal_id) is None
+        assert s1.input_event_hash is not None, "Expected s1.input_event_hash to be set"
         assert await small_async_repo.find_by_hash_async(s1.input_event_hash) is None
         assert await small_async_repo.find_by_id_async(s2.signal_id) is not None
         assert await small_async_repo.find_by_id_async(s3.signal_id) is not None
@@ -178,6 +180,7 @@ class TestFindAsync:
         sample_signal: OmenSignal,
     ) -> None:
         """Existing hash → signal returned."""
+        assert sample_signal.input_event_hash is not None, "Expected input_event_hash to be set"
         found = await async_repo_with_data.find_by_hash_async(
             sample_signal.input_event_hash
         )

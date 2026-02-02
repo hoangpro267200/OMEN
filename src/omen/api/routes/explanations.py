@@ -2,6 +2,8 @@
 Explanation and audit endpoints.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from omen.api.dependencies import get_repository
@@ -15,13 +17,13 @@ from omen.infrastructure.security.auth import verify_api_key
 router = APIRouter()
 
 
-@router.get("/signals/{signal_id}/explanation")
+@router.get("/signals/{signal_id}/explanation", response_model=None)
 async def get_signal_explanation(
     signal_id: str,
     format: str = "json",
     repository: SignalRepository = Depends(get_repository),
     _api_key: str = Depends(verify_api_key),
-):
+) -> dict[str, Any] | Response:
     """
     Get detailed explanation for a signal.
 
@@ -42,7 +44,7 @@ async def get_signal_explanation(
 @router.get("/parameters")
 async def list_all_parameters(
     _api_key: str = Depends(verify_api_key),
-):
+) -> dict[str, Any]:
     """
     List all rule parameters used by OMEN.
 

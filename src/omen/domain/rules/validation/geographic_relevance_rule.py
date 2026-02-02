@@ -8,7 +8,7 @@ Logistics keywords use word-boundary matching (see keywords.get_matched_keywords
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from math import atan2, cos, radians, sin, sqrt
 
 from ...models.raw_signal import RawSignalEvent
@@ -54,9 +54,9 @@ GEO_KEYWORDS: dict[str, list[str]] = {
 }
 
 
-@dataclass
+@dataclass(frozen=True)
 class GeographicRelevanceConfig:
-    """Configuration for geographic relevance checking."""
+    """Configuration for geographic relevance checking. Immutable."""
 
     proximity_threshold_km: float = 500.0  # Max distance to chokepoint
     require_keyword_match: bool = True
@@ -162,7 +162,7 @@ class GeographicRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this validation."""
-        ts = processing_time if processing_time is not None else datetime.utcnow()
+        ts = processing_time or datetime.now(timezone.utc)
         return ExplanationStep(
             step_id=1,
             rule_name=self.name,

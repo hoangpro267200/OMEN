@@ -7,7 +7,7 @@ Rejects obvious sports/entertainment content via blocklist.
 """
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...models.raw_signal import RawSignalEvent
 from ...models.validated_signal import ValidationResult
@@ -137,7 +137,7 @@ class SemanticRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this validation."""
-        ts = processing_time if processing_time is not None else datetime.utcnow()
+        ts = processing_time or datetime.now(timezone.utc)
         return ExplanationStep(
             step_id=1,
             rule_name=self.name,

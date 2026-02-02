@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 from omen.domain.models.omen_signal import (
     OmenSignal,
@@ -113,8 +113,9 @@ def test_ledger_record_verify_fails_when_tampered():
         observed_at=datetime.now(timezone.utc),
     )
     record = LedgerRecord.create(event)
-    # Tamper: change a field on the nested signal
-    record.signal.signal.title = "Tampered Title"
+    # Tamper: use object.__setattr__ to bypass frozen model protection
+    # This simulates what could happen if data was corrupted at storage/network level
+    object.__setattr__(record.signal.signal, "title", "Tampered Title")
     assert record.verify() is False
 
 

@@ -1,0 +1,164 @@
+# News Source Configuration
+# Schema version for backward compatibility
+schema_version: "1.0"
+
+# Provider settings
+providers:
+  newsapi:
+    enabled: true
+    timeout_seconds: 20
+    max_results: 100
+    retry_attempts: 3
+    retry_backoff_seconds: 1.0
+  
+  rss:
+    enabled: false
+    feeds: []
+    timeout_seconds: 15
+
+# Source credibility scores (0.0 - 1.0)
+# Higher = more reliable
+credibility:
+  default_score: 0.3
+  
+  # Tier 1: Major wire services and financial press
+  tier_1:
+    score: 0.95
+    domains:
+      - reuters.com
+      - bloomberg.com
+      - ap.com
+      - afp.com
+  
+  # Tier 2: Major newspapers and business press
+  tier_2:
+    score: 0.90
+    domains:
+      - ft.com
+      - wsj.com
+      - nytimes.com
+      - economist.com
+      - bbc.com
+  
+  # Tier 3: Industry-specific sources
+  tier_3:
+    score: 0.80
+    domains:
+      - lloydslist.com
+      - tradewindsnews.com
+      - splash247.com
+      - seatrade-maritime.com
+      - joc.com
+      - freightwaves.com
+  
+  # Tier 4: General news
+  tier_4:
+    score: 0.60
+    domains:
+      - cnn.com
+      - cnbc.com
+      - theguardian.com
+
+# Recency decay parameters
+recency:
+  # Articles older than max_age_hours are ignored
+  max_age_hours: 72
+  
+  # Half-life for exponential decay
+  half_life_hours: 6
+  
+  # Articles within fresh_threshold are scored 1.0
+  fresh_threshold_hours: 2
+
+# Deduplication settings
+dedupe:
+  # Similarity threshold for considering articles duplicates
+  similarity_threshold: 0.85
+  
+  # Window for deduplication check
+  window_hours: 24
+  
+  # Fields used for dedupe hash
+  hash_fields:
+    - title_normalized
+    - source_domain
+
+# Topic keyword mapping for classification
+# Maps internal topics to search keywords
+topic_keywords:
+  red_sea_disruption:
+    primary:
+      - "red sea shipping"
+      - "houthi attack"
+      - "bab el-mandeb"
+      - "red sea disruption"
+    secondary:
+      - "yemen shipping"
+      - "suez alternative"
+  
+  suez_canal:
+    primary:
+      - "suez canal"
+      - "suez blockage"
+    secondary:
+      - "ever given"
+      - "suez traffic"
+  
+  panama_canal:
+    primary:
+      - "panama canal"
+      - "panama drought"
+    secondary:
+      - "panama transit"
+      - "canal restrictions"
+  
+  port_congestion:
+    primary:
+      - "port congestion"
+      - "container backlog"
+      - "port strike"
+    secondary:
+      - "dock workers strike"
+      - "terminal congestion"
+  
+  oil_supply:
+    primary:
+      - "oil supply disruption"
+      - "opec cut"
+      - "oil production"
+    secondary:
+      - "crude oil"
+      - "oil embargo"
+  
+  sanctions:
+    primary:
+      - "shipping sanctions"
+      - "trade sanctions"
+    secondary:
+      - "embargo"
+      - "trade restrictions"
+
+# Quality gate thresholds
+quality_gate:
+  # Minimum credibility to process
+  min_credibility: 0.3
+  
+  # Minimum recency score to process
+  min_recency: 0.1
+  
+  # Combined minimum score (credibility * recency)
+  min_combined_score: 0.2
+
+# Scoring parameters for news_score feature
+scoring:
+  # Weight of credibility in final score
+  credibility_weight: 0.6
+  
+  # Weight of recency in final score
+  recency_weight: 0.4
+  
+  # Maximum news_score contribution to signal confidence
+  max_confidence_boost: 0.10
+  
+  # Minimum combined score to boost confidence
+  boost_threshold: 0.5

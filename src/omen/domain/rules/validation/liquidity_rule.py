@@ -3,7 +3,7 @@
 OMEN assumes: If there is no liquidity, there is no information.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...models.explanation import ExplanationStep, ParameterReference
 from ...models.raw_signal import RawSignalEvent
@@ -67,15 +67,19 @@ class LiquidityValidationRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this validation."""
-        ts = processing_time if processing_time is not None else datetime.utcnow()
+        ts = processing_time or datetime.now(timezone.utc)
         parameters_used: list[ParameterReference] = []
         try:
             cfg = get_rule_registry().get_config("liquidity_validation")
-            p = cfg.parameters["min_liquidity_usd"]
-            _, src = cfg.get_with_source("min_liquidity_usd")
-            parameters_used = [
-                ParameterReference(name=p.name, value=p.value, unit=p.unit, source=src)
-            ]
+            params_dict = cfg._get_params_dict()
+            p = params_dict.get("min_liquidity_usd")
+            if p:
+                _, src = cfg.get_with_source("min_liquidity_usd")
+                parameters_used = [
+                    ParameterReference(name=p.name, value=p.value, unit=p.unit, source=src)
+                ]
+            else:
+                raise KeyError("min_liquidity_usd not found")
         except (KeyError, AttributeError):
             parameters_used = [
                 ParameterReference(

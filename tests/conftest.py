@@ -6,10 +6,29 @@ All fixtures use current domain models:
 - Enums: SignalCategory, ValidationStatus, ImpactDomain, ConfidenceLevel, RulesetVersion
 """
 
+import os
+import sys
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT SETUP (MUST BE BEFORE OTHER IMPORTS)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Add src to path BEFORE any imports
+src_path = Path(__file__).parent.parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+
+# Set test environment variables BEFORE pydantic imports
+os.environ.setdefault("OMEN_ENV", "test")
+os.environ.setdefault("OMEN_SECURITY_API_KEYS", "test-key-1,test-key-2,test-admin-key")
+os.environ.setdefault("OMEN_SECURITY_RATE_LIMIT_ENABLED", "false")
+os.environ.setdefault("OMEN_SECURITY_JWT_ENABLED", "false")
+os.environ.setdefault("OMEN_SECURITY_CORS_ENABLED", "false")
 
 from omen.domain.models.common import (
     EventId,
@@ -298,3 +317,42 @@ def async_pipeline() -> AsyncOmenPipeline:
         ),
         max_concurrent=5,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API AUTHENTICATION FIXTURES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def api_key() -> str:
+    """Valid test API key with read scope."""
+    return "test-key-1"
+
+
+@pytest.fixture
+def write_api_key() -> str:
+    """Test API key with write scope."""
+    return "test-key-2"
+
+
+@pytest.fixture
+def admin_api_key() -> str:
+    """Test API key with admin scope."""
+    return "test-admin-key"
+
+
+@pytest.fixture
+def api_headers(api_key: str) -> dict[str, str]:
+    """HTTP headers with valid API key."""
+    return {"X-API-Key": api_key}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ASYNC TEST SUPPORT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="session")
+def event_loop_policy():
+    """Use the default event loop policy for async tests."""
+    import asyncio
+    return asyncio.DefaultEventLoopPolicy()

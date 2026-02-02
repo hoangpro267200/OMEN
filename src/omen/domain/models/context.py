@@ -5,7 +5,7 @@ All timestamps and IDs derive from this context.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import NewType
 
 from .common import generate_deterministic_hash, RulesetVersion
@@ -29,8 +29,9 @@ class ProcessingContext:
 
     @classmethod
     def create(cls, ruleset_version: RulesetVersion) -> "ProcessingContext":
-        """Create a new context with current time."""
-        now = datetime.utcnow()
+        """Create a new context with current time from TimeProvider."""
+        from omen.application.ports.time_provider import utc_now
+        now = utc_now()
         trace_id = TraceId(
             generate_deterministic_hash(now.isoformat(), ruleset_version)
         )
@@ -47,6 +48,10 @@ class ProcessingContext:
         ruleset_version: RulesetVersion,
     ) -> "ProcessingContext":
         """Create a context for replaying historical processing."""
+        # Ensure timezone-aware datetime
+        if processing_time.tzinfo is None:
+            processing_time = processing_time.replace(tzinfo=timezone.utc)
+        
         trace_id = TraceId(
             generate_deterministic_hash(
                 processing_time.isoformat(),

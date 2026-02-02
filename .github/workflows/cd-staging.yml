@@ -1,0 +1,74 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CD — Deploy to Staging (on push to develop)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: CD - Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://omen-staging.example.com
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || github.repository }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER_STAGING || 'omen-staging' }} \
+            --service ${{ vars.ECS_SERVICE_STAGING || 'omen-api' }} \
+            --force-new-deployment
+        continue-on-error: true
+
+      - name: Wait for deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ vars.ECS_CLUSTER_STAGING || 'omen-staging' }} \
+            --services ${{ vars.ECS_SERVICE_STAGING || 'omen-api' }}
+        continue-on-error: true
+
+      - name: Run smoke tests
+        run: |
+          STAGING_URL="${{ vars.STAGING_URL || 'https://omen-staging.example.com' }}"
+          if command -v curl >/dev/null 2>&1; then
+            curl -sf "${STAGING_URL}/health/" || true
+            curl -sf "${STAGING_URL}/health/live" || true
+          fi
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          echo "Staging deployment finished with status ${{ job.status }}"

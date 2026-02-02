@@ -1,0 +1,58 @@
+{
+  "name": "omen-client",
+  "version": "2.0.0",
+  "description": "Official TypeScript SDK for OMEN Signal Intelligence API",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "omen",
+    "signals",
+    "logistics",
+    "risk",
+    "api",
+    "sdk",
+    "typescript",
+    "vietnam",
+    "supply-chain"
+  ],
+  "author": "OMEN Team <sdk@omen.io>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/omen/omen-typescript-sdk"
+  },
+  "homepage": "https://docs.omen.io/sdk/typescript",
+  "bugs": {
+    "url": "https://github.com/omen/omen-typescript-sdk/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

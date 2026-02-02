@@ -1,6 +1,9 @@
-"""Layer 2 orchestration: Signal validation service."""
+"""
+Layer 2 orchestration: Signal validation service.
 
-import logging
+NOTE: No logging in domain layer - errors are captured in ValidationOutcome.
+"""
+
 from dataclasses import dataclass
 from typing import List
 
@@ -27,17 +30,14 @@ from omen.domain.rules.validation.anomaly_detection_rule import (
 )
 
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass
+@dataclass(frozen=True)
 class ValidationOutcome:
-    """Result of validation: either a valid signal or rejection with reasons."""
+    """Result of validation: either a valid signal or rejection with reasons. Immutable."""
 
     passed: bool
     signal: ValidatedSignal | None
     rejection_reason: str | None = None
-    results: List[ValidationResult] | None = None
+    results: tuple[ValidationResult, ...] | None = None  # Changed to tuple for immutability
 
 
 class ValidationFailure(Exception):
@@ -117,16 +117,11 @@ class SignalValidator:
                         passed=False,
                         signal=None,
                         rejection_reason=result.reason,
-                        results=validation_results,
+                        results=tuple(validation_results),
                     )
             except Exception as e:
-                logger.error(
-                    "Validation rule %s raised exception: %s",
-                    rule.name,
-                    e,
-                    exc_info=True,
-                    extra={"event_id": str(signal.event_id), "rule": rule.name},
-                )
+                # Error captured in ValidationResult - no logging in domain layer
+                # Application layer should handle logging if needed
                 error_result = ValidationResult(
                     rule_name=rule.name,
                     rule_version=rule.version,
@@ -140,7 +135,7 @@ class SignalValidator:
                         passed=False,
                         signal=None,
                         rejection_reason=f"Rule {rule.name} errored: {e}",
-                        results=validation_results,
+                        results=tuple(validation_results),
                     )
 
         # All rules passed
@@ -179,7 +174,7 @@ class SignalValidator:
         return ValidationOutcome(
             passed=True,
             signal=validated_signal,
-            results=validation_results,
+            results=tuple(validation_results),
         )
 
     def _infer_category(self, signal: RawSignalEvent) -> SignalCategory:

@@ -7,7 +7,7 @@ Stores failed events for later inspection and reprocessing.
 import logging
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from omen.domain.errors import OmenError
@@ -57,7 +57,7 @@ class DeadLetterQueue:
         entry = DeadLetterEntry(
             event=event,
             error=error,
-            failed_at=datetime.utcnow(),
+            failed_at=datetime.now(timezone.utc),
             retry_count=retry_count,
         )
         self._queue.append(entry)

@@ -1,6 +1,7 @@
 """Ledger: WAL-framed append-only storage for SignalEvent."""
 
 from omen.infrastructure.ledger.reader import LedgerReader, PartitionInfo
+from omen.infrastructure.ledger.versioned_reader import VersionedLedgerReader
 from omen.infrastructure.ledger.writer import LedgerWriteError, LedgerWriter
 
 __all__ = [
@@ -8,4 +9,5 @@ __all__ = [
     "LedgerReader",
     "LedgerWriteError",
     "PartitionInfo",
+    "VersionedLedgerReader",
 ]

@@ -1,178 +1,109 @@
-import { useState, useEffect } from 'react';
-import { Shield, Wifi, WifiOff, User } from 'lucide-react';
-import { motion } from 'framer-motion';
+import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
-import { useRealtimeStatus } from '../../hooks/useRealtimePrices';
 import type { DataSourceInfo } from '../../hooks/useDataSource';
+import { StatusDot } from '../ui/StatusDot';
+import { Badge } from '../ui/Badge';
 
-type SystemStatus = 'OPERATIONAL' | 'DEGRADED' | 'DOWN';
-
-interface HeaderProps {
-  systemStatus?: SystemStatus;
-  isLive?: boolean;
-  connectionStatus?: 'connected' | 'disconnected';
-  latencyMs?: number;
+export interface HeaderProps {
+  title?: string;
+  subtitle?: string;
+  actions?: ReactNode;
   className?: string;
-  /** When provided, header shows honest data-source badge (live vs demo). */
+  /** Dashboard header props (when used in App) */
+  systemStatus?: string;
+  isLive?: boolean;
+  connectionStatus?: string;
+  latencyMs?: number;
   dataSource?: DataSourceInfo;
-  /** Total signal count from backend (stats.signals_generated). Used for badge when live so it shows real count, not loaded-page size. */
   signalsCount?: number;
-  /** When false, skips polling /realtime/status to avoid console errors when backend is down or using demo data. */
   enableRealtimePolling?: boolean;
 }
 
-function LiveClock() {
-  const [time, setTime] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <span className="font-mono text-sm tabular-nums text-[var(--text-secondary)]">
-      {time.toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-    </span>
-  );
-}
-
-function DataSourceBadge({ source, displayCount }: { source: DataSourceInfo; displayCount?: number }) {
-  const c = (
-    {
-      live: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', dot: 'bg-green-500', label: 'TRỰC TIẾP', pulse: true },
-      demo: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-400', dot: 'bg-yellow-500', label: 'DỮ LIỆU DEMO', pulse: false },
-      cached: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-500', label: 'ĐÃ LƯU', pulse: false },
-      error: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-500', label: 'LỖI', pulse: false },
-    } as const
-  )[source.type];
-  const n = displayCount ?? source.signalCount;
-  return (
-    <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-full border', c.bg, c.border, c.text)} title={source.message}>
-      <span className={cn('w-2 h-2 rounded-full', c.dot, c.pulse && 'animate-pulse')} />
-      <span className="text-xs font-medium">{c.label}</span>
-      {n > 0 ? <span className="text-xs opacity-60">({n})</span> : null}
-    </div>
-  );
-}
-
+/**
+ * Page/section header — Mission Control style.
+ * Supports simple (title/subtitle/actions) or full dashboard (systemStatus, dataSource, etc.).
+ */
 export function Header({
-  systemStatus = 'OPERATIONAL',
-  isLive = true,
-  connectionStatus = 'connected',
+  title,
+  subtitle,
+  actions,
+  className = '',
+  systemStatus,
+  isLive,
+  connectionStatus,
   latencyMs,
-  className,
   dataSource,
   signalsCount,
-  enableRealtimePolling = true,
 }: HeaderProps) {
-  const realtimeStatus = useRealtimeStatus({ enabled: enableRealtimePolling });
-  const statusConfig = {
-    OPERATIONAL: {
-      label: 'VẬN HÀNH',
-      dotClass: 'bg-[var(--success)] shadow-[var(--glow-success)]',
-    },
-    DEGRADED: {
-      label: 'SUY GIẢM',
-      dotClass: 'bg-[var(--warning)] animate-pulse',
-    },
-    DOWN: {
-      label: 'NGƯNG',
-      dotClass: 'bg-[var(--danger)]',
-    },
-  };
-  const config = statusConfig[systemStatus];
+  const isDashboard = systemStatus != null || dataSource != null;
+
+  if (isDashboard) {
+    return (
+      <header
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-6 py-4',
+          className
+        )}
+      >
+        <div className="flex items-center gap-4">
+          <span className="font-display text-lg font-medium tracking-tight text-[var(--text-primary)]">
+            OMEN
+          </span>
+          <span className="text-sm text-[var(--text-muted)]">Signal Intelligence</span>
+          {systemStatus != null && (
+            <Badge variant={connectionStatus === 'disconnected' ? 'danger' : 'success'}>
+              {systemStatus}
+            </Badge>
+          )}
+          {isLive != null && (
+            <StatusDot variant={isLive ? 'live' : 'idle'} label={isLive ? 'LIVE' : 'DEMO'} />
+          )}
+        </div>
+        <div className="flex items-center gap-6 font-mono text-xs text-[var(--text-secondary)]">
+          {connectionStatus != null && (
+            <span>
+              <span className="text-[var(--text-muted)]">Connection </span>
+              {connectionStatus}
+            </span>
+          )}
+          {latencyMs != null && (
+            <span>
+              <span className="text-[var(--text-muted)]">Latency </span>
+              {latencyMs} ms
+            </span>
+          )}
+          {signalsCount != null && (
+            <span>
+              <span className="text-[var(--text-muted)]">Signals </span>
+              {signalsCount}
+            </span>
+          )}
+          {dataSource != null && (
+            <span className="text-[var(--text-muted)]">{dataSource.source}</span>
+          )}
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header
       className={cn(
-        'fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-xl',
-        'border-[var(--border-subtle)]',
-        systemStatus === 'OPERATIONAL' && 'border-b-[var(--success)]/20',
+        'flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-6 py-4',
         className
       )}
-      style={{ background: 'rgba(5, 5, 7, 0.8)', height: 64 }}
     >
-      <div className="h-16 px-6 flex items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <motion.div
-            className="flex items-center gap-3"
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="w-9 h-9 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center shadow-[var(--glow-blue)]">
-              <Shield className="w-5 h-5 text-[var(--accent-blue)]" />
-            </div>
-            <span className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
-              OMEN
-            </span>
-          </motion.div>
-          <div className="h-6 w-px bg-[var(--border-medium)] hidden sm:block" />
-          <div className="flex items-center gap-2">
-            <span className={cn('w-2 h-2 rounded-full shrink-0', config.dotClass)} />
-            <span className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
-              {config.label}
-            </span>
-          </div>
-          {dataSource ? (
-            <DataSourceBadge
-              source={dataSource}
-              displayCount={dataSource.type === 'live' && signalsCount != null ? signalsCount : undefined}
-            />
-          ) : isLive ? (
-            <span className="text-xs font-medium text-[var(--success)] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] animate-pulse" />
-              SỐNG
-            </span>
-          ) : null}
-          {realtimeStatus && (
-            <span
-              className={cn(
-                'text-xs font-medium flex items-center gap-1',
-                realtimeStatus.websocket_connected
-                  ? 'text-cyan-400'
-                  : 'text-[var(--text-tertiary)]'
-              )}
-              title={
-                realtimeStatus.websocket_connected
-                  ? `${realtimeStatus.registered_signals} signals tracked`
-                  : 'WebSocket not connected'
-              }
-            >
-              <span
-                className={cn(
-                  'w-1.5 h-1.5 rounded-full shrink-0',
-                  realtimeStatus.websocket_connected
-                    ? 'bg-cyan-400 animate-pulse'
-                    : 'bg-[var(--text-tertiary)]'
-                )}
-              />
-              {realtimeStatus.websocket_connected ? 'REAL-TIME' : 'POLLING'}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-6">
-          <LiveClock />
-          {latencyMs != null && (
-            <span className="font-mono text-sm tabular-nums text-[var(--success)]">
-              {latencyMs} ms
-            </span>
-          )}
-          <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-            {connectionStatus === 'connected' ? (
-              <Wifi className="w-4 h-4 text-[var(--success)]" />
-            ) : (
-              <WifiOff className="w-4 h-4 text-[var(--danger)]" />
-            )}
-            <span className="text-xs uppercase tracking-wider">
-              {connectionStatus === 'connected' ? 'ĐÃ KẾT NỐI' : 'Ngắt kết nối'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 pl-4 border-l border-[var(--border-subtle)]">
-            <User className="w-4 h-4 text-[var(--text-tertiary)]" />
-            <span className="text-sm text-[var(--text-secondary)]">Hệ thống</span>
-          </div>
-        </div>
+      <div>
+        {title != null && (
+          <h1 className="font-display text-lg font-medium tracking-tight text-[var(--text-primary)]">
+            {title}
+          </h1>
+        )}
+        {subtitle != null && (
+          <p className="mt-0.5 text-sm text-[var(--text-muted)]">{subtitle}</p>
+        )}
       </div>
+      {actions != null && <div className="flex items-center gap-2">{actions}</div>}
     </header>
   );
 }

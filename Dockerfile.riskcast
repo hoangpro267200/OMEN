@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# RiskCast Production Dockerfile
+# Same repo: OMEN + RiskCast; this image runs RiskCast API or reconcile job
+# ═══════════════════════════════════════════════════════════════════════════════
+
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml ./
+COPY src/ ./src/
+
+RUN pip install --no-cache-dir build wheel \
+    && pip wheel --no-cache-dir --wheel-dir /wheels .
+
+# ─────────────────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+RUN groupadd -r riskcast && useradd -r -g riskcast riskcast
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
+
+COPY src/ ./src/
+
+RUN mkdir -p /data/riskcast \
+    && chown -R riskcast:riskcast /data /app
+
+USER riskcast
+
+ENV RISKCAST_DB_PATH=/data/riskcast/signals.db \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/src
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+EXPOSE 8001
+
+CMD ["python", "-m", "uvicorn", "riskcast.api.app:app", "--host", "0.0.0.0", "--port", "8001"]

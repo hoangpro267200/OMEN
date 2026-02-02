@@ -1,7 +1,7 @@
 """Console output publisher."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...application.ports.output_publisher import OutputPublisher
 from ...domain.models.omen_signal import OmenSignal
@@ -13,7 +13,7 @@ class ConsolePublisher(OutputPublisher):
     def publish(self, signal: OmenSignal) -> bool:
         """Publish signal to console (pure contract fields only)."""
         output = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "signal": {
                 "signal_id": signal.signal_id,
                 "source_event_id": signal.source_event_id,

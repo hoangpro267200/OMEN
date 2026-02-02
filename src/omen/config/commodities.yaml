@@ -1,0 +1,138 @@
+# Commodity Prices Configuration
+# Schema version for backward compatibility
+schema_version: "1.0"
+
+# Provider settings
+providers:
+  alphavantage:
+    enabled: true
+    timeout_seconds: 15
+    retry_attempts: 3
+    retry_backoff_seconds: 2.0
+    rate_limit_per_minute: 5
+  
+  eia:
+    enabled: false  # Optional, requires EIA_API_KEY
+    timeout_seconds: 15
+    retry_attempts: 3
+
+# Commodity watchlist
+# Each commodity has spike detection parameters
+watchlist:
+  # Energy commodities
+  - symbol: BRENT
+    name: "Brent Crude Oil"
+    category: energy
+    provider: alphavantage
+    alphavantage_symbol: "BRENT"
+    unit: "USD/barrel"
+    spike_threshold_pct: 10.0
+    zscore_threshold: 2.0
+    impact_hint: "Fuel cost proxy for maritime shipping"
+    
+  - symbol: WTI
+    name: "WTI Crude Oil"
+    category: energy
+    provider: alphavantage
+    alphavantage_symbol: "WTI"
+    unit: "USD/barrel"
+    spike_threshold_pct: 10.0
+    zscore_threshold: 2.0
+    impact_hint: "US fuel cost benchmark"
+    
+  - symbol: NATGAS
+    name: "Natural Gas"
+    category: energy
+    provider: alphavantage
+    alphavantage_symbol: "NATURAL_GAS"
+    unit: "USD/MMBtu"
+    spike_threshold_pct: 15.0
+    zscore_threshold: 2.5
+    impact_hint: "LNG shipping and energy costs"
+  
+  # Metals (optional, commented out for Phase 2)
+  # - symbol: COPPER
+  #   name: "Copper"
+  #   category: metals
+  #   spike_threshold_pct: 8.0
+  #   zscore_threshold: 2.0
+  #   impact_hint: "Industrial activity indicator"
+
+# Spike detection algorithm parameters
+spike_detection:
+  # Lookback window for baseline calculation
+  lookback_days: 30
+  
+  # Minimum data points required for valid spike detection
+  min_data_points: 20
+  
+  # Moving average smoothing window (days)
+  smoothing_window: 3
+  
+  # Z-score calculation parameters
+  zscore:
+    # Use rolling std or full period std
+    rolling: true
+    rolling_window_days: 30
+  
+  # Spike severity thresholds (based on pct_change)
+  severity_levels:
+    minor:
+      min_pct: 5.0
+      max_pct: 10.0
+    moderate:
+      min_pct: 10.0
+      max_pct: 20.0
+    major:
+      min_pct: 20.0
+      max_pct: null  # No upper limit
+
+# Data quality requirements
+data_quality:
+  # Maximum age of price data (hours)
+  max_staleness_hours: 24
+  
+  # Minimum price value (sanity check)
+  min_price: 0.01
+  
+  # Maximum single-day change (circuit breaker for bad data)
+  max_daily_change_pct: 50.0
+
+# Scoring integration
+scoring:
+  # Maximum confidence boost from commodity context
+  max_confidence_boost: 0.08
+  
+  # Minimum spike severity to contribute to scoring
+  min_severity_for_boost: "minor"
+  
+  # Weight by category
+  category_weights:
+    energy: 1.0
+    metals: 0.7
+    agricultural: 0.5
+
+# Feature output
+features:
+  # Include in signal source_metrics
+  include_fields:
+    - symbol
+    - current_price
+    - pct_change_7d
+    - zscore_30d
+    - is_spike
+    - spike_severity
+    - data_timestamp
+  
+  # Aggregate features for cross-commodity analysis
+  aggregate:
+    # Energy index (weighted average of energy commodities)
+    energy_index:
+      enabled: true
+      components:
+        - symbol: BRENT
+          weight: 0.5
+        - symbol: WTI
+          weight: 0.3
+        - symbol: NATGAS
+          weight: 0.2

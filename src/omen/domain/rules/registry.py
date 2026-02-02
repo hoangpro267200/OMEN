@@ -41,21 +41,38 @@ class RuleParameter:
         return True
 
 
-@dataclass
+@dataclass(frozen=True)
 class RuleConfig:
-    """Configuration for a single rule."""
+    """
+    Configuration for a single rule.
+    
+    Immutable to ensure rule configurations don't change after creation.
+    """
 
     rule_name: str
     rule_version: str
-    parameters: dict[str, RuleParameter]
+    parameters: tuple  # Changed from dict to tuple of (name, RuleParameter) pairs for immutability
+
+    def __init__(self, rule_name: str, rule_version: str, parameters: dict[str, RuleParameter]):
+        """Create immutable RuleConfig from mutable dict."""
+        object.__setattr__(self, 'rule_name', rule_name)
+        object.__setattr__(self, 'rule_version', rule_version)
+        # Convert dict to immutable tuple of tuples
+        object.__setattr__(self, 'parameters', tuple(parameters.items()))
+
+    def _get_params_dict(self) -> dict[str, RuleParameter]:
+        """Get parameters as dict (for internal use)."""
+        return dict(self.parameters)
 
     def get(self, param_name: str) -> Any:
         """Get parameter value."""
-        return self.parameters[param_name].value
+        params = self._get_params_dict()
+        return params[param_name].value
 
     def get_with_source(self, param_name: str) -> tuple[Any, str | None]:
         """Get parameter value and source citation."""
-        param = self.parameters[param_name]
+        params = self._get_params_dict()
+        param = params[param_name]
         source = None
         if param.source:
             source = param.source
