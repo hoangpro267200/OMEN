@@ -1,57 +1,90 @@
 /**
- * OMEN Demo — Mission Control Design System
- * Dark theme, high contrast, data-dense. NASA / Bloomberg / Palantir inspired.
+ * OMEN Signal Intelligence Engine — Neural Command Center Design System
+ * Inspired by NASA Mission Control, SpaceX Dragon, Bloomberg Terminal, JARVIS
+ * 
+ * Colors: Neural Dark + Signal Cyan + Data Amber
+ * Typography: Orbitron (display) + JetBrains Mono (heading) + Outfit (body) + Fira Code (data)
  */
 
-/* Tailwind must be imported first */
+/* Tailwind CSS 4 - all imports handled via @import "tailwindcss" */
 @import "tailwindcss";
 
-/* Google Fonts - loaded after Tailwind base */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* 
+ * Note: Google Fonts are loaded via <link> tags in index.html for Tailwind CSS 4 compatibility
+ * The following fonts are used:
+ * - Orbitron (display)
+ * - JetBrains Mono (heading)
+ * - Outfit (body)
+ * - Fira Code (data/mono)
+ */
 
 /* ---------------------------------------------------------------------------
    @theme — Tailwind 4 design tokens (generates utility classes)
    --------------------------------------------------------------------------- */
 @theme {
-  /* OMEN colors → bg-primary, text-primary, border-subtle, etc. */
+  /* Background layers - Deep Space Black */
   --color-bg-primary: #0a0a0f;
   --color-bg-secondary: #12121a;
   --color-bg-tertiary: #1a1a24;
-  --color-border-subtle: #2a2a3a;
-  --color-border-active: #3a3a4a;
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #8888a0;
-  --color-text-muted: #5a5a70;
-  --color-accent-blue: #3b82f6;
-  --color-accent-green: #22c55e;
-  --color-accent-amber: #f59e0b;
-  --color-accent-red: #ef4444;
-  --color-status-sealed: #22c55e;
-  --color-status-open: #f59e0b;
+  --color-bg-elevated: #22222e;
+
+  /* Borders */
+  --color-border-subtle: rgba(255, 255, 255, 0.1);
+  --color-border-active: rgba(255, 255, 255, 0.2);
+  --color-border-focus: rgba(0, 240, 255, 0.5);
+
+  /* Text - Cool Gray Scale */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a0a0b0;
+  --color-text-muted: #6b7280;
+  --color-text-inverse: #0a0a0f;
+
+  /* Accent colors - Signal Intelligence */
+  --color-accent-cyan: #00f0ff;
+  --color-accent-amber: #ffaa00;
+
+  /* Status colors */
+  --color-status-success: #00ff88;
+  --color-status-warning: #ffaa00;
+  --color-status-error: #ff3366;
+  --color-status-info: #00f0ff;
+
+  /* Legacy status (for compatibility) */
+  --color-status-sealed: #00ff88;
+  --color-status-open: #ffaa00;
   --color-status-late: #a855f7;
-  --color-status-failed: #ef4444;
-  --color-status-completed: #22c55e;
-  --color-status-partial: #f59e0b;
+  --color-status-failed: #ff3366;
+  --color-status-completed: #00ff88;
+  --color-status-partial: #ffaa00;
 
   /* Typography */
-  --font-display: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Orbitron", sans-serif;
+  --font-heading: "JetBrains Mono", monospace;
+  --font-body: "Outfit", sans-serif;
+  --font-mono: "Fira Code", monospace;
 
-  /* Spacing scale (4px base): 4, 8, 12, 16, 24, 32, 48, 64, 96 */
+  /* Spacing scale (4px base) */
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;
   --spacing-4: 16px;
+  --spacing-5: 20px;
   --spacing-6: 24px;
   --spacing-8: 32px;
+  --spacing-10: 40px;
   --spacing-12: 48px;
   --spacing-16: 64px;
   --spacing-24: 96px;
 
   /* Border radius */
-  --radius-card: 8px;
-  --radius-button: 6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-full: 9999px;
+  --radius-card: 12px;
+  --radius-button: 8px;
   --radius-badge: 4px;
 }
 
@@ -59,37 +92,54 @@
    :root — Runtime CSS variables (for components that use var(--...))
    --------------------------------------------------------------------------- */
 :root {
-  /* Base */
+  /* Background layers */
   --bg-primary: #0a0a0f;
   --bg-secondary: #12121a;
   --bg-tertiary: #1a1a24;
+  --bg-elevated: #22222e;
 
   /* Borders */
-  --border-subtle: #2a2a3a;
-  --border-active: #3a3a4a;
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-active: rgba(255, 255, 255, 0.2);
+  --border-focus: rgba(0, 240, 255, 0.5);
 
   /* Text */
-  --text-primary: #f0f0f5;
-  --text-secondary: #8888a0;
-  --text-muted: #5a5a70;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b0;
+  --text-muted: #6b7280;
 
-  /* Accent — use sparingly */
-  --accent-blue: #3b82f6;
-  --accent-green: #22c55e;
-  --accent-amber: #f59e0b;
-  --accent-red: #ef4444;
+  /* Accent colors */
+  --accent-cyan: #00f0ff;
+  --accent-cyan-rgb: 0, 240, 255;
+  --accent-amber: #ffaa00;
+  --accent-amber-rgb: 255, 170, 0;
 
-  /* Status specific */
-  --status-sealed: #22c55e;
-  --status-open: #f59e0b;
+  /* Status colors */
+  --status-success: #00ff88;
+  --status-success-rgb: 0, 255, 136;
+  --status-warning: #ffaa00;
+  --status-warning-rgb: 255, 170, 0;
+  --status-error: #ff3366;
+  --status-error-rgb: 255, 51, 102;
+  --status-info: #00f0ff;
+
+  /* Legacy status (compatibility) */
+  --status-sealed: #00ff88;
+  --status-open: #ffaa00;
   --status-late: #a855f7;
-  --status-failed: #ef4444;
-  --status-completed: #22c55e;
-  --status-partial: #f59e0b;
+  --status-failed: #ff3366;
+  --status-completed: #00ff88;
+  --status-partial: #ffaa00;
+
+  /* Glow colors */
+  --glow-cyan: rgba(0, 240, 255, 0.3);
+  --glow-amber: rgba(255, 170, 0, 0.3);
+  --glow-success: rgba(0, 255, 136, 0.3);
+  --glow-error: rgba(255, 51, 102, 0.3);
 
   /* Radius */
-  --radius-card: 8px;
-  --radius-button: 6px;
+  --radius-card: 12px;
+  --radius-button: 8px;
   --radius-badge: 4px;
 }
 
@@ -105,7 +155,7 @@ body,
 }
 
 body {
-  font-family: var(--font-body);
+  font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg-primary);
@@ -116,38 +166,321 @@ body {
   box-sizing: border-box;
 }
 
-.font-display,
+/* Typography classes */
+.font-display {
+  font-family: "Orbitron", sans-serif;
+}
+
+.font-heading {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.font-body {
+  font-family: "Outfit", sans-serif;
+}
+
 .font-mono {
-  font-family: var(--font-mono);
+  font-family: "Fira Code", monospace;
+}
+
+/* Number display - tabular figures */
+.number-display {
+  font-family: "Orbitron", sans-serif;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Data label style */
+.data-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
 }
 
 /* ---------------------------------------------------------------------------
-   Custom scrollbar
+   Custom scrollbar - Mission Control style
    --------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-tertiary) var(--bg-primary);
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-elevated);
+}
+
+/* Thin scroll variant */
 .overflow-thin-scroll::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
-.overflow-thin-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 2px;
+
+/* ---------------------------------------------------------------------------
+   Glass morphism effects
+   --------------------------------------------------------------------------- */
+.glass {
+  background: rgba(18, 18, 26, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.overflow-thin-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 2px;
+
+.glass-elevated {
+  background: rgba(26, 26, 36, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
-.overflow-thin-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+
+.glass-card {
+  background: linear-gradient(
+    135deg,
+    rgba(18, 18, 26, 0.9) 0%,
+    rgba(26, 26, 36, 0.8) 100%
+  );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-card);
 }
 
 /* ---------------------------------------------------------------------------
-   Skeleton shimmer
+   Glow effects
    --------------------------------------------------------------------------- */
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.glow-cyan {
+  box-shadow: 0 0 20px var(--glow-cyan);
 }
-.skeleton {
+
+.glow-amber {
+  box-shadow: 0 0 20px var(--glow-amber);
+}
+
+.glow-success {
+  box-shadow: 0 0 20px var(--glow-success);
+}
+
+.glow-error {
+  box-shadow: 0 0 20px var(--glow-error);
+}
+
+/* Glow border effect */
+.glow-border {
+  position: relative;
+}
+
+.glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 240, 255, 0.3),
+    rgba(255, 170, 0, 0.1),
+    rgba(0, 240, 255, 0.3)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Status indicators
+   --------------------------------------------------------------------------- */
+.status-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.status-dot.healthy {
+  background: var(--status-success);
+}
+
+.status-dot.warning {
+  background: var(--status-warning);
+}
+
+.status-dot.error {
+  background: var(--status-error);
+}
+
+.status-dot.inactive {
+  background: var(--text-muted);
+}
+
+.status-dot.inactive::before {
+  animation: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Keyframe animations
+   --------------------------------------------------------------------------- */
+
+/* Pulse ring for status dots */
+@keyframes pulse-ring {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+/* Pulse glow for cards */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 240, 255, 0);
+  }
+}
+
+/* Glow effect alternating */
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px var(--glow-color, var(--accent-cyan));
+  }
+  to {
+    box-shadow: 0 0 20px var(--glow-color, var(--accent-cyan)), 0 0 30px var(--glow-color, var(--accent-cyan));
+  }
+}
+
+/* Slide up entrance */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Shimmer for loading */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Flow animation for pipeline */
+@keyframes flow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Spin for loading */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Count pulse for numbers */
+@keyframes count-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+    color: var(--accent-cyan);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Data flow particles */
+@keyframes particle-flow {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(var(--flow-distance, 200px));
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Animation utility classes
+   --------------------------------------------------------------------------- */
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 1.5s ease-in-out infinite alternate;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+.animate-shimmer {
   background: linear-gradient(
     90deg,
     var(--bg-secondary) 25%,
@@ -158,40 +491,99 @@ body {
   animation: shimmer 1.5s infinite;
 }
 
-/* ---------------------------------------------------------------------------
-   Status pulse (for StatusDot)
-   --------------------------------------------------------------------------- */
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
-  50% { opacity: 0.9; box-shadow: 0 0 0 6px transparent; }
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
-.animate-pulse-dot {
-  animation: pulse-dot 2s ease-in-out infinite;
+
+.animate-flow {
+  animation: flow 3s linear infinite;
 }
 
 /* ---------------------------------------------------------------------------
-   Demo Mode — auto-action highlight
+   Staggered animation for children
    --------------------------------------------------------------------------- */
+.stagger-enter > * {
+  animation: slide-up 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.stagger-enter > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-enter > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-enter > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-enter > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-enter > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-enter > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-enter > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-enter > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-enter > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-enter > *:nth-child(10) { animation-delay: 0.5s; }
+
+/* ---------------------------------------------------------------------------
+   Skeleton loading
+   --------------------------------------------------------------------------- */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-badge);
+}
+
+/* ---------------------------------------------------------------------------
+   Interactive states
+   --------------------------------------------------------------------------- */
+
+/* Card hover effect */
+.card-hover {
+  transition: all 0.2s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Button hover glow */
+.button-glow:hover {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 20px var(--glow-cyan);
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+  background: var(--bg-elevated);
+  border-left: 2px solid var(--accent-cyan);
+}
+
+/* Focus states for accessibility */
+.focusable:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Demo mode enhancements
+   --------------------------------------------------------------------------- */
+.demo-mode {
+  --bg-primary: #050508;
+  --text-primary: #ffffff;
+}
+
 .demo-action-highlight {
   outline: 2px solid var(--accent-amber);
   outline-offset: 2px;
   transition: outline-offset 0.15s ease;
 }
 
-/* ---------------------------------------------------------------------------
-   Demo mode enhancements (competition / projector)
-   --------------------------------------------------------------------------- */
-.demo-mode {
-  --text-size-multiplier: 1.15;
-  --bg-primary: #050508;
-  --text-primary: #ffffff;
-}
-
-/* Highlight animation for auto-actions */
 @keyframes demo-highlight {
-  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-  50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.3); }
-  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 240, 255, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
 }
 
 .demo-highlight {
@@ -213,7 +605,7 @@ body {
 /* Success flash */
 @keyframes success-flash {
   0% { background-color: transparent; }
-  50% { background-color: rgba(34, 197, 94, 0.2); }
+  50% { background-color: rgba(0, 255, 136, 0.2); }
   100% { background-color: transparent; }
 }
 
@@ -231,5 +623,10 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  
+  .stagger-enter > * {
+    animation: none;
+    opacity: 1;
   }
 }

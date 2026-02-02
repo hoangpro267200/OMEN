@@ -4,7 +4,9 @@
  */
 
 export const preloadRoutes = {
-  overview: () => import('../screens/OverviewPage'),
+  overview: () => import('../screens/CommandCenter'),
+  pipeline: () => import('../screens/PipelineMonitor'),
+  sources: () => import('../screens/SourcesObservatory'),
   partitions: () => import('../screens/PartitionsPage'),
   partitionDetail: () => import('../screens/PartitionDetailPage'),
   signals: () => import('../screens/SignalsPage'),

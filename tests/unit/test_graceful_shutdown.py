@@ -89,20 +89,24 @@ async def test_ready_returns_503_during_shutdown():
 
     from omen.main import app
 
+    # Ensure clean state before test
     clear_shutdown()
-    client = TestClient(app)
-    response = client.get("/health/ready")
-    assert response.status_code == 200
-    assert response.json().get("ready") is True
-
-    set_shutdown()
-    try:
+    
+    with TestClient(app) as client:
+        # First verify normal operation
         response = client.get("/health/ready")
-        assert response.status_code == 503
-        assert response.json().get("ready") is False
-        assert response.json().get("reason") == "shutting_down"
-    finally:
-        clear_shutdown()
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"
+        assert response.json().get("ready") is True
+
+        # Now set shutdown and verify 503
+        set_shutdown()
+        try:
+            response = client.get("/health/ready")
+            assert response.status_code == 503, f"Expected 503, got {response.status_code}: {response.json()}"
+            assert response.json().get("ready") is False
+            assert response.json().get("reason") == "shutting_down"
+        finally:
+            clear_shutdown()
 
 
 def test_is_shutting_down():

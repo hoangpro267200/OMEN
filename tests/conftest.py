@@ -348,6 +348,19 @@ def api_headers(api_key: str) -> dict[str, str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SHUTDOWN STATE FIXTURES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(autouse=True)
+def clear_shutdown_state():
+    """Ensure shutdown state is cleared before and after each test."""
+    from omen.infrastructure.middleware.request_tracking import clear_shutdown
+    clear_shutdown()
+    yield
+    clear_shutdown()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # ASYNC TEST SUPPORT
 # ═══════════════════════════════════════════════════════════════════════════════
 

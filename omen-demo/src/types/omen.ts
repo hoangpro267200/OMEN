@@ -187,7 +187,7 @@ export interface SystemStats {
 }
 
 export interface ActivityFeedItem {
-  type: 'signal' | 'validation' | 'translation' | 'alert' | 'source';
+  type: 'signal' | 'validation' | 'rejection' | 'reconcile' | 'alert' | 'source' | 'translation';
   message: string;
   time: string;
 }

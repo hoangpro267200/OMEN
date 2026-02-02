@@ -1,5 +1,5 @@
 /**
- * OMEN Demo — Layout (Shell, Header, Sidebar, AppShell)
+ * OMEN Signal Intelligence Engine — Layout (Neural Command Center)
  */
 
 export { Shell } from './Shell';
@@ -18,6 +18,9 @@ export { ShellHeader } from './ShellHeader';
 export type { ShellHeaderProps } from './ShellHeader';
 
 export { AppSidebar, COLLAPSED_WIDTH, EXPANDED_WIDTH } from './AppSidebar';
+
+export { StatusBar } from './StatusBar';
+export type { StatusBarProps } from './StatusBar';
 
 export { SceneStepper } from './SceneStepper';
 export { CalloutOverlay } from './CalloutOverlay';

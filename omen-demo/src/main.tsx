@@ -1,3 +1,7 @@
+/**
+ * OMEN Signal Intelligence Engine — Neural Command Center
+ * Main application entry point with routing
+ */
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
@@ -20,6 +24,11 @@ function AppWithMonitoring() {
   return null
 }
 
+// Lazy-loaded screens
+const CommandCenter = lazy(() => import('./screens/CommandCenter'))
+const PipelineMonitor = lazy(() => import('./screens/PipelineMonitor'))
+const SourcesObservatory = lazy(() => import('./screens/SourcesObservatory'))
+const SignalDeepDive = lazy(() => import('./screens/SignalDeepDive'))
 const OverviewPage = lazy(() => import('./screens/OverviewPage').then((m) => ({ default: m.OverviewPage })))
 const PartitionsPage = lazy(() => import('./screens/PartitionsPage').then((m) => ({ default: m.PartitionsPage })))
 const PartitionDetailPage = lazy(() => import('./screens/PartitionDetailPage').then((m) => ({ default: m.PartitionDetailPage })))
@@ -42,7 +51,12 @@ createRoot(document.getElementById('root')!).render(
               <Suspense fallback={<LoadingSpinner fullscreen />}>
                 <Routes>
                   <Route path={ROUTES.overview} element={<AppShell />}>
-                    <Route index element={<OverviewPage />} />
+                    {/* Command Center is the new default home screen */}
+                    <Route index element={<CommandCenter />} />
+                    <Route path="pipeline" element={<PipelineMonitor />} />
+                    <Route path="sources" element={<SourcesObservatory />} />
+                    <Route path="signals/:signalId" element={<SignalDeepDive />} />
+                    <Route path="overview-legacy" element={<OverviewPage />} />
                     <Route path="partitions" element={<PartitionsPage />} />
                     <Route path="partitions/:partitionId" element={<PartitionDetailPage />} />
                     <Route path="signals" element={<SignalsPage />} />

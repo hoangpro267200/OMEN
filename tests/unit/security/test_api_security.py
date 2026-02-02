@@ -174,7 +174,7 @@ class TestRBAC:
     
     def test_scope_checker_valid_scopes(self):
         """ScopeChecker should pass with valid scopes."""
-        record = ApiKeyRecord(
+        _record = ApiKeyRecord(  # noqa: F841 - Created to verify no exceptions
             key_id="test-key",
             key_hash="dummy_hash",
             key_prefix="omen_test",

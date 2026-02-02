@@ -299,7 +299,7 @@ class TestSignalEngineCompliance:
     
     def test_confidence_is_bounded(self):
         """Confidence values must be between 0 and 1."""
-        now = datetime.now(timezone.utc)
+        # Note: datetime not needed for this test
         
         # Should work with valid values
         confidence = PartnerSignalConfidence(

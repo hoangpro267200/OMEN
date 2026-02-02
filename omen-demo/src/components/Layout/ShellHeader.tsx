@@ -1,8 +1,12 @@
+/**
+ * ShellHeader - Neural Command Center top header bar
+ * Features: OMEN logo, live status indicator, signal count, time display
+ */
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Menu } from 'lucide-react';
+import { Search, Menu, Activity, Bell, Settings, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Badge } from '../ui/Badge';
+import { StatusIndicator } from '../ui/StatusIndicator';
 import { ConnectionStatus } from '../ui/ConnectionStatus';
 import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import { useDemoModeContext } from '../../context/DemoModeContext';
@@ -15,6 +19,8 @@ export interface ShellHeaderProps {
   showSearch?: boolean;
   /** Mobile: toggle sidebar drawer */
   onMobileMenuToggle?: () => void;
+  /** Current signal count */
+  signalCount?: number;
   className?: string;
 }
 
@@ -27,7 +33,12 @@ function useLiveTime() {
   return now;
 }
 
-export function ShellHeader({ showSearch = true, onMobileMenuToggle, className = '' }: ShellHeaderProps) {
+export function ShellHeader({ 
+  showSearch = true, 
+  onMobileMenuToggle, 
+  signalCount = 47,
+  className = '' 
+}: ShellHeaderProps) {
   const { isDemoMode, setDemoMode } = useDemoModeContext();
   const [dataSourceMode, setDataSourceMode] = useDataSourceMode();
   const now = useLiveTime();
@@ -37,13 +48,8 @@ export function ShellHeader({ showSearch = true, onMobileMenuToggle, className =
     minute: '2-digit',
     second: '2-digit',
   });
-  const dateStr = now.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
 
-  const showSearchInput = showSearch && !isDemoMode;
+  const isLive = dataSourceMode === 'live';
 
   return (
     <motion.header
@@ -51,77 +57,83 @@ export function ShellHeader({ showSearch = true, onMobileMenuToggle, className =
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        'fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 md:px-6',
+        'fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between gap-4',
+        'border-b border-border-subtle bg-bg-secondary/95 backdrop-blur-sm px-4 md:px-6',
         className
       )}
       style={{ height: HEADER_HEIGHT }}
     >
       {/* Left: Mobile menu + Logo + tagline */}
-      <div className="flex min-w-0 shrink items-center gap-3">
+      <div className="flex min-w-0 shrink items-center gap-4">
         {onMobileMenuToggle && (
           <button
             type="button"
             onClick={onMobileMenuToggle}
             aria-label="Open menu"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-button)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] md:hidden"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-secondary hover:bg-bg-tertiary hover:text-text-primary md:hidden transition-colors"
           >
             <Menu className="h-5 w-5" />
           </button>
         )}
-        <span className="font-mono text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-          OMEN
-        </span>
-        {isDemoMode && (
-          <Badge variant="OPEN" className="shrink-0">
-            DEMO
-          </Badge>
-        )}
-        <span className="hidden truncate text-sm text-[var(--text-muted)] sm:inline">
-          Signal Intelligence
-        </span>
+        
+        {/* OMEN Logo */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-cyan/20 to-accent-amber/10 border border-accent-cyan/30 flex items-center justify-center shadow-glow-cyan">
+              <Zap className="w-4 h-4 text-accent-cyan" />
+            </div>
+            <span className="font-display text-lg font-bold tracking-tight text-text-primary">
+              OMEN
+            </span>
+          </div>
+          <span className="hidden text-sm text-text-muted font-body lg:inline">
+            Signal Intelligence Engine
+          </span>
+        </div>
       </div>
 
-      {/* Center: Optional search (hidden in demo mode) */}
-      {showSearchInput && (
-        <div className="hidden flex-1 max-w-md justify-center px-4 md:flex">
-          <div className="flex w-full max-w-xs items-center gap-2 rounded-[var(--radius-button)] border border-[var(--border-subtle)] bg-[var(--bg-tertiary)] px-3 py-1.5">
-            <Search className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-            <input
-              type="search"
-              placeholder="Search…"
-              className="min-w-0 flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-              aria-label="Search"
-            />
-          </div>
-        </div>
-      )}
+      {/* Center: Status indicators */}
+      <div className="hidden md:flex items-center gap-6">
+        {/* Live/Demo Status */}
+        <button
+          type="button"
+          aria-label="Toggle data source"
+          onClick={() => setDataSourceMode(dataSourceMode === 'demo' ? 'live' : 'demo')}
+          className={cn(
+            'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all',
+            isLive
+              ? 'border-status-success/50 bg-status-success/10 shadow-glow-success'
+              : 'border-accent-amber/50 bg-accent-amber/10'
+          )}
+        >
+          <StatusIndicator status={isLive ? 'live' : 'warning'} size="sm" />
+          <span className={cn(
+            'text-xs font-mono font-medium',
+            isLive ? 'text-status-success' : 'text-accent-amber'
+          )}>
+            {isLive ? 'LIVE' : 'DEMO'}
+          </span>
+        </button>
 
-      {/* Right: Data Source, Demo Mode toggle, time, status */}
-      <div className="flex shrink-0 items-center gap-4">
-        {/* Data Source: Demo | Live */}
-        <div className="flex items-center gap-2">
-          <span className="hidden text-xs text-[var(--text-muted)] sm:inline">
-            Data
-          </span>
-          <button
-            type="button"
-            aria-label="Toggle data source (demo / live)"
-            onClick={() => setDataSourceMode(dataSourceMode === 'demo' ? 'live' : 'demo')}
-            className={cn(
-              'rounded-[var(--radius-button)] border px-2 py-1 font-mono text-xs font-medium transition-colors',
-              dataSourceMode === 'demo'
-                ? 'border-[var(--accent-amber)] bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]'
-                : 'border-[var(--accent-blue)] bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]'
-            )}
-          >
-            {dataSourceMode === 'demo' ? 'Demo' : 'Live'}
-          </button>
+        {/* Signal Count */}
+        <div className="flex items-center gap-2 text-sm">
+          <Activity className="w-4 h-4 text-accent-cyan" />
+          <span className="font-mono text-accent-cyan font-medium">{signalCount}</span>
+          <span className="text-text-muted">signals</span>
         </div>
-        {/* Demo Mode toggle (presentation overlay) */}
-        <div className="flex items-center gap-2">
-          <span className="hidden text-xs text-[var(--text-muted)] sm:inline">
-            Demo Mode
-          </span>
+
+        {/* Time */}
+        <div className="flex items-center gap-2 font-mono text-sm">
+          <span className="text-accent-amber tabular-nums">{timeStr}</span>
+          <span className="text-text-muted">UTC</span>
+        </div>
+      </div>
+
+      {/* Right: Actions */}
+      <div className="flex shrink-0 items-center gap-2">
+        {/* Demo Mode toggle */}
+        <div className="hidden sm:flex items-center gap-2 mr-2">
+          <span className="text-xs text-text-muted">Presentation</span>
           <button
             type="button"
             role="switch"
@@ -131,12 +143,12 @@ export function ShellHeader({ showSearch = true, onMobileMenuToggle, className =
             className={cn(
               'relative h-6 w-11 shrink-0 rounded-full border transition-colors',
               isDemoMode
-                ? 'border-[var(--accent-amber)] bg-[var(--accent-amber)]/30'
-                : 'border-[var(--border-subtle)] bg-[var(--bg-tertiary)]'
+                ? 'border-accent-amber bg-accent-amber/30'
+                : 'border-border-subtle bg-bg-tertiary'
             )}
           >
             <motion.span
-              className="absolute top-1 h-4 w-4 rounded-full bg-[var(--text-primary)]"
+              className="absolute h-4 w-4 rounded-full bg-text-primary"
               initial={false}
               animate={{ left: isDemoMode ? '22px' : '4px' }}
               transition={{ type: 'spring', stiffness: 500, damping: 35 }}
@@ -145,16 +157,28 @@ export function ShellHeader({ showSearch = true, onMobileMenuToggle, className =
           </button>
         </div>
 
-        {/* Date/time */}
-        <div className="hidden font-mono text-xs text-[var(--text-secondary)] md:block">
-          <span className="text-[var(--text-muted)]">{dateStr}</span>
-          <span className="ml-2 tabular-nums">{timeStr}</span>
-        </div>
+        {/* Optional search */}
+        {showSearch && !isDemoMode && (
+          <button className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-bg-tertiary hover:text-text-primary transition-colors">
+            <Search className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Notifications */}
+        <button className="h-9 w-9 flex items-center justify-center rounded-lg text-text-muted hover:bg-bg-tertiary hover:text-text-primary transition-colors">
+          <Bell className="w-4 h-4" />
+        </button>
 
         {/* Language */}
         <LanguageSwitcher />
-        {/* WebSocket connection status */}
+
+        {/* Connection status */}
         <ConnectionStatus />
+
+        {/* Settings */}
+        <button className="h-9 w-9 flex items-center justify-center rounded-lg text-text-muted hover:bg-bg-tertiary hover:text-text-primary transition-colors">
+          <Settings className="w-4 h-4" />
+        </button>
       </div>
     </motion.header>
   );

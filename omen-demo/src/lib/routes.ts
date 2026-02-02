@@ -1,9 +1,12 @@
 /**
- * Route paths and config for OMEN demo shell.
+ * Route paths and config for OMEN Signal Intelligence Engine
+ * Neural Command Center navigation
  */
 
 export const ROUTES = {
   overview: '/',
+  pipeline: '/pipeline',
+  sources: '/sources',
   partitions: '/partitions',
   signals: '/signals',
   ingestDemo: '/ingest-demo',
@@ -13,9 +16,11 @@ export const ROUTES = {
 export type RouteId = keyof typeof ROUTES;
 
 export const ROUTE_LABELS: Record<RouteId, string> = {
-  overview: 'Overview',
+  overview: 'Command Center',
+  pipeline: 'Pipeline',
+  sources: 'Data Sources',
   partitions: 'Partitions',
-  signals: 'Signals',
+  signals: 'Signal Monitor',
   ingestDemo: 'Ingest Demo',
-  ledgerProof: 'Ledger Proof',
+  ledgerProof: 'Ledger',
 };

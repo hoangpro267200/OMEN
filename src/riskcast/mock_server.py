@@ -211,7 +211,7 @@ class MockRiskEngine:
         title = nested_signal.get("title", "").lower()
         probability = nested_signal.get("probability", 0.5)
         confidence = nested_signal.get("confidence_score", 0.5)
-        category = nested_signal.get("category", "UNKNOWN")
+        _category = nested_signal.get("category", "UNKNOWN")  # Reserved for future use
         geographic = nested_signal.get("geographic", {})
         chokepoints = geographic.get("chokepoints", [])
         
