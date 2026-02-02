@@ -19,23 +19,15 @@ class QualityMetrics:
     total_validated: int = 0
     total_rejected: int = 0
 
-    rejections_by_rule: dict[str, int] = field(
-        default_factory=lambda: defaultdict(int)
-    )
-    rejections_by_status: dict[str, int] = field(
-        default_factory=lambda: defaultdict(int)
-    )
+    rejections_by_rule: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    rejections_by_status: dict[str, int] = field(default_factory=lambda: defaultdict(int))
 
-    confidence_distribution: dict[str, int] = field(
-        default_factory=lambda: defaultdict(int)
-    )
+    confidence_distribution: dict[str, int] = field(default_factory=lambda: defaultdict(int))
 
     avg_validation_score: float = 0.0
     _score_sum: float = field(default=0.0, repr=False)
 
-    def record_validation(
-        self, passed: bool, results: list[ValidationResult]
-    ) -> None:
+    def record_validation(self, passed: bool, results: list[ValidationResult]) -> None:
         """Record one validation outcome."""
         self.total_received += 1
 
@@ -49,9 +41,7 @@ class QualityMetrics:
                     self.rejections_by_status[result.status.value] += 1
 
         # Update average score
-        total_score = (
-            sum(r.score for r in results) / len(results) if results else 0.0
-        )
+        total_score = sum(r.score for r in results) / len(results) if results else 0.0
         self._score_sum += total_score
         self.avg_validation_score = self._score_sum / self.total_received
 

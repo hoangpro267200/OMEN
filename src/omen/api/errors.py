@@ -38,7 +38,7 @@ IS_PRODUCTION = OMEN_ENV == "production"
 
 class ErrorDetail(BaseModel):
     """Standard error detail for field-level errors."""
-    
+
     field: Optional[str] = None
     message: str
     code: Optional[str] = None
@@ -47,20 +47,20 @@ class ErrorDetail(BaseModel):
 class APIError(BaseModel):
     """
     Standard API Error Response.
-    
+
     All API errors follow this format for consistency.
     """
-    
+
     # Required fields
     error: str = Field(..., description="Error code (e.g., VALIDATION_ERROR, NOT_FOUND)")
     message: str = Field(..., description="Human-readable error message")
-    
+
     # Optional fields
     error_code: Optional[str] = Field(None, description="Specific error code (e.g., ERR_400_001)")
     details: Optional[List[ErrorDetail]] = Field(None, description="Field-level errors")
     hint: Optional[str] = Field(None, description="Helpful suggestion to fix the issue")
     documentation_url: Optional[str] = Field(None, description="Link to documentation")
-    
+
     # Metadata
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     request_id: Optional[str] = None
@@ -69,7 +69,7 @@ class APIError(BaseModel):
 class OmenHTTPException(HTTPException):
     """
     Custom HTTP Exception with standardized format.
-    
+
     Usage:
         raise OmenHTTPException(
             status_code=404,
@@ -78,7 +78,7 @@ class OmenHTTPException(HTTPException):
             hint="Check if the signal ID is correct",
         )
     """
-    
+
     def __init__(
         self,
         status_code: int,
@@ -93,7 +93,7 @@ class OmenHTTPException(HTTPException):
         self.error_code = error_code
         self.details = details
         self.hint = hint
-        
+
         # Build detail dict for parent HTTPException
         detail_dict = APIError(
             error=error,
@@ -103,13 +103,14 @@ class OmenHTTPException(HTTPException):
             hint=hint,
             documentation_url=f"https://docs.omen.io/api/errors#{error.lower().replace('_', '-')}",
         ).model_dump(mode="json")
-        
+
         super().__init__(status_code=status_code, detail=detail_dict)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMMON ERROR FACTORIES
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def not_found(resource: str, identifier: str) -> OmenHTTPException:
     """Resource not found error."""
@@ -171,21 +172,27 @@ def forbidden(
     if required_scopes or missing_scopes:
         details = []
         if required_scopes:
-            details.append({
-                "field": "required_scopes",
-                "message": f"Required: {', '.join(required_scopes)}",
-            })
+            details.append(
+                {
+                    "field": "required_scopes",
+                    "message": f"Required: {', '.join(required_scopes)}",
+                }
+            )
         if missing_scopes:
-            details.append({
-                "field": "missing_scopes",
-                "message": f"Missing: {', '.join(missing_scopes)}",
-            })
+            details.append(
+                {
+                    "field": "missing_scopes",
+                    "message": f"Missing: {', '.join(missing_scopes)}",
+                }
+            )
         if your_scopes:
-            details.append({
-                "field": "your_scopes",
-                "message": f"You have: {', '.join(your_scopes)}",
-            })
-    
+            details.append(
+                {
+                    "field": "your_scopes",
+                    "message": f"You have: {', '.join(your_scopes)}",
+                }
+            )
+
     return OmenHTTPException(
         status_code=403,
         error="INSUFFICIENT_PERMISSIONS",
@@ -229,7 +236,7 @@ def internal_error(
     details = None
     if include_trace and not IS_PRODUCTION:
         details = [{"field": "traceback", "message": traceback.format_exc()}]
-    
+
     return OmenHTTPException(
         status_code=500,
         error="INTERNAL_ERROR",
@@ -259,17 +266,18 @@ def conflict(
 # EXCEPTION HANDLERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 async def omen_exception_handler(
     request: Request,
     exc: OmenHTTPException,
 ) -> JSONResponse:
     """Handle OmenHTTPException."""
     error_response = exc.detail
-    
+
     # Add request_id if available
     if hasattr(request.state, "request_id"):
         error_response["request_id"] = request.state.request_id
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response,
@@ -285,12 +293,14 @@ async def validation_exception_handler(
     details = []
     for error in exc.errors():
         field_path = ".".join(str(loc) for loc in error["loc"])
-        details.append(ErrorDetail(
-            field=field_path,
-            message=error["msg"],
-            code=error["type"],
-        ))
-    
+        details.append(
+            ErrorDetail(
+                field=field_path,
+                message=error["msg"],
+                code=error["type"],
+            )
+        )
+
     error_response = APIError(
         error="VALIDATION_ERROR",
         message="Request validation failed",
@@ -299,7 +309,7 @@ async def validation_exception_handler(
         hint="Check the request body and query parameters match the expected format",
         request_id=getattr(request.state, "request_id", None),
     ).model_dump(mode="json")
-    
+
     return JSONResponse(
         status_code=422,
         content=error_response,
@@ -318,7 +328,7 @@ async def http_exception_handler(
         if hasattr(request.state, "request_id"):
             content["request_id"] = request.state.request_id
         return JSONResponse(status_code=exc.status_code, content=content)
-    
+
     # Convert to our format
     error_code = f"ERR_{exc.status_code}_000"
     error_type = {
@@ -334,16 +344,16 @@ async def http_exception_handler(
         503: "SERVICE_UNAVAILABLE",
         504: "GATEWAY_TIMEOUT",
     }.get(exc.status_code, "ERROR")
-    
+
     message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
-    
+
     error_response = APIError(
         error=error_type,
         message=message,
         error_code=error_code,
         request_id=getattr(request.state, "request_id", None),
     ).model_dump(mode="json")
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response,
@@ -357,18 +367,20 @@ async def generic_exception_handler(
     """Handle uncaught exceptions."""
     # Log the full error
     logger.exception("Unhandled exception: %s", exc)
-    
+
     # Don't expose details in production
     if IS_PRODUCTION:
         message = "An unexpected error occurred"
         details = None
     else:
         message = f"{type(exc).__name__}: {exc}"
-        details = [ErrorDetail(
-            field="traceback",
-            message=traceback.format_exc(),
-        )]
-    
+        details = [
+            ErrorDetail(
+                field="traceback",
+                message=traceback.format_exc(),
+            )
+        ]
+
     error_response = APIError(
         error="INTERNAL_ERROR",
         message=message,
@@ -377,7 +389,7 @@ async def generic_exception_handler(
         hint="If this persists, contact support with the request_id",
         request_id=getattr(request.state, "request_id", None),
     ).model_dump(mode="json")
-    
+
     return JSONResponse(
         status_code=500,
         content=error_response,
@@ -387,13 +399,13 @@ async def generic_exception_handler(
 def register_error_handlers(app) -> None:
     """
     Register all error handlers with the FastAPI app.
-    
+
     Usage:
         from omen.api.errors import register_error_handlers
         register_error_handlers(app)
     """
     from fastapi import HTTPException as FastAPIHTTPException
-    
+
     app.add_exception_handler(OmenHTTPException, omen_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(FastAPIHTTPException, http_exception_handler)

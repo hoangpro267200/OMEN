@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     """Run database migrations on startup."""
     try:
         from omen.infrastructure.database.migrations import run_riskcast_migrations
+
         db_path = os.environ.get("RISKCAST_DB_PATH", "/var/lib/riskcast/signals.db")
         await run_riskcast_migrations(db_path)
     except Exception as e:

@@ -104,9 +104,7 @@ class RequestTrackingMiddleware:
     def __init__(self, app: object):
         self.app = app
 
-    async def __call__(
-        self, scope: dict, receive: Callable, send: Callable
-    ) -> None:
+    async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return

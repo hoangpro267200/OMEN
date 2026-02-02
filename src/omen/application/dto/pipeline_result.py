@@ -10,6 +10,7 @@ from ...domain.models.validated_signal import ValidationResult
 @dataclass
 class PipelineStats:
     """Statistics from a pipeline run."""
+
     events_received: int = 0
     events_deduplicated: int = 0
     events_validated: int = 0
@@ -24,17 +25,18 @@ class PipelineStats:
 @dataclass
 class PipelineResult:
     """Result of processing one or more events through the pipeline."""
+
     success: bool
     signals: list[OmenSignal] = field(default_factory=list)
     validation_failures: list[ValidationResult] = field(default_factory=list)
     stats: PipelineStats = field(default_factory=PipelineStats)
     error: str | None = None
     cached: bool = False
-    
+
     @property
     def signal_count(self) -> int:
         return len(self.signals)
-    
+
     @property
     def has_signals(self) -> bool:
         """True if at least one signal was produced. Pure contract has no actionability."""

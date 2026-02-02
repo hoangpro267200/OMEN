@@ -142,7 +142,10 @@ async def list_ledger_segments(partition_date: str):
     }
 
 
-@router.get("/ledger/{partition_date}/segments/{segment_file}/frames/{frame_index:int}", dependencies=_read_storage)
+@router.get(
+    "/ledger/{partition_date}/segments/{segment_file}/frames/{frame_index:int}",
+    dependencies=_read_storage,
+)
 async def read_ledger_frame(partition_date: str, segment_file: str, frame_index: int):
     """Read one ledger frame (stub)."""
     return {
@@ -157,7 +160,10 @@ async def read_ledger_frame(partition_date: str, segment_file: str, frame_index:
     }
 
 
-@router.post("/ledger/{partition_date}/segments/{segment_file}/simulate-crash-tail", dependencies=_write_storage)
+@router.post(
+    "/ledger/{partition_date}/segments/{segment_file}/simulate-crash-tail",
+    dependencies=_write_storage,
+)
 async def simulate_crash_tail(partition_date: str, segment_file: str, body: dict | None = None):
     """Crash-tail simulation (stub: not supported)."""
     return {

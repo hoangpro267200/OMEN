@@ -11,6 +11,7 @@ from omen.infrastructure.security.rate_limit import (
 def test_rate_limit_state_dataclass():
     """RateLimitState has tokens and last_update."""
     from datetime import datetime
+
     s = RateLimitState(tokens=5.0, last_update=datetime.utcnow())
     assert s.tokens == 5.0
 

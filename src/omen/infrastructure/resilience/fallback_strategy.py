@@ -25,12 +25,12 @@ T = TypeVar("T")
 @dataclass
 class CachedData(Generic[T]):
     """Cached data with metadata."""
-    
+
     data: T
     cached_at: datetime
     source: str
     ttl_seconds: int = 3600  # 1 hour default
-    
+
     @property
     def age_seconds(self) -> float:
         """Age of cached data in seconds."""
@@ -40,17 +40,17 @@ class CachedData(Generic[T]):
         else:
             cached = self.cached_at
         return (now - cached).total_seconds()
-    
+
     @property
     def is_expired(self) -> bool:
         """Check if cache has expired."""
         return self.age_seconds > self.ttl_seconds
-    
+
     @property
     def is_stale(self) -> bool:
         """Check if data is stale (older than 5 minutes)."""
         return self.age_seconds > 300
-    
+
     @property
     def freshness_level(self) -> str:
         """Get freshness level for transparency."""
@@ -70,7 +70,7 @@ class CachedData(Generic[T]):
 @dataclass
 class FallbackResponse(Generic[T]):
     """Response with fallback metadata."""
-    
+
     data: T
     source: str
     is_fallback: bool = False
@@ -78,7 +78,7 @@ class FallbackResponse(Generic[T]):
     data_freshness: str = "live"
     data_age_seconds: Optional[float] = None
     warning: Optional[str] = None
-    
+
     def to_headers(self) -> dict[str, str]:
         """Convert to HTTP headers for transparency."""
         headers = {
@@ -98,26 +98,26 @@ class FallbackResponse(Generic[T]):
 class FallbackCache(Generic[T]):
     """
     In-memory cache for fallback data.
-    
+
     Stores recent successful responses to use as fallback
     when live data sources fail.
     """
-    
+
     def __init__(self, ttl_seconds: int = 3600):
         self._cache: dict[str, CachedData[T]] = {}
         self._ttl = ttl_seconds
-    
+
     def get(self, key: str) -> Optional[CachedData[T]]:
         """Get cached data if available and not expired."""
         cached = self._cache.get(key)
         if cached and not cached.is_expired:
             return cached
         return None
-    
+
     def get_stale(self, key: str) -> Optional[CachedData[T]]:
         """Get cached data even if expired (for fallback)."""
         return self._cache.get(key)
-    
+
     def set(self, key: str, data: T, source: str) -> None:
         """Cache data with current timestamp."""
         self._cache[key] = CachedData(
@@ -126,25 +126,27 @@ class FallbackCache(Generic[T]):
             source=source,
             ttl_seconds=self._ttl,
         )
-    
+
     def clear(self, key: Optional[str] = None) -> None:
         """Clear cache (all or specific key)."""
         if key:
             self._cache.pop(key, None)
         else:
             self._cache.clear()
-    
+
     def stats(self) -> dict[str, object]:
         """Get cache statistics."""
         entries: list[dict[str, object]] = []
         for key, cached in self._cache.items():
-            entries.append({
-                "key": key,
-                "source": cached.source,
-                "age_seconds": cached.age_seconds,
-                "freshness": cached.freshness_level,
-                "is_expired": cached.is_expired,
-            })
+            entries.append(
+                {
+                    "key": key,
+                    "source": cached.source,
+                    "age_seconds": cached.age_seconds,
+                    "freshness": cached.freshness_level,
+                    "is_expired": cached.is_expired,
+                }
+            )
         return {
             "total_entries": len(self._cache),
             "ttl_seconds": self._ttl,
@@ -155,19 +157,19 @@ class FallbackCache(Generic[T]):
 class DataSourceWithFallback(Generic[T]):
     """
     Wrapper that adds fallback capability to any data source.
-    
+
     Usage:
         source = DataSourceWithFallback(
             name="polymarket",
             fetch_fn=lambda: polymarket_client.get_events(),
             cache_ttl=3600,
         )
-        
+
         result = source.fetch("events")
         if result.is_fallback:
             logger.warning(f"Using fallback: {result.warning}")
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -177,11 +179,11 @@ class DataSourceWithFallback(Generic[T]):
         self.name = name
         self._fetch_fn = fetch_fn
         self._cache = FallbackCache[T](ttl_seconds=cache_ttl)
-    
+
     def fetch(self, cache_key: str) -> FallbackResponse[T]:
         """
         Fetch data with automatic fallback.
-        
+
         1. Try live fetch
         2. On success, cache and return
         3. On failure, try stale cache
@@ -190,32 +192,31 @@ class DataSourceWithFallback(Generic[T]):
         try:
             # Try live fetch
             data = self._fetch_fn()
-            
+
             # Cache successful result
             self._cache.set(cache_key, data, self.name)
-            
+
             return FallbackResponse(
                 data=data,
                 source=self.name,
                 is_fallback=False,
                 data_freshness="live",
             )
-            
+
         except Exception as e:
-            logger.warning(
-                "Live fetch failed for %s: %s. Attempting fallback.",
-                self.name, e
-            )
-            
+            logger.warning("Live fetch failed for %s: %s. Attempting fallback.", self.name, e)
+
             # Try stale cache
             cached = self._cache.get_stale(cache_key)
-            
+
             if cached:
                 logger.info(
                     "Using stale cache for %s (age: %ds, freshness: %s)",
-                    self.name, int(cached.age_seconds), cached.freshness_level
+                    self.name,
+                    int(cached.age_seconds),
+                    cached.freshness_level,
                 )
-                
+
                 return FallbackResponse(
                     data=cached.data,
                     source=self.name,
@@ -224,19 +225,19 @@ class DataSourceWithFallback(Generic[T]):
                     data_freshness=cached.freshness_level,
                     data_age_seconds=cached.age_seconds,
                     warning=f"Using stale data from {cached.freshness_level} cache. "
-                            f"Live fetch failed: {str(e)[:100]}",
+                    f"Live fetch failed: {str(e)[:100]}",
                 )
-            
+
             # No cache available - re-raise with context
             raise RuntimeError(
                 f"Data source {self.name} failed and no cached data available. "
                 f"Original error: {e}"
             ) from e
-    
+
     def invalidate_cache(self, cache_key: Optional[str] = None) -> None:
         """Invalidate cached data."""
         self._cache.clear(cache_key)
-    
+
     def cache_stats(self) -> dict:
         """Get cache statistics."""
         return self._cache.stats()
@@ -246,6 +247,7 @@ class DataSourceWithFallback(Generic[T]):
 # DECORATOR FOR EASY INTEGRATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def with_stale_fallback(
     cache_key: str,
     cache_ttl: int = 3600,
@@ -253,18 +255,18 @@ def with_stale_fallback(
 ):
     """
     Decorator to add stale-data fallback to any function.
-    
+
     Usage:
         @with_stale_fallback(cache_key="polymarket_events", cache_ttl=3600)
         def fetch_polymarket_events():
             return client.get_events()
     """
     _cache: dict[str, CachedData] = {}
-    
+
     def decorator(fn: Callable[[], T]) -> Callable[[], FallbackResponse[T]]:
         def wrapper() -> FallbackResponse[T]:
             nonlocal _cache
-            
+
             try:
                 data = fn()
                 _cache[cache_key] = CachedData(
@@ -292,6 +294,7 @@ def with_stale_fallback(
                         warning=f"Using cached data ({cached.freshness_level}). Error: {str(e)[:100]}",
                     )
                 raise
-        
+
         return wrapper
+
     return decorator

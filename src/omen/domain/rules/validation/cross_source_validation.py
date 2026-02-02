@@ -65,7 +65,9 @@ class CrossSourceValidationRule(Rule):
         self.keyword_overlap_bonus = keyword_overlap_bonus
         self.max_boost = max_boost
 
-    def evaluate(self, event: RawSignalEvent, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    def evaluate(
+        self, event: RawSignalEvent, context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Evaluate single event (no cross-validation possible).
 
@@ -151,12 +153,14 @@ class CrossSourceValidationRule(Rule):
             if event.event_id in event_to_result:
                 results.append(event_to_result[event.event_id])
             else:
-                results.append({
-                    "passed": True,
-                    "score": 0.0,
-                    "reason": "No location match for cross-validation",
-                    "metadata": {"cross_validation_available": False},
-                })
+                results.append(
+                    {
+                        "passed": True,
+                        "score": 0.0,
+                        "reason": "No location match for cross-validation",
+                        "metadata": {"cross_validation_available": False},
+                    }
+                )
 
         return results
 
@@ -271,7 +275,9 @@ class SourceDiversityRule(Rule):
         "news": "media",
     }
 
-    def evaluate(self, event: RawSignalEvent, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    def evaluate(
+        self, event: RawSignalEvent, context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Evaluate source diversity for single event."""
         source = event.market.source
         source_type = self.SOURCE_TYPES.get(source, "unknown")

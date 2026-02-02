@@ -66,8 +66,10 @@ class TestDeadLetterQueue:
                 title="T",
                 probability=0.5,
                 market=MarketMetadata(
-                    source="t", market_id=MarketId("m2"),
-                    total_volume_usd=1.0, current_liquidity_usd=1.0,
+                    source="t",
+                    market_id=MarketId("m2"),
+                    total_volume_usd=1.0,
+                    current_liquidity_usd=1.0,
                 ),
             ),
             OmenError("b"),
@@ -98,8 +100,10 @@ class TestDeadLetterQueue:
             title="T",
             probability=0.5,
             market=MarketMetadata(
-                source="t", market_id=MarketId("m2"),
-                total_volume_usd=1.0, current_liquidity_usd=1.0,
+                source="t",
+                market_id=MarketId("m2"),
+                total_volume_usd=1.0,
+                current_liquidity_usd=1.0,
             ),
         )
         e3 = RawSignalEvent(
@@ -107,8 +111,10 @@ class TestDeadLetterQueue:
             title="T",
             probability=0.5,
             market=MarketMetadata(
-                source="t", market_id=MarketId("m3"),
-                total_volume_usd=1.0, current_liquidity_usd=1.0,
+                source="t",
+                market_id=MarketId("m3"),
+                total_volume_usd=1.0,
+                current_liquidity_usd=1.0,
             ),
         )
         dlq.add(sample_event, OmenError("1"))

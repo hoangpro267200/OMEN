@@ -154,9 +154,7 @@ class SchemaRegistry:
                 None,
             )
             if not migration:
-                raise ValueError(
-                    f"No migration path from {current.value} to {to_v.value}"
-                )
+                raise ValueError(f"No migration path from {current.value} to {to_v.value}")
             path.append(migration)
             current = migration.to_version
 

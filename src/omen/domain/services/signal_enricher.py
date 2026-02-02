@@ -22,16 +22,30 @@ from omen.domain.rules.validation.keywords import (
     calculate_relevance_score,
 )
 
-
 # Geographic term lists for extraction (lowercase)
 CHOKEPOINTS = [
-    "red sea", "suez", "panama", "hormuz", "malacca",
-    "bosphorus", "gibraltar", "taiwan strait", "bab el-mandeb",
+    "red sea",
+    "suez",
+    "panama",
+    "hormuz",
+    "malacca",
+    "bosphorus",
+    "gibraltar",
+    "taiwan strait",
+    "bab el-mandeb",
 ]
 
 REGIONS = [
-    "asia", "europe", "america", "africa", "middle east",
-    "pacific", "atlantic", "mediterranean", "china", "india",
+    "asia",
+    "europe",
+    "america",
+    "africa",
+    "middle east",
+    "pacific",
+    "atlantic",
+    "mediterranean",
+    "china",
+    "india",
 ]
 
 
@@ -71,14 +85,8 @@ class SignalEnricher:
         keyword_categories = get_keyword_categories(keywords)
 
         # Geographic context from text
-        matched_chokepoints = [
-            cp for cp in self._chokepoints
-            if cp in text
-        ]
-        matched_regions = [
-            r for r in self._regions
-            if r in text
-        ]
+        matched_chokepoints = [cp for cp in self._chokepoints if cp in text]
+        matched_regions = [r for r in self._regions if r in text]
 
         out: dict = {
             "matched_keywords": keywords,

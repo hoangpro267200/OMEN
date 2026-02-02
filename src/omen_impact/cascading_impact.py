@@ -12,6 +12,7 @@ from omen_impact.assessment import (
 @dataclass
 class CascadeRule:
     """A rule for how one impact cascades to another."""
+
     source_metric: str
     target_metric: str
     cascade_factor: float
@@ -21,14 +22,34 @@ class CascadeRule:
 
 
 LOGISTICS_CASCADE_RULES: list[CascadeRule] = [
-    CascadeRule(source_metric="transit_time_increase", target_metric="inventory_carrying_cost_increase",
-        cascade_factor=0.15, delay_hours=0, description="Longer transit requires more safety stock"),
-    CascadeRule(source_metric="transit_time_increase", target_metric="production_schedule_delay",
-        cascade_factor=0.8, delay_hours=24, description="Transit delays propagate to production schedules"),
-    CascadeRule(source_metric="freight_rate_pressure", target_metric="product_cost_increase",
-        cascade_factor=0.05, delay_hours=72, description="Freight costs pass through to product pricing"),
-    CascadeRule(source_metric="port_delay", target_metric="demurrage_cost",
-        cascade_factor=25000, delay_hours=0, description="Vessel waiting charges accumulate"),
+    CascadeRule(
+        source_metric="transit_time_increase",
+        target_metric="inventory_carrying_cost_increase",
+        cascade_factor=0.15,
+        delay_hours=0,
+        description="Longer transit requires more safety stock",
+    ),
+    CascadeRule(
+        source_metric="transit_time_increase",
+        target_metric="production_schedule_delay",
+        cascade_factor=0.8,
+        delay_hours=24,
+        description="Transit delays propagate to production schedules",
+    ),
+    CascadeRule(
+        source_metric="freight_rate_pressure",
+        target_metric="product_cost_increase",
+        cascade_factor=0.05,
+        delay_hours=72,
+        description="Freight costs pass through to product pricing",
+    ),
+    CascadeRule(
+        source_metric="port_delay",
+        target_metric="demurrage_cost",
+        cascade_factor=25000,
+        delay_hours=0,
+        description="Vessel waiting charges accumulate",
+    ),
 ]
 
 

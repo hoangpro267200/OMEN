@@ -114,7 +114,7 @@ def test_redact_signal_for_external_full_detail(minimal_signal):
 
 def test_redact_secrets_redacts_api_key_like():
     """redact_secrets redacts api_key=value and similar patterns."""
-    text = 'Request api_key=sk_live_abc123xyz'
+    text = "Request api_key=sk_live_abc123xyz"
     out = redact_secrets(text)
     assert "sk_live_abc123xyz" not in out
     assert "[REDACTED]" in out

@@ -101,8 +101,7 @@ class Methodology:
             "inputs": self.inputs,
             "outputs": self.outputs,
             "parameters": {
-                k: {"value": v[0], "rationale": v[1]}
-                for k, v in self.parameters.items()
+                k: {"value": v[0], "rationale": v[1]} for k, v in self.parameters.items()
             },
             "primary_source": self.primary_source.to_dict() if self.primary_source else None,
             "supporting_sources": [s.to_dict() for s in self.supporting_sources],

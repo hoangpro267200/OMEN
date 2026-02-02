@@ -20,7 +20,6 @@ from omen.infrastructure.security.rbac import (
     require_admin,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # ROUTE SECURITY CONFIGURATIONS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -113,39 +112,30 @@ ENDPOINT_SECURITY_MATRIX = {
     "GET /api/v1/signals/{id}": "read:signals",
     "GET /api/v1/signals/stats": "read:signals",
     "POST /api/v1/signals/process": "write:signals",
-    
     # Partner Signals API
     "GET /api/v1/partner-signals": "read:partners",
     "GET /api/v1/partner-signals/{symbol}": "read:partners",
     "GET /api/v1/partner-signals/{symbol}/price": "read:partners",
     "GET /api/v1/partner-signals/{symbol}/fundamentals": "read:partners",
-    
     # Multi-Source API
     "GET /api/v1/multi-source/signals": "read:multi-source",
     "POST /api/v1/multi-source/process": "read:multi-source",
-    
     # Real-time API
     "GET /api/v1/realtime/stream": "read:realtime",
     "GET /api/v1/realtime/prices": "read:realtime",
-    
     # Live Data API
     "POST /api/v1/live/process": "write:signals",
     "POST /api/v1/live/process-single": "write:signals",
-    
     # Stats & Activity
     "GET /api/v1/stats": "read:stats",
     "GET /api/v1/activity": "read:activity",
-    
     # Methodology
     "GET /api/v1/methodology": "read:methodology",
-    
     # Storage
     "GET /api/v1/storage/*": "read:storage",
     "POST /api/v1/storage/*": "write:storage",
-    
     # Debug (DEV ONLY)
     "GET /api/v1/debug/*": "debug",
-    
     # Admin
     "POST /api/v1/admin/*": "admin",
 }

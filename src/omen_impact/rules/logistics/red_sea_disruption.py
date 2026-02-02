@@ -83,12 +83,8 @@ class RedSeaDisruptionRule(BaseTranslationRule):
         prob = signal.original_event.probability
 
         # Get evidence-based parameters
-        transit_days, transit_source = get_param(
-            RED_SEA_PARAMS, "reroute_transit_increase_days"
-        )
-        fuel_pct, fuel_source = get_param(
-            RED_SEA_PARAMS, "fuel_consumption_increase_pct"
-        )
+        transit_days, transit_source = get_param(RED_SEA_PARAMS, "reroute_transit_increase_days")
+        fuel_pct, fuel_source = get_param(RED_SEA_PARAMS, "fuel_consumption_increase_pct")
         insurance_pct, insurance_source = get_param(
             RED_SEA_PARAMS, "insurance_premium_increase_pct"
         )

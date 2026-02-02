@@ -47,9 +47,7 @@ class PolymarketSignalSource(SignalSource):
             for signal in self._mapper.map_event(event):
                 yield signal
 
-    async def fetch_events_async(
-        self, limit: int = 100
-    ) -> AsyncIterator[RawSignalEvent]:
+    async def fetch_events_async(self, limit: int = 100) -> AsyncIterator[RawSignalEvent]:
         """Async version: run sync fetch in executor and return async iterator."""
         loop = asyncio.get_event_loop()
         if self._logistics_only:
@@ -65,6 +63,7 @@ class PolymarketSignalSource(SignalSource):
             for event in events:
                 for signal in self._mapper.map_event(event):
                     yield signal
+
         return _gen()
 
     def fetch_by_id(self, market_id: str) -> RawSignalEvent | None:
@@ -72,9 +71,7 @@ class PolymarketSignalSource(SignalSource):
         events = self._client.fetch_events(limit=200)
         for event in events:
             for signal in self._mapper.map_event(event):
-                if str(signal.event_id) == market_id or market_id in str(
-                    signal.event_id
-                ):
+                if str(signal.event_id) == market_id or market_id in str(signal.event_id):
                     return signal
                 if str(signal.market.market_id) == market_id:
                     return signal

@@ -106,18 +106,22 @@ async def stream_prices(
 
     async def event_generator():
         # Initial status
-        status_data = json.dumps({
-            "type": "connected",
-            "registered_signals": streamer.get_registered_count(),
-            "message": "Connected to OMEN real-time feed",
-        })
+        status_data = json.dumps(
+            {
+                "type": "connected",
+                "registered_signals": streamer.get_registered_count(),
+                "message": "Connected to OMEN real-time feed",
+            }
+        )
         yield f"event: status\ndata: {status_data}\n\n"
 
         if streamer.get_registered_count() == 0:
-            warning_data = json.dumps({
-                "type": "indicator",
-                "message": "No signals registered for real-time updates. Process signals first, then call /subscribe.",
-            })
+            warning_data = json.dumps(
+                {
+                    "type": "indicator",
+                    "message": "No signals registered for real-time updates. Process signals first, then call /subscribe.",
+                }
+            )
             yield f"event: status\ndata: {warning_data}\n\n"
 
         # Try to start real-time streaming (non-fatal if it fails)
@@ -130,13 +134,15 @@ async def stream_prices(
         # Stream updates (with keepalive)
         try:
             async for update in streamer.stream():
-                data = json.dumps({
-                    "signal_id": update.signal_id,
-                    "probability": update.new_probability,
-                    "previous_probability": update.old_probability,
-                    "change_percent": update.change_percent,
-                    "timestamp": update.timestamp,
-                })
+                data = json.dumps(
+                    {
+                        "signal_id": update.signal_id,
+                        "probability": update.new_probability,
+                        "previous_probability": update.old_probability,
+                        "change_percent": update.change_percent,
+                        "timestamp": update.timestamp,
+                    }
+                )
                 yield f"data: {data}\n\n"
         except Exception as e:
             logger.exception("SSE stream error: %s", e)

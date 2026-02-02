@@ -79,9 +79,7 @@ class AnomalyDetector:
         # Detect potential blockage (3x normal + high queue)
         blockage_threshold = 3.0
         high_queue = chokepoint.vessels_waiting > 50
-        chokepoint.blockage_detected = (
-            chokepoint.delay_ratio >= blockage_threshold and high_queue
-        )
+        chokepoint.blockage_detected = chokepoint.delay_ratio >= blockage_threshold and high_queue
 
         # Calculate queue severity
         if chokepoint.blockage_detected:
@@ -132,7 +130,9 @@ class AnomalyDetector:
 
         return movement
 
-    def _calculate_severity(self, ratio: float) -> Literal["none", "low", "medium", "high", "critical"]:
+    def _calculate_severity(
+        self, ratio: float
+    ) -> Literal["none", "low", "medium", "high", "critical"]:
         """
         Calculate anomaly severity based on ratio.
 

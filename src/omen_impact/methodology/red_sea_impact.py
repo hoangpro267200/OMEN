@@ -116,9 +116,7 @@ TRANSIT_TIME_METHODOLOGY = Methodology(
     validation_status=ValidationStatus.BACKTESTED,
     validated_by="Comparison with actual delays Dec 2023 - Jan 2024 Houthi attacks",
     validation_date=date(2024, 1, 28),
-    validation_notes=(
-        "Model predicted 8.2 days at P=75%. Actual averaged 7.8 days (within 5%)."
-    ),
+    validation_notes=("Model predicted 8.2 days at P=75%. Actual averaged 7.8 days (within 5%)."),
     changelog=[
         "1.0.0 (2024-01-15): Initial methodology from Drewry Q4 2023",
         "1.1.0 (2024-01-20): Added efficiency factor per Lloyd's List",

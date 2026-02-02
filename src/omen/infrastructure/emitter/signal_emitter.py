@@ -38,6 +38,7 @@ try:
         SIGNALS_EMITTED,
         update_circuit_breaker_state,
     )
+
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
@@ -70,10 +71,7 @@ async def _broadcast_emit_result(event: SignalEvent, result: EmitResult) -> None
     try:
         from omen.api.routes.websocket import broadcast_signal_emitted
 
-        category = (
-            getattr(event.signal.category, "value", None)
-            or str(event.signal.category)
-        )
+        category = getattr(event.signal.category, "value", None) or str(event.signal.category)
         await broadcast_signal_emitted(
             signal_id=result.signal_id,
             title=event.signal.title,
@@ -84,17 +82,12 @@ async def _broadcast_emit_result(event: SignalEvent, result: EmitResult) -> None
         logger.warning("Failed to broadcast signal event: %s", e)
 
 
-def _record_emit_metrics(
-    event: SignalEvent, result: EmitResult, duration: float
-) -> None:
+def _record_emit_metrics(event: SignalEvent, result: EmitResult, duration: float) -> None:
     """Record emit metrics (no-op if prometheus not available)."""
     if not _METRICS_AVAILABLE:
         return
     status = result.status.value
-    category = (
-        getattr(event.signal.category, "value", None)
-        or str(event.signal.category)
-    )
+    category = getattr(event.signal.category, "value", None) or str(event.signal.category)
     try:
         SIGNALS_EMITTED.labels(status=status, category=category).inc()
         EMIT_DURATION.labels(status=status).observe(duration)
@@ -199,9 +192,7 @@ class SignalEmitter:
         if _METRICS_AVAILABLE:
             update_circuit_breaker_state(CIRCUIT_NAME_RISKCAST, "closed")
 
-    def _on_circuit_state_change(
-        self, old_state: CircuitState, new_state: CircuitState
-    ) -> None:
+    def _on_circuit_state_change(self, old_state: CircuitState, new_state: CircuitState) -> None:
         if new_state == CircuitState.OPEN:
             logger.warning(
                 "RiskCast circuit OPENED - hot path disabled, "
@@ -292,9 +283,7 @@ class SignalEmitter:
         await self.backpressure.wait_if_needed()
 
         try:
-            kind, ack_id = await self._circuit_breaker.call(
-                self._push_to_riskcast_wrapped, event
-            )
+            kind, ack_id = await self._circuit_breaker.call(self._push_to_riskcast_wrapped, event)
             self.backpressure.record_success()
             if kind == "duplicate":
                 logger.info("Duplicate signal (already processed): %s", event.signal_id)
@@ -344,9 +333,7 @@ class SignalEmitter:
             asyncio.create_task(_broadcast_emit_result(event, result))
             return result
 
-    async def _push_to_riskcast_wrapped(
-        self, event: SignalEvent
-    ) -> tuple[str, Optional[str]]:
+    async def _push_to_riskcast_wrapped(self, event: SignalEvent) -> tuple[str, Optional[str]]:
         """
         Wrapper for circuit breaker: returns (kind, ack_id) so 409 counts as success.
         kind is "delivered" or "duplicate".
@@ -402,9 +389,7 @@ class SignalEmitter:
                     await self._wait_before_retry(attempt)
                     continue
 
-                raise HotPathError(
-                    f"HTTP {response.status_code}: {response.text[:200]}"
-                )
+                raise HotPathError(f"HTTP {response.status_code}: {response.text[:200]}")
 
             except httpx.RequestError as e:
                 last_error = str(e)
@@ -415,8 +400,7 @@ class SignalEmitter:
     async def _wait_before_retry(self, attempt: int) -> None:
         """Calculate and wait for retry backoff."""
         delay_ms = min(
-            self.retry_config.base_delay_ms
-            * (self.retry_config.backoff_multiplier**attempt),
+            self.retry_config.base_delay_ms * (self.retry_config.backoff_multiplier**attempt),
             self.retry_config.max_delay_ms,
         )
         await asyncio.sleep(delay_ms / 1000)

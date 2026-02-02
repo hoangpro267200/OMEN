@@ -40,10 +40,10 @@ async def verify_api_key(
 
     # Use ApiKeyManager for secure hash-based verification
     from omen.infrastructure.security.api_key_manager import get_api_key_manager
-    
+
     manager = get_api_key_manager()
     record = manager.verify_key(api_key)
-    
+
     if record:
         # Return key_id for audit logging (never return the actual key)
         return record.key_id
@@ -91,9 +91,7 @@ def create_access_token(
 
 
 async def verify_jwt_token(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None, Security(bearer_scheme)
-    ],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
     config: Annotated[SecurityConfig, Depends(get_security_config)],
 ) -> TokenPayload:
     """Verify JWT token from Authorization header."""

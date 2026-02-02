@@ -65,9 +65,7 @@ class MigrationRunner:
             await db.execute(self.MIGRATIONS_TABLE_SQL)
             await db.commit()
 
-            cursor = await db.execute(
-                "SELECT version FROM _schema_migrations ORDER BY version"
-            )
+            cursor = await db.execute("SELECT version FROM _schema_migrations ORDER BY version")
             rows = await cursor.fetchall()
             applied_versions = {row[0] for row in rows}
 
@@ -136,9 +134,7 @@ class MigrationRunner:
                     None,
                 )
                 if not migration or not migration.down_sql:
-                    raise ValueError(
-                        f"Cannot rollback migration {version}: no down_sql defined"
-                    )
+                    raise ValueError(f"Cannot rollback migration {version}: no down_sql defined")
                 logger.info("Rolling back migration %s", version)
                 await db.executescript(migration.down_sql)
                 await db.execute(
@@ -157,9 +153,7 @@ class MigrationRunner:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(self.MIGRATIONS_TABLE_SQL)
             await db.commit()
-            cursor = await db.execute(
-                "SELECT MAX(version) FROM _schema_migrations"
-            )
+            cursor = await db.execute("SELECT MAX(version) FROM _schema_migrations")
             row = await cursor.fetchone()
             return row[0] or 0
 

@@ -225,10 +225,7 @@ class LedgerReader:
 
     def list_signal_ids(self, partition_date: str) -> list[str]:
         """List all signal_ids in partition (including late)."""
-        return [
-            event.signal_id
-            for event in self.read_partition(partition_date, validate=False)
-        ]
+        return [event.signal_id for event in self.read_partition(partition_date, validate=False)]
 
     def get_signal(
         self,
@@ -260,10 +257,7 @@ class LedgerReader:
                 manifest.get("manifest_revision", 0),
             )
 
-        count = sum(
-            self._count_records_in_segment(s)
-            for s in partition_dir.glob("signals-*.wal*")
-        )
+        count = sum(self._count_records_in_segment(s) for s in partition_dir.glob("signals-*.wal*"))
         return (count, 0)
 
     def query_by_time_range(

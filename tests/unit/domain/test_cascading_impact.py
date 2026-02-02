@@ -64,8 +64,11 @@ def sample_assessment():
         affected_chokepoints=["Red Sea"],
         validation_results=[
             ValidationResult(
-                rule_name="l", rule_version="1", status=ValidationStatus.PASSED,
-                score=0.9, reason="OK"
+                rule_name="l",
+                rule_version="1",
+                status=ValidationStatus.PASSED,
+                score=0.9,
+                reason="OK",
             )
         ],
         overall_validation_score=0.9,
@@ -127,7 +130,9 @@ def test_cascading_derives_from_source_metrics(sample_assessment):
     names = [m.name for m in cascaded]
     # From LOGISTICS_CASCADE_RULES: transit_time_increase -> inventory, production_schedule; freight_rate_pressure -> product_cost; port_delay -> demurrage
     # We have transit_time_increase and freight_rate_pressure
-    assert any("inventory_carrying_cost" in n for n in names) or any("production_schedule" in n for n in names)
+    assert any("inventory_carrying_cost" in n for n in names) or any(
+        "production_schedule" in n for n in names
+    )
     assert any("product_cost" in n for n in names)
 
 

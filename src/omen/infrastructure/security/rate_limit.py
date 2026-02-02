@@ -74,9 +74,7 @@ class TokenBucketRateLimiter:
                 state.tokens -= 1
                 return True, headers
             else:
-                headers["Retry-After"] = str(
-                    int(max(1, (1 - state.tokens) / self._rate))
-                )
+                headers["Retry-After"] = str(int(max(1, (1 - state.tokens) / self._rate)))
                 return False, headers
 
 

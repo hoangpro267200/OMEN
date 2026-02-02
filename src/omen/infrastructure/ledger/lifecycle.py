@@ -73,9 +73,7 @@ class LedgerLifecycleManager:
     ) -> None:
         self.base_path = Path(base_path)
         self.config = config
-        self.archive_path = (
-            Path(archive_path) if archive_path else self.base_path / "_archive"
-        )
+        self.archive_path = Path(archive_path) if archive_path else self.base_path / "_archive"
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Main Entry Points
@@ -138,8 +136,7 @@ class LedgerLifecycleManager:
                 should_seal = partition_dt < threshold
             else:
                 seal_time = partition_dt + timedelta(
-                    hours=self.config.auto_seal_after_hours
-                    + self.config.seal_grace_period_hours
+                    hours=self.config.auto_seal_after_hours + self.config.seal_grace_period_hours
                 )
                 should_seal = now > seal_time
 
@@ -175,9 +172,7 @@ class LedgerLifecycleManager:
     async def compress_old_segments(self) -> list[str]:
         """Compress segments older than threshold (sealed only)."""
         compressed: list[str] = []
-        threshold = datetime.now(timezone.utc) - timedelta(
-            days=self.config.compress_after_days
-        )
+        threshold = datetime.now(timezone.utc) - timedelta(days=self.config.compress_after_days)
 
         for partition in self._list_partitions():
             if not partition.is_sealed:
@@ -201,9 +196,7 @@ class LedgerLifecycleManager:
     async def _compress_segment(self, segment: Path) -> None:
         """Compress a single segment file."""
         compressed_path = segment.with_suffix(segment.suffix + ".gz")
-        level = getattr(
-            self.config, "compression_level", 6
-        )
+        level = getattr(self.config, "compression_level", 6)
 
         with open(segment, "rb") as f_in:
             with gzip.open(compressed_path, "wb", compresslevel=level) as f_out:
@@ -223,9 +216,7 @@ class LedgerLifecycleManager:
     async def archive_cold_partitions(self) -> list[str]:
         """Move cold partitions to archive (sealed only)."""
         archived: list[str] = []
-        threshold = datetime.now(timezone.utc) - timedelta(
-            days=self.config.cold_retention_days
-        )
+        threshold = datetime.now(timezone.utc) - timedelta(days=self.config.cold_retention_days)
 
         for partition in self._list_partitions():
             if not partition.is_sealed:
@@ -269,9 +260,7 @@ class LedgerLifecycleManager:
         if not getattr(self.config, "delete_after_days", None):
             return deleted
 
-        threshold = datetime.now(timezone.utc) - timedelta(
-            days=self.config.delete_after_days
-        )
+        threshold = datetime.now(timezone.utc) - timedelta(days=self.config.delete_after_days)
 
         for base in [self.base_path, self.archive_path]:
             if not base.exists():

@@ -120,8 +120,12 @@ class LegacyOmenSignal(BaseModel):
     source_market: str = Field(..., description="Original market source")
     market_url: str | None = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)
-    market_token_id: str | None = Field(default=None, description="Market/condition token ID for real-time price tracking.")
-    clob_token_ids: list[str] | None = Field(default=None, description="CLOB token IDs for orderbook-based price updates.")
+    market_token_id: str | None = Field(
+        default=None, description="Market/condition token ID for real-time price tracking."
+    )
+    clob_token_ids: list[str] | None = Field(
+        default=None, description="CLOB token IDs for orderbook-based price updates."
+    )
 
     model_config = {"frozen": True}
 

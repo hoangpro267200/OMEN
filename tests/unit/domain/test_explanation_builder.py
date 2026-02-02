@@ -33,7 +33,9 @@ def test_explanation_builder_builds_step_with_parameters(
         .with_input("probability", 0.75)
         .with_output("transit_increase", 7.5, "days")
         .used_parameter("reroute_transit_days", 10, "days", source="Drewry 2024")
-        .with_reasoning("Red Sea disruption at {probability:.0%} adds {transit_increase} days transit")
+        .with_reasoning(
+            "Red Sea disruption at {probability:.0%} adds {transit_increase} days transit"
+        )
         .with_confidence(0.8)
         .build()
     )
@@ -135,12 +137,7 @@ def test_chain_builder_builds_chain(
         .with_confidence(0.7)
         .build()
     )
-    chain = (
-        ChainBuilder(processing_context)
-        .add_step(step1)
-        .add_step(step2)
-        .build()
-    )
+    chain = ChainBuilder(processing_context).add_step(step1).add_step(step2).build()
     assert isinstance(chain, ExplanationChain)
     assert chain.trace_id == processing_context.trace_id
     assert chain.total_steps == 2

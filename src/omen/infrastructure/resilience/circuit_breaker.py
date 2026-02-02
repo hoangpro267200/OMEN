@@ -66,9 +66,7 @@ class CircuitBreakerOpen(Exception):
     def __init__(self, circuit_name: str, retry_after: float):
         self.circuit_name = circuit_name
         self.retry_after = retry_after
-        super().__init__(
-            f"Circuit '{circuit_name}' is OPEN. Retry after {retry_after:.1f}s"
-        )
+        super().__init__(f"Circuit '{circuit_name}' is OPEN. Retry after {retry_after:.1f}s")
 
 
 T = TypeVar("T")
@@ -94,12 +92,12 @@ def create_source_circuit_breaker(
 ) -> "CircuitBreaker[Any]":
     """
     Create and register a circuit breaker for a data source.
-    
+
     Args:
         source_name: Name of the source (used for registration and metrics)
         failure_threshold: Number of failures before opening circuit
         recovery_timeout: Seconds before attempting recovery
-    
+
     Returns:
         Configured CircuitBreaker instance
     """
@@ -107,16 +105,16 @@ def create_source_circuit_breaker(
     existing = get_circuit_breaker(source_name)
     if existing is not None:
         return existing
-    
+
     config = CircuitBreakerConfig(
         failure_threshold=failure_threshold,
         timeout_seconds=recovery_timeout,
         success_threshold=2,  # Quick recovery for sources
     )
-    
+
     cb = CircuitBreaker(name=source_name, config=config)
     register_circuit_breaker(source_name, cb)
-    
+
     return cb
 
 
@@ -304,9 +302,7 @@ class CircuitBreaker:
         return self.config.timeout_seconds
 
     def _clean_old_results(self) -> None:
-        cutoff = datetime.now(timezone.utc) - timedelta(
-            seconds=self.config.window_size_seconds
-        )
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.config.window_size_seconds)
         self._call_results = [(t, s) for t, s in self._call_results if t > cutoff]
 
     def _calculate_failure_rate(self) -> float:

@@ -33,30 +33,30 @@ logger = logging.getLogger(__name__)
 class DistributedConnectionManager:
     """
     Distributed WebSocket Connection Manager.
-    
+
     Replaces in-memory ConnectionManager for horizontal scaling.
     Uses Redis Pub/Sub for cross-instance message broadcasting.
     """
-    
+
     # Standard channels
     CHANNEL_SIGNALS = "signals"
     CHANNEL_PRICES = "prices"
     CHANNEL_ALERTS = "alerts"
     CHANNEL_STATS = "stats"
-    
+
     def __init__(self, pubsub: Optional[RedisPubSubManager] = None):
         self.pubsub = pubsub or get_pubsub_manager()
         self._initialized = False
         self._lock = asyncio.Lock()
-    
+
     async def initialize(self) -> None:
         """Initialize and subscribe to channels."""
         if self._initialized:
             return
-        
+
         # Connect to Redis
         await self.pubsub.connect()
-        
+
         # Subscribe to broadcast channels
         await self.pubsub.subscribe(
             self.CHANNEL_SIGNALS,
@@ -74,22 +74,22 @@ class DistributedConnectionManager:
             self.CHANNEL_STATS,
             self._handle_stats_broadcast,
         )
-        
+
         self._initialized = True
         logger.info(
             "Distributed Connection Manager initialized (redis: %s)",
             "connected" if self.pubsub.is_connected else "local-only",
         )
-    
+
     async def shutdown(self) -> None:
         """Cleanup."""
         await self.pubsub.disconnect()
         self._initialized = False
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # CONNECTION MANAGEMENT
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def connect(
         self,
         websocket: WebSocket,
@@ -98,22 +98,24 @@ class DistributedConnectionManager:
         """Accept WebSocket connection and track it."""
         await websocket.accept()
         self.pubsub.add_local_connection(channel, websocket)
-        
+
         # Send welcome message
-        await websocket.send_json({
-            "type": "connected",
-            "channel": channel,
-            "instance": self.pubsub.instance_id,
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-            "redis_connected": self.pubsub.is_connected,
-        })
-        
+        await websocket.send_json(
+            {
+                "type": "connected",
+                "channel": channel,
+                "instance": self.pubsub.instance_id,
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "redis_connected": self.pubsub.is_connected,
+            }
+        )
+
         logger.info(
             "WebSocket connected to channel %s (local connections: %d)",
             channel,
             self.pubsub.get_local_connection_count(channel),
         )
-    
+
     async def disconnect(
         self,
         websocket: WebSocket,
@@ -126,77 +128,77 @@ class DistributedConnectionManager:
             channel,
             self.pubsub.get_local_connection_count(channel),
         )
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # BROADCASTING
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def broadcast_signal(self, signal_data: Dict[str, Any]) -> int:
         """
         Broadcast signal to all connected clients across all instances.
-        
+
         Returns total local clients reached.
         """
         message = {"type": "signal", "data": signal_data}
-        
+
         # Publish to Redis (reaches other instances)
         await self.pubsub.publish(
             self.CHANNEL_SIGNALS,
             "signal",
             signal_data,
         )
-        
+
         # Also broadcast to local connections immediately
         return await self.pubsub.broadcast_to_local(
             self.CHANNEL_SIGNALS,
             message,
         )
-    
+
     async def broadcast_price(self, price_data: Dict[str, Any]) -> int:
         """Broadcast price update."""
         message = {"type": "price", "data": price_data}
-        
+
         await self.pubsub.publish(
             self.CHANNEL_PRICES,
             "price",
             price_data,
         )
-        
+
         return await self.pubsub.broadcast_to_local(
             self.CHANNEL_PRICES,
             message,
         )
-    
+
     async def broadcast_alert(self, alert_data: Dict[str, Any]) -> int:
         """Broadcast alert."""
         message = {"type": "alert", "data": alert_data}
-        
+
         await self.pubsub.publish(
             self.CHANNEL_ALERTS,
             "alert",
             alert_data,
         )
-        
+
         return await self.pubsub.broadcast_to_local(
             self.CHANNEL_ALERTS,
             message,
         )
-    
+
     async def broadcast_stats(self, stats_data: Dict[str, Any]) -> int:
         """Broadcast stats update."""
         message = {"type": "stats_update", "data": stats_data}
-        
+
         await self.pubsub.publish(
             self.CHANNEL_STATS,
             "stats_update",
             stats_data,
         )
-        
+
         return await self.pubsub.broadcast_to_local(
             self.CHANNEL_STATS,
             message,
         )
-    
+
     async def broadcast_to_channel(
         self,
         channel: str,
@@ -205,47 +207,47 @@ class DistributedConnectionManager:
     ) -> int:
         """Generic broadcast to any channel."""
         message = {"type": event_type, "data": data}
-        
+
         await self.pubsub.publish(channel, event_type, data)
-        
+
         return await self.pubsub.broadcast_to_local(channel, message)
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # MESSAGE HANDLERS (from Redis)
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def _handle_signal_broadcast(self, message: RedisMessage) -> None:
         """Handle signal broadcast from other instances."""
         await self.pubsub.broadcast_to_local(
             self.CHANNEL_SIGNALS,
             {"type": "signal", "data": message.payload},
         )
-    
+
     async def _handle_price_broadcast(self, message: RedisMessage) -> None:
         """Handle price broadcast from other instances."""
         await self.pubsub.broadcast_to_local(
             self.CHANNEL_PRICES,
             {"type": "price", "data": message.payload},
         )
-    
+
     async def _handle_alert_broadcast(self, message: RedisMessage) -> None:
         """Handle alert broadcast from other instances."""
         await self.pubsub.broadcast_to_local(
             self.CHANNEL_ALERTS,
             {"type": "alert", "data": message.payload},
         )
-    
+
     async def _handle_stats_broadcast(self, message: RedisMessage) -> None:
         """Handle stats broadcast from other instances."""
         await self.pubsub.broadcast_to_local(
             self.CHANNEL_STATS,
             {"type": "stats_update", "data": message.payload},
         )
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # STATISTICS
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def get_stats(self) -> Dict[str, Any]:
         """Get connection manager statistics."""
         pubsub_stats = await self.pubsub.get_stats()

@@ -29,7 +29,7 @@ async def get_rejections(
     Get recent rejected events with reasons.
 
     Use this to understand WHY events are being filtered out.
-    
+
     **Requires scope:** `debug`
     """
     tracker = get_rejection_tracker()
@@ -43,7 +43,7 @@ async def get_rejections(
 async def get_passed(limit: int = Query(default=50, le=200)):
     """
     Get recently passed/generated signals.
-    
+
     **Requires scope:** `debug`
     """
     tracker = get_rejection_tracker()
@@ -59,7 +59,7 @@ async def get_pipeline_statistics():
     Get overall pipeline statistics.
 
     Shows pass/rejection rates and breakdown by stage.
-    
+
     **Requires scope:** `debug`
     """
     tracker = get_rejection_tracker()
@@ -70,7 +70,7 @@ async def get_pipeline_statistics():
 async def clear_debug_data():
     """
     Clear all debug records.
-    
+
     **Requires scope:** `debug`
     """
     tracker = get_rejection_tracker()

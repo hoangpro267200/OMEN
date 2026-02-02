@@ -28,7 +28,10 @@ class FreightMapper:
         change_7d = abs(rate.change_7d_pct)
         change_30d = abs(rate.change_30d_pct)
 
-        if change_7d < self.config.min_rate_change_pct and change_30d < self.config.min_rate_change_pct:
+        if (
+            change_7d < self.config.min_rate_change_pct
+            and change_30d < self.config.min_rate_change_pct
+        ):
             return None
 
         # Use largest change
@@ -64,16 +67,22 @@ class FreightMapper:
         )
 
         if rate.rate_7d_ago > 0:
-            description += f"7-day change: {rate.change_7d_pct:+.1f}% (was ${rate.rate_7d_ago:.0f}). "
+            description += (
+                f"7-day change: {rate.change_7d_pct:+.1f}% (was ${rate.rate_7d_ago:.0f}). "
+            )
 
         if rate.rate_30d_ago > 0:
-            description += f"30-day change: {rate.change_30d_pct:+.1f}% (was ${rate.rate_30d_ago:.0f}). "
+            description += (
+                f"30-day change: {rate.change_30d_pct:+.1f}% (was ${rate.rate_30d_ago:.0f}). "
+            )
 
         description += f"Capacity utilization: {rate.capacity_utilization_pct:.0f}%. "
 
         # Add interpretation
         if is_increase and rate.capacity_utilization_pct > 90:
-            description += "High rates and utilization indicate capacity shortage and strong demand. "
+            description += (
+                "High rates and utilization indicate capacity shortage and strong demand. "
+            )
         elif is_increase:
             description += "Rate increase may signal tightening capacity or increased demand. "
         elif rate.blank_sailings > 0:
@@ -82,7 +91,11 @@ class FreightMapper:
         # Keywords
         keywords = [
             "freight_rates",
-            "capacity_shortage" if is_increase and rate.capacity_utilization_pct > 85 else "rate_change",
+            (
+                "capacity_shortage"
+                if is_increase and rate.capacity_utilization_pct > 85
+                else "rate_change"
+            ),
             rate.origin_code.lower(),
             rate.destination_code.lower(),
             region.lower().replace(" ", "_").replace("-", "_"),
@@ -111,7 +124,9 @@ class FreightMapper:
             probability=probability,
             movement=ProbabilityMovement(
                 current=probability,
-                previous=max(0.0, probability - 0.15) if is_increase else min(1.0, probability + 0.15),
+                previous=(
+                    max(0.0, probability - 0.15) if is_increase else min(1.0, probability + 0.15)
+                ),
                 delta=min(change_pct / 100, 0.5) if is_increase else max(-change_pct / 100, -0.5),
                 window_hours=168 if change_7d > change_30d else 720,
             ),
@@ -141,7 +156,7 @@ class FreightMapper:
     def map_index_change(self, index: FreightIndex) -> RawSignalEvent | None:
         """Convert freight index change to RawSignalEvent."""
         change_7d = abs(index.change_7d_pct)
-        
+
         if change_7d < 10:  # Need significant index move
             return None
 
@@ -218,14 +233,19 @@ class FreightMapper:
             f"Rollover rate: {capacity.rollover_rate_pct:.1f}%."
         )
 
-        event_id = f"freight-capacity-{capacity.route.lower()}-{capacity.timestamp.strftime('%Y%m%d')}"
+        event_id = (
+            f"freight-capacity-{capacity.route.lower()}-{capacity.timestamp.strftime('%Y%m%d')}"
+        )
 
         return RawSignalEvent(
             event_id=event_id,
             title=title,
             description=description,
             probability=probability,
-            keywords=["capacity_" + capacity.capacity_outlook, capacity.route.lower().replace("-", "_")],
+            keywords=[
+                "capacity_" + capacity.capacity_outlook,
+                capacity.route.lower().replace("-", "_"),
+            ],
             market=MarketMetadata(
                 source="freight",
                 market_id=f"capacity-{capacity.route}",

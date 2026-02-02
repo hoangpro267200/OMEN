@@ -112,9 +112,7 @@ class PassThenFailRule(Rule[RawSignalEvent, ValidationResult]):
 @pytest.fixture
 def validator():
     """Default validator with one passing rule."""
-    return SignalValidator(
-        rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
-    )
+    return SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=100.0)])
 
 
 @pytest.fixture
@@ -202,9 +200,7 @@ class TestRuleErrorHandling:
 class TestMultipleRules:
     """Multiple rule behavior."""
 
-    def test_all_rules_applied_in_order(
-        self, validator_multiple_rules, valid_event
-    ) -> None:
+    def test_all_rules_applied_in_order(self, validator_multiple_rules, valid_event) -> None:
         """Each rule in list is applied until one fails."""
         ctx = ProcessingContext.create(RulesetVersion("test"))
         outcome = validator_multiple_rules.validate(valid_event, context=ctx)
@@ -215,18 +211,14 @@ class TestMultipleRules:
         assert "liquidity_validation" in names
         assert "pass_then_fail" in names
 
-    def test_stops_on_first_rejection(
-        self, validator_multiple_rules, valid_event
-    ) -> None:
+    def test_stops_on_first_rejection(self, validator_multiple_rules, valid_event) -> None:
         """First rejecting/erring rule → stops, returns that outcome."""
         ctx = ProcessingContext.create(RulesetVersion("test"))
         outcome = validator_multiple_rules.validate(valid_event, context=ctx)
         assert outcome.passed is False
         assert outcome.rejection_reason is not None
 
-    def test_all_passed_returns_validated_signal(
-        self, validator, valid_event
-    ) -> None:
+    def test_all_passed_returns_validated_signal(self, validator, valid_event) -> None:
         """All rules pass → ValidatedSignal returned."""
         ctx = ProcessingContext.create(RulesetVersion("test"))
         outcome = validator.validate(valid_event, context=ctx)
@@ -238,9 +230,7 @@ class TestMultipleRules:
 class TestExplanationChain:
     """Explanation building."""
 
-    def test_explanation_contains_all_passing_rules(
-        self, validator, valid_event
-    ) -> None:
+    def test_explanation_contains_all_passing_rules(self, validator, valid_event) -> None:
         """Each passing rule adds ExplanationStep."""
         ctx = ProcessingContext.create(RulesetVersion("test"))
         outcome = validator.validate(valid_event, context=ctx)
@@ -250,9 +240,7 @@ class TestExplanationChain:
         assert len(chain.steps) >= 1
         assert any(s.rule_name == "liquidity_validation" for s in chain.steps)
 
-    def test_explanation_step_has_required_fields(
-        self, validator, valid_event
-    ) -> None:
+    def test_explanation_step_has_required_fields(self, validator, valid_event) -> None:
         """rule_name, rule_version, reasoning populated."""
         ctx = ProcessingContext.create(RulesetVersion("test"))
         outcome = validator.validate(valid_event, context=ctx)

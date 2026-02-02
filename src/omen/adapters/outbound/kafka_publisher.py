@@ -21,18 +21,18 @@ logger = logging.getLogger(__name__)
 class KafkaPublisher(OutputPublisher):
     """
     Production Kafka publisher.
-    
+
     Publishes signals to Kafka for:
     - Event streaming to downstream systems
     - Decoupled architecture
     - Horizontal scaling
     - Replay capability
-    
+
     Requires:
     - aiokafka library: pip install aiokafka
     - Kafka cluster
     """
-    
+
     def __init__(
         self,
         bootstrap_servers: str,
@@ -45,7 +45,7 @@ class KafkaPublisher(OutputPublisher):
     ):
         """
         Initialize Kafka publisher.
-        
+
         Args:
             bootstrap_servers: Comma-separated Kafka broker addresses
             topic: Topic to publish signals to
@@ -64,17 +64,16 @@ class KafkaPublisher(OutputPublisher):
         self.linger_ms = linger_ms
         self._producer = None
         self._initialized = False
-    
+
     async def initialize(self) -> None:
         """Initialize Kafka producer."""
         try:
             from aiokafka import AIOKafkaProducer
         except ImportError:
             raise ImportError(
-                "aiokafka is required for Kafka publishing. "
-                "Install with: pip install aiokafka"
+                "aiokafka is required for Kafka publishing. " "Install with: pip install aiokafka"
             )
-        
+
         self._producer = AIOKafkaProducer(
             bootstrap_servers=self.bootstrap_servers,
             client_id=self.client_id,
@@ -85,7 +84,7 @@ class KafkaPublisher(OutputPublisher):
             value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
             key_serializer=lambda k: k.encode("utf-8") if k else None,
         )
-        
+
         await self._producer.start()
         self._initialized = True
         logger.info(
@@ -93,18 +92,16 @@ class KafkaPublisher(OutputPublisher):
             self.bootstrap_servers,
             self.topic,
         )
-    
+
     def _ensure_initialized(self) -> None:
         """Ensure producer is initialized."""
         if not self._initialized:
-            raise RuntimeError(
-                "Kafka producer not initialized. Call await initialize() first."
-            )
-    
+            raise RuntimeError("Kafka producer not initialized. Call await initialize() first.")
+
     async def publish(self, signal: OmenSignal) -> bool:
         """
         Publish signal to Kafka.
-        
+
         Message format:
         {
             "signal_id": "...",
@@ -112,12 +109,12 @@ class KafkaPublisher(OutputPublisher):
             "timestamp": "...",
             "schema_version": "2.0.0"
         }
-        
+
         Returns:
             True if published successfully, False otherwise
         """
         self._ensure_initialized()
-        
+
         try:
             message = {
                 "signal_id": signal.signal_id,
@@ -130,35 +127,35 @@ class KafkaPublisher(OutputPublisher):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "schema_version": "2.0.0",
             }
-            
+
             # Send message with signal_id as key for partitioning
             await self._producer.send_and_wait(
                 self.topic,
                 value=message,
                 key=signal.signal_id,
             )
-            
+
             logger.debug("Published signal to Kafka: %s", signal.signal_id)
             return True
-            
+
         except Exception as e:
             logger.error("Failed to publish signal %s to Kafka: %s", signal.signal_id, e)
             return False
-    
+
     async def publish_batch(self, signals: list[OmenSignal]) -> int:
         """
         Publish multiple signals to Kafka.
-        
+
         Uses batching for efficiency.
-        
+
         Returns:
             Number of signals successfully published
         """
         self._ensure_initialized()
-        
+
         success_count = 0
         batch = self._producer.create_batch()
-        
+
         for signal in signals:
             try:
                 message = {
@@ -168,14 +165,14 @@ class KafkaPublisher(OutputPublisher):
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "schema_version": "2.0.0",
                 }
-                
+
                 # Try to add to batch
                 metadata = batch.append(
                     key=signal.signal_id.encode("utf-8"),
                     value=json.dumps(message, default=str).encode("utf-8"),
                     timestamp=None,
                 )
-                
+
                 if metadata is None:
                     # Batch is full, send it and create new one
                     await self._producer.send_batch(batch, self.topic)
@@ -186,12 +183,12 @@ class KafkaPublisher(OutputPublisher):
                         value=json.dumps(message, default=str).encode("utf-8"),
                         timestamp=None,
                     )
-                
+
                 success_count += 1
-                
+
             except Exception as e:
                 logger.error("Failed to batch signal %s: %s", signal.signal_id, e)
-        
+
         # Send remaining batch
         if batch.record_count() > 0:
             try:
@@ -199,15 +196,15 @@ class KafkaPublisher(OutputPublisher):
             except Exception as e:
                 logger.error("Failed to send batch: %s", e)
                 success_count -= batch.record_count()
-        
+
         logger.info("Published %d/%d signals to Kafka", success_count, len(signals))
         return success_count
-    
+
     async def flush(self) -> None:
         """Flush pending messages."""
         if self._producer:
             await self._producer.flush()
-    
+
     async def close(self) -> None:
         """Close Kafka producer."""
         if self._producer:
@@ -217,14 +214,14 @@ class KafkaPublisher(OutputPublisher):
 
 class KafkaPublisherConfig:
     """Configuration helper for Kafka publisher."""
-    
+
     def __init__(
         self,
         bootstrap_servers: Optional[str] = None,
         topic: Optional[str] = None,
     ):
         import os
-        
+
         self.bootstrap_servers = bootstrap_servers or os.getenv(
             "KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"
         )
@@ -232,7 +229,7 @@ class KafkaPublisherConfig:
         self.client_id = os.getenv("KAFKA_CLIENT_ID", "omen-producer")
         self.acks = os.getenv("KAFKA_ACKS", "all")
         self.compression = os.getenv("KAFKA_COMPRESSION", "gzip")
-    
+
     def create_publisher(self) -> KafkaPublisher:
         """Create Kafka publisher from config."""
         return KafkaPublisher(

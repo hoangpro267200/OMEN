@@ -13,7 +13,7 @@ REDACT_PATTERNS = [
     (re.compile(r'(api[_-]?key["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
     (re.compile(r'(password["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
     (re.compile(r'(secret["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
-    (re.compile(r'(bearer\s+)[\w.-]+', re.I), r"\1[REDACTED]"),
+    (re.compile(r"(bearer\s+)[\w.-]+", re.I), r"\1[REDACTED]"),
     (re.compile(r'(authorization["\s:=]+)["\']?[\w.-]+["\']?', re.I), r"\1[REDACTED]"),
     (re.compile(r"omen_[\w.-]{32,}", re.I), "[REDACTED_KEY]"),
 ]
@@ -61,6 +61,7 @@ class RedactingWrapperFormatter(logging.Formatter):
         original = self._inner.format(record)
         return redact_secrets(original)
 
+
 # Fields to always redact when publishing externally
 ALWAYS_REDACT = {
     "_source_assessment",
@@ -86,9 +87,7 @@ def redact_signal_for_external(
             factors = data["confidence_factors"]
             if factors and isinstance(factors, dict):
                 vals = [v for v in factors.values() if isinstance(v, (int, float))]
-                data["confidence_factors"] = (
-                    {"aggregate": sum(vals) / len(vals)} if vals else {}
-                )
+                data["confidence_factors"] = {"aggregate": sum(vals) / len(vals)} if vals else {}
 
     return data
 

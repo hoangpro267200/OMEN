@@ -51,9 +51,7 @@ class WebhookPublisher(OutputPublisher):
         payload_bytes = json.dumps(payload, default=str).encode()
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self._secret:
-            headers["X-OMEN-Signature"] = generate_webhook_signature(
-                payload_bytes, self._secret
-            )
+            headers["X-OMEN-Signature"] = generate_webhook_signature(payload_bytes, self._secret)
         return payload_bytes, headers
 
     def publish(self, signal: OmenSignal) -> bool:
@@ -81,14 +79,14 @@ class WebhookPublisher(OutputPublisher):
     async def publish_async(self, signal: OmenSignal) -> bool:
         """
         Async publish with non-blocking retry.
-        
+
         Uses httpx.AsyncClient for proper async I/O.
         Does NOT block the event loop.
         """
         payload_bytes, headers = self._prepare_request(signal)
         client = self._get_async_client()
         last_error: Exception | None = None
-        
+
         for attempt in range(self._max_retries):
             try:
                 response = await client.post(
@@ -103,7 +101,7 @@ class WebhookPublisher(OutputPublisher):
                 if attempt < self._max_retries - 1:
                     # Non-blocking sleep
                     await asyncio.sleep(2**attempt)
-        
+
         raise PublishError(
             f"Webhook failed after {self._max_retries} attempts: {last_error}",
             context={"signal_id": signal.signal_id},

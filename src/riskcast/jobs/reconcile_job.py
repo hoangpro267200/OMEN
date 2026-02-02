@@ -72,6 +72,7 @@ class LedgerClient:
     def __init__(self, ledger_path: str):
         self.ledger_path = ledger_path
         from omen.infrastructure.ledger import LedgerReader
+
         self.reader = LedgerReader(ledger_path)
 
     def is_partition_sealed(self, partition_date: str) -> bool:
@@ -121,18 +122,18 @@ class LedgerClient:
                 if partition_date_obj < cutoff:
                     continue
 
-                highwater, revision = self.reader.get_partition_highwater(
-                    info.partition_date
+                highwater, revision = self.reader.get_partition_highwater(info.partition_date)
+                partitions.append(
+                    {
+                        "partition_date": info.partition_date,
+                        "base_date": base_date_str,
+                        "is_late": info.is_late,
+                        "is_sealed": info.is_sealed,
+                        "total_records": info.total_records,
+                        "highwater": highwater,
+                        "manifest_revision": revision,
+                    }
                 )
-                partitions.append({
-                    "partition_date": info.partition_date,
-                    "base_date": base_date_str,
-                    "is_late": info.is_late,
-                    "is_sealed": info.is_sealed,
-                    "total_records": info.total_records,
-                    "highwater": highwater,
-                    "manifest_revision": revision,
-                })
             except ValueError:
                 continue
 
@@ -199,9 +200,7 @@ class ReconcileJob:
                 reason="main_partition_not_sealed",
             )
 
-        current_highwater, current_revision = self.ledger.get_highwater(
-            partition_date
-        )
+        current_highwater, current_revision = self.ledger.get_highwater(partition_date)
 
         needs_reconcile, reason = await self.reconcile_store.needs_reconcile(
             partition_date,
@@ -240,15 +239,11 @@ class ReconcileJob:
             partition_date,
         )
 
-        processed_ids = set(
-            await self.signal_store.list_processed_ids(partition_date)
-        )
+        processed_ids = set(await self.signal_store.list_processed_ids(partition_date))
 
         if is_late:
             base_date = partition_date.replace("-late", "")
-            main_processed = set(
-                await self.signal_store.list_processed_ids(base_date)
-            )
+            main_processed = set(await self.signal_store.list_processed_ids(base_date))
             processed_ids.update(main_processed)
 
         logger.info(
@@ -439,6 +434,7 @@ class ReconcileJob:
 def _env(key: str, default: str) -> str:
     """Get env var (import here to avoid circular deps)."""
     import os
+
     return os.environ.get(key, default)
 
 

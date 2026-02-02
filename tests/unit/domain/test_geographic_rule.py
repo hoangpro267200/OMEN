@@ -24,8 +24,10 @@ def red_sea_event() -> RawSignalEvent:
             GeoLocation(latitude=15.5, longitude=42.5, name="Red Sea", region_code="YE")
         ],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
 
@@ -40,8 +42,10 @@ def irrelevant_geo_event() -> RawSignalEvent:
         probability=0.3,
         keywords=["ligue 1", "scorer", "football"],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m2"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m2"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
 
@@ -68,20 +72,18 @@ def test_rejects_when_no_geographic_relevance(irrelevant_geo_event):
 def test_passes_when_location_near_chokepoint():
     """Rule passes when inferred location is within proximity of a chokepoint."""
     # Location very close to Red Sea chokepoint (20, 38)
-    rule = GeographicRelevanceRule(
-        config=GeographicRelevanceConfig(proximity_threshold_km=500.0)
-    )
+    rule = GeographicRelevanceRule(config=GeographicRelevanceConfig(proximity_threshold_km=500.0))
     event = RawSignalEvent(
         event_id=EventId("geo-loc-1"),
         title="Regional tension",
         probability=0.5,
         keywords=[],
-        inferred_locations=[
-            GeoLocation(latitude=20.5, longitude=38.2, name="Near Red Sea")
-        ],
+        inferred_locations=[GeoLocation(latitude=20.5, longitude=38.2, name="Near Red Sea")],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
     result = rule.apply(event)

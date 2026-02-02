@@ -28,9 +28,7 @@ from omen.adapters.inbound.stub_source import StubSignalSource
 def async_pipeline() -> AsyncOmenPipeline:
     """Async pipeline for behavior testing."""
     return AsyncOmenPipeline(
-        validator=SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
-        ),
+        validator=SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]),
         enricher=SignalEnricher(),
         repository=AsyncInMemorySignalRepository(),
         publisher=None,
@@ -45,17 +43,13 @@ def async_pipeline() -> AsyncOmenPipeline:
 @pytest.fixture
 def valid_event():
     """Event that passes validation and triggers Red Sea translation."""
-    return StubSignalSource.create_red_sea_event(
-        probability=0.75, liquidity=75000.0
-    )
+    return StubSignalSource.create_red_sea_event(probability=0.75, liquidity=75000.0)
 
 
 @pytest.fixture
 def low_liquidity_event():
     """Event that fails liquidity validation."""
-    return StubSignalSource.create_red_sea_event(
-        probability=0.5, liquidity=50.0
-    )
+    return StubSignalSource.create_red_sea_event(probability=0.5, liquidity=50.0)
 
 
 @pytest.fixture
@@ -178,9 +172,7 @@ class TestProcessStream:
     """Stream processing outcomes."""
 
     @pytest.mark.asyncio
-    async def test_yields_results(
-        self, async_pipeline: AsyncOmenPipeline
-    ) -> None:
+    async def test_yields_results(self, async_pipeline: AsyncOmenPipeline) -> None:
         """process_stream yields PipelineResult for each event."""
         source = StubSignalSource()
         count = 0
@@ -193,12 +185,11 @@ class TestProcessStream:
         assert count >= 1
 
     @pytest.mark.asyncio
-    async def test_stops_on_shutdown(
-        self, async_pipeline: AsyncOmenPipeline
-    ) -> None:
+    async def test_stops_on_shutdown(self, async_pipeline: AsyncOmenPipeline) -> None:
         """Setting shutdown_event stops iteration."""
         source = StubSignalSource()
         collected = []
+
         async def consume():
             async for r in async_pipeline.process_stream(source, limit=100):
                 collected.append(r)
@@ -232,9 +223,7 @@ class TestErrorHandling:
     ) -> None:
         """Processing error → success=False. (Async pipeline does not push to DLQ.)"""
         async_pipeline._validator = MagicMock()
-        async_pipeline._validator.validate = MagicMock(
-            side_effect=RuntimeError("oops")
-        )
+        async_pipeline._validator.validate = MagicMock(side_effect=RuntimeError("oops"))
         result = await async_pipeline.process_single(valid_event)
         assert result.success is False
         assert result.error is not None
@@ -244,16 +233,12 @@ class TestShutdown:
     """Shutdown behavior."""
 
     @pytest.mark.asyncio
-    async def test_shutdown_sets_event(
-        self, async_pipeline: AsyncOmenPipeline
-    ) -> None:
+    async def test_shutdown_sets_event(self, async_pipeline: AsyncOmenPipeline) -> None:
         """shutdown() sets the shutdown event."""
         await async_pipeline.shutdown(timeout=0.1)
         assert async_pipeline._shutdown_event.is_set()
 
     @pytest.mark.asyncio
-    async def test_shutdown_completes(
-        self, async_pipeline: AsyncOmenPipeline
-    ) -> None:
+    async def test_shutdown_completes(self, async_pipeline: AsyncOmenPipeline) -> None:
         """shutdown() completes without error."""
         await async_pipeline.shutdown(timeout=0.1)

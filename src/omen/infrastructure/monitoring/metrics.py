@@ -107,9 +107,7 @@ class PipelineMetrics:
                         "avg_ms": self._latency.avg_ms,
                         "p50_ms": self._latency.p50_ms,
                         "p99_ms": self._latency.p99_ms,
-                        "min_ms": self._latency.min_ms
-                        if self._latency.count > 0
-                        else 0.0,
+                        "min_ms": self._latency.min_ms if self._latency.count > 0 else 0.0,
                         "max_ms": self._latency.max_ms,
                     },
                     "validation_avg_ms": self._validation_latency.avg_ms,

@@ -42,7 +42,8 @@ def _minimal_pure_signal(
         geographic=GeographicContext(regions=["Red Sea"], chokepoints=["suez"]),
         temporal=TemporalContext(signal_freshness="current"),
         evidence=evidence or [],
-        validation_scores=validation_scores or [
+        validation_scores=validation_scores
+        or [
             ValidationScore(
                 rule_name="liquidity_validation",
                 rule_version="1.0.0",

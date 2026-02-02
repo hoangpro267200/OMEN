@@ -53,6 +53,7 @@ def test_pipeline_produces_omen_signal(pipeline, high_quality_event):
     assert result.success
     assert len(result.signals) >= 1
     from omen.domain.models.omen_signal import OmenSignal
+
     for s in result.signals:
         assert isinstance(s, OmenSignal)
 
@@ -66,7 +67,9 @@ def test_omen_signal_has_no_impact_fields(pipeline, high_quality_event):
     assert not hasattr(signal, "urgency") or getattr(signal, "urgency", None) is None
     assert not hasattr(signal, "is_actionable") or getattr(signal, "is_actionable", None) is None
     assert not hasattr(signal, "key_metrics") or getattr(signal, "key_metrics", None) is None
-    assert not hasattr(signal, "affected_routes") or getattr(signal, "affected_routes", None) is None
+    assert (
+        not hasattr(signal, "affected_routes") or getattr(signal, "affected_routes", None) is None
+    )
     assert not hasattr(signal, "delay_days") or getattr(signal, "delay_days", None) is None
     assert not hasattr(signal, "risk_exposure") or getattr(signal, "risk_exposure", None) is None
     assert hasattr(signal, "probability") and hasattr(signal, "confidence_score")

@@ -37,9 +37,7 @@ def test_raw_signal_creation():
     assert len(event.input_event_hash) == 16
 
 
-def test_validated_signal_creation(
-    high_quality_event, ruleset_version, processing_context
-):
+def test_validated_signal_creation(high_quality_event, ruleset_version, processing_context):
     """Test ValidatedSignal creation with current schema."""
     step = ExplanationStep.create(
         step_id=1,
@@ -51,11 +49,7 @@ def test_validated_signal_creation(
         input_summary={"liquidity": 1000.0},
         output_summary={"status": "PASSED"},
     )
-    chain = (
-        ExplanationChain.create(processing_context)
-        .add_step(step)
-        .finalize(processing_context)
-    )
+    chain = ExplanationChain.create(processing_context).add_step(step).finalize(processing_context)
     signal = ValidatedSignal(
         event_id=high_quality_event.event_id,
         original_event=high_quality_event,

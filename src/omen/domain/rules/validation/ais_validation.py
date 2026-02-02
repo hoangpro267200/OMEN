@@ -55,7 +55,9 @@ class PortCongestionValidationRule(Rule):
 
         reason = None
         if not passed:
-            reason = f"Congestion ratio {congestion_ratio:.1f}x < threshold {self.min_congestion_ratio}x"
+            reason = (
+                f"Congestion ratio {congestion_ratio:.1f}x < threshold {self.min_congestion_ratio}x"
+            )
 
         return {
             "passed": passed,

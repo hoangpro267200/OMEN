@@ -57,17 +57,13 @@ class TestFullDeterminism:
     def test_different_description_changes_hash(self, high_quality_event):
         """Events differing only in description have different hashes."""
         event1 = high_quality_event
-        event2 = high_quality_event.model_copy(
-            update={"description": "Different description"}
-        )
+        event2 = high_quality_event.model_copy(update={"description": "Different description"})
 
         assert event1.input_event_hash != event2.input_event_hash
 
     def test_different_keywords_changes_hash(self, high_quality_event):
         """Events differing only in keywords have different hashes."""
         event1 = high_quality_event
-        event2 = high_quality_event.model_copy(
-            update={"keywords": ["different", "keywords"]}
-        )
+        event2 = high_quality_event.model_copy(update={"keywords": ["different", "keywords"]})
 
         assert event1.input_event_hash != event2.input_event_hash

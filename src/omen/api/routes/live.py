@@ -21,7 +21,6 @@ from omen.api.errors import not_found, service_unavailable, internal_error
 from omen.infrastructure.security.auth import verify_api_key
 from omen.infrastructure.security.rbac import Scopes, require_scopes
 
-
 router = APIRouter(prefix="/live", tags=["Live Data"])
 
 # Security dependencies for live processing routes
@@ -65,10 +64,7 @@ async def process_live_events(
         pipeline = container.pipeline
         source = PolymarketSignalSource(logistics_only=True)
         raw_list = list(source.fetch_events(limit=min(limit * 2, 4000)))
-        filtered = [
-            e for e in raw_list
-            if e.market.current_liquidity_usd >= min_liquidity
-        ][:limit]
+        filtered = [e for e in raw_list if e.market.current_liquidity_usd >= min_liquidity][:limit]
         out: list[SignalResponse] = []
         for event in filtered:
             result = pipeline.process_single(event)
@@ -88,7 +84,7 @@ async def process_single_event(
 ) -> dict[str, Any]:
     """
     Process a single event by ID. Returns pure signal or rejection reason.
-    
+
     **Requires scope:** `write:signals`
     """
     try:
@@ -108,14 +104,16 @@ async def process_single_event(
                         "events_validated": res.stats.events_validated,
                         "signals_generated": res.stats.signals_generated,
                     }
-                    if res.stats else None
+                    if res.stats
+                    else None
                 ),
             }
         return {
             "signal": None,
             "rejection_reason": (
                 res.validation_failures[0].reason
-                if res.validation_failures else "No applicable rules"
+                if res.validation_failures
+                else "No applicable rules"
             ),
         }
     except SourceUnavailableError as e:

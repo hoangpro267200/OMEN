@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def _omen_version() -> str:
     try:
         from importlib.metadata import version
+
         return version("omen")
     except Exception:
         return "0.1.0"

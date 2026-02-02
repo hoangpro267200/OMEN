@@ -134,7 +134,9 @@ def test_rollover_creates_new_segment(tmp_path: Path):
         for i in range(5):
             writer.write(_make_event(f"OMEN-R{i:03d}"))
 
-        partition_dirs = [d for d in tmp_path.iterdir() if d.is_dir() and not d.name.startswith("_")]
+        partition_dirs = [
+            d for d in tmp_path.iterdir() if d.is_dir() and not d.name.startswith("_")
+        ]
         assert len(partition_dirs) >= 1
         segments = list(partition_dirs[0].glob("signals-*.wal"))
         assert len(segments) >= 2
@@ -338,8 +340,9 @@ def test_atomic_write_text_fsync_order(tmp_path: Path):
         calls.append("replace")
         real_replace(src, dst)
 
-    with patch("os.fsync", side_effect=tracked_fsync), patch(
-        "os.replace", side_effect=tracked_replace
+    with (
+        patch("os.fsync", side_effect=tracked_fsync),
+        patch("os.replace", side_effect=tracked_replace),
     ):
         _atomic_write_text(path, "x")
     assert "fsync" in calls

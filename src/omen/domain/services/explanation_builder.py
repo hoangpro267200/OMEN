@@ -55,12 +55,8 @@ class ExplanationBuilder:
         self._inputs.update(kwargs)
         return self
 
-    def with_output(
-        self, name: str, value: Any, unit: str | None = None
-    ) -> "ExplanationBuilder":
-        self._outputs[name] = (
-            {"value": value, "unit": unit} if unit else value
-        )
+    def with_output(self, name: str, value: Any, unit: str | None = None) -> "ExplanationBuilder":
+        self._outputs[name] = {"value": value, "unit": unit} if unit else value
         return self
 
     def with_outputs(self, **kwargs: Any) -> "ExplanationBuilder":
@@ -88,9 +84,7 @@ class ExplanationBuilder:
         self._reasoning_template = template
         format_vars: dict[str, Any] = {**self._inputs}
         for k, v in self._outputs.items():
-            format_vars[k] = (
-                v["value"] if isinstance(v, dict) and "value" in v else v
-            )
+            format_vars[k] = v["value"] if isinstance(v, dict) and "value" in v else v
         try:
             self._reasoning = template.format(**format_vars)
         except KeyError:

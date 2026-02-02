@@ -74,7 +74,7 @@ def _validate_temporal_consistency(title: str, resolution_date: Optional[datetim
     Check if the year mentioned in the title matches the market resolution_date year.
 
     This is a data-quality check only and does NOT affect processing.
-    
+
     Returns:
         True if consistent (or cannot check), False if inconsistent.
     """
@@ -94,9 +94,10 @@ def _validate_temporal_consistency(title: str, resolution_date: Optional[datetim
 
 class ConfidenceLevel(str, Enum):
     """Signal confidence level."""
-    HIGH = "HIGH"       # >=0.75 — Strong validation scores
-    MEDIUM = "MEDIUM"   # 0.50–0.75 — Moderate validation
-    LOW = "LOW"         # <0.50 — Weak validation
+
+    HIGH = "HIGH"  # >=0.75 — Strong validation scores
+    MEDIUM = "MEDIUM"  # 0.50–0.75 — Moderate validation
+    LOW = "LOW"  # <0.50 — Weak validation
 
     @classmethod
     def from_score(cls, score: float) -> "ConfidenceLevel":
@@ -109,6 +110,7 @@ class ConfidenceLevel(str, Enum):
 
 class SignalCategory(str, Enum):
     """Category of the signal for routing/filtering."""
+
     GEOPOLITICAL = "GEOPOLITICAL"
     INFRASTRUCTURE = "INFRASTRUCTURE"
     WEATHER = "WEATHER"
@@ -120,9 +122,9 @@ class SignalCategory(str, Enum):
 
 class GeographicContext(BaseModel):
     """Geographic context of the signal."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     regions: list[str] = Field(
         default_factory=list,
         description="Regions mentioned or implied (e.g., 'Red Sea', 'Asia', 'Europe')",
@@ -139,9 +141,9 @@ class GeographicContext(BaseModel):
 
 class TemporalContext(BaseModel):
     """Temporal context of the signal."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     event_horizon: Optional[str] = Field(
         default=None,
         description="When the event might occur (e.g., '2026-06-30', 'Q2 2026')",
@@ -158,9 +160,9 @@ class TemporalContext(BaseModel):
 
 class UncertaintyBounds(BaseModel):
     """Uncertainty bounds for a value."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     lower: float
     upper: float
     confidence_interval: str = Field(
@@ -171,9 +173,9 @@ class UncertaintyBounds(BaseModel):
 
 class EvidenceItem(BaseModel):
     """Single piece of evidence supporting the signal."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     source: str = Field(description="Source name (e.g., 'Polymarket', 'Drewry')")
     source_type: str = Field(description="Type: 'market', 'research', 'news', 'internal'")
     value: Optional[str] = Field(default=None, description="The evidence value/quote")
@@ -183,9 +185,9 @@ class EvidenceItem(BaseModel):
 
 class ValidationScore(BaseModel):
     """Score from a validation rule."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     rule_name: str
     rule_version: str
     score: float = Field(ge=0, le=1)
@@ -199,7 +201,7 @@ class OmenSignal(BaseModel):
     This is a signal, not a decision or recommendation.
     Downstream consumers use it for their own impact and decisions.
     """
-    
+
     model_config = ConfigDict(frozen=True)
 
     # === IDENTIFICATION ===
@@ -371,7 +373,9 @@ class OmenSignal(BaseModel):
         regions = enrichment.get("matched_regions", [])
         chokepoints = enrichment.get("matched_chokepoints", [])
         if not chokepoints and getattr(validated_signal, "affected_chokepoints", None):
-            chokepoints = [cp.lower().replace(" ", "-") for cp in validated_signal.affected_chokepoints]
+            chokepoints = [
+                cp.lower().replace(" ", "-") for cp in validated_signal.affected_chokepoints
+            ]
         geographic = GeographicContext(regions=regions, chokepoints=chokepoints)
 
         temporal = TemporalContext(

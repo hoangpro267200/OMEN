@@ -82,16 +82,19 @@ class PolymarketCLOBClient:
             raise SourceUnavailableError("CLOB circuit breaker open")
 
         try:
+
             def do_ask() -> httpx.Response:
                 return self._client.get(
                     f"{self._base_url}/price",
                     params={"token_id": token_id, "side": "BUY"},
                 )
+
             def do_bid() -> httpx.Response:
                 return self._client.get(
                     f"{self._base_url}/price",
                     params={"token_id": token_id, "side": "SELL"},
                 )
+
             ask_resp = run_with_retry(do_ask)
             bid_resp = run_with_retry(do_bid)
             ask_resp.raise_for_status()
@@ -137,11 +140,13 @@ class PolymarketCLOBClient:
             raise SourceUnavailableError("CLOB circuit breaker open")
 
         try:
+
             def do_request() -> httpx.Response:
                 return self._client.get(
                     f"{self._base_url}/book",
                     params={"token_id": token_id},
                 )
+
             response = run_with_retry(do_request)
             response.raise_for_status()
             data: dict[str, Any] = response.json()
@@ -177,11 +182,13 @@ class PolymarketCLOBClient:
     def get_midpoint(self, token_id: str) -> float:
         """Get just the midpoint price (fastest)."""
         try:
+
             def do_request() -> httpx.Response:
                 return self._client.get(
                     f"{self._base_url}/midpoint",
                     params={"token_id": token_id},
                 )
+
             response = run_with_retry(do_request)
             response.raise_for_status()
             data = response.json()

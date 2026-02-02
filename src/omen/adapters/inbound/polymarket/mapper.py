@@ -52,8 +52,7 @@ class PolymarketMapper:
             source="polymarket",
             market_id=MarketId(str(raw.get("id", ""))),
             market_url=(
-                f"https://polymarket.com/event/{raw.get('id', '')}"
-                if raw.get("id") else None
+                f"https://polymarket.com/event/{raw.get('id', '')}" if raw.get("id") else None
             ),
             created_at=self._parse_timestamp(raw.get("createdAt")),
             resolution_date=self._parse_timestamp(raw.get("endDate")),
@@ -199,19 +198,13 @@ class PolymarketMapper:
         market_id = market.get("id") or market.get("conditionId") or event.get("id")
         if not market_id:
             return None
-        title = str(
-            market.get("question") or event.get("title") or "Untitled"
-        )[:500]
+        title = str(market.get("question") or event.get("title") or "Untitled")[:500]
         description = market.get("description") or event.get("description")
         if description is not None:
             description = str(description)[:5000]
         probability, probability_is_fallback = self._extract_probability(market)
-        volume = _safe_float(
-            market.get("volumeNum") or market.get("volume"), 0.0
-        )
-        liquidity = _safe_float(
-            market.get("liquidityNum") or market.get("liquidity"), 0.0
-        )
+        volume = _safe_float(market.get("volumeNum") or market.get("volume"), 0.0)
+        liquidity = _safe_float(market.get("liquidityNum") or market.get("liquidity"), 0.0)
         num_traders = market.get("numTraders")
         if num_traders is not None:
             try:

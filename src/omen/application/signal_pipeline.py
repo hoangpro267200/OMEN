@@ -23,6 +23,7 @@ from ..infrastructure.debug.rejection_tracker import get_rejection_tracker
 @dataclass
 class SignalProcessingResult:
     """Result of processing an event in the signal-only pipeline."""
+
     success: bool
     signal: Optional[OmenSignal] = None
     rejection_stage: Optional[str] = None
@@ -94,7 +95,11 @@ class SignalOnlyPipeline:
             "confidence_factors": {
                 "liquidity": validated_signal.liquidity_score,
                 "geographic": next(
-                    (r.score for r in validated_signal.validation_results if r.rule_name == "geographic_relevance"),
+                    (
+                        r.score
+                        for r in validated_signal.validation_results
+                        if r.rule_name == "geographic_relevance"
+                    ),
                     0.5,
                 ),
                 "source_reliability": 0.85,

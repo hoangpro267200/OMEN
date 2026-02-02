@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 
 # Clear security config cache before importing main
 from omen.infrastructure.security.config import get_security_config
+
 get_security_config.cache_clear()
 
 from omen.main import create_app

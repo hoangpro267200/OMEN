@@ -91,9 +91,7 @@ def test_generate_deterministic_trace_id_no_timestamp_pattern():
     assert "2025" not in t
 
 
-def test_trace_id_is_deterministic_when_fallback_used(
-    raw_event_a, minimal_enrichment
-):
+def test_trace_id_is_deterministic_when_fallback_used(raw_event_a, minimal_enrichment):
     """Same input must produce same trace_id when using deterministic fallback."""
     ruleset = "2.0.0"
     mock_v = MagicMock()
@@ -112,11 +110,10 @@ def test_trace_id_is_deterministic_when_fallback_used(
     assert len(signal1.trace_id) == 16
 
 
-def test_trace_id_changes_with_input(
-    raw_event_a, raw_event_b, minimal_enrichment
-):
+def test_trace_id_changes_with_input(raw_event_a, raw_event_b, minimal_enrichment):
     """Different event (different event_id/hash) must produce different trace_id."""
     ruleset = "1.0.0"
+
     def make_mock(event):
         m = MagicMock()
         m.original_event = event
@@ -129,23 +126,15 @@ def test_trace_id_changes_with_input(
         m.validated_at = datetime(2025, 1, 1, 12, 0, 0)
         return m
 
-    signal1 = OmenSignal.from_validated_event(
-        make_mock(raw_event_a), minimal_enrichment
-    )
-    signal2 = OmenSignal.from_validated_event(
-        make_mock(raw_event_b), minimal_enrichment
-    )
+    signal1 = OmenSignal.from_validated_event(make_mock(raw_event_a), minimal_enrichment)
+    signal2 = OmenSignal.from_validated_event(make_mock(raw_event_b), minimal_enrichment)
     assert signal1.trace_id != signal2.trace_id
 
 
-def test_trace_id_uses_validated_if_present(
-    validated_red_sea_signal, minimal_enrichment
-):
+def test_trace_id_uses_validated_if_present(validated_red_sea_signal, minimal_enrichment):
     """If validated_signal has deterministic_trace_id, use it."""
     expected = validated_red_sea_signal.deterministic_trace_id
-    signal = OmenSignal.from_validated_event(
-        validated_red_sea_signal, minimal_enrichment
-    )
+    signal = OmenSignal.from_validated_event(validated_red_sea_signal, minimal_enrichment)
     assert signal.trace_id == expected
 
 

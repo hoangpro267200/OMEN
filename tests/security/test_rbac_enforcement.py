@@ -25,7 +25,7 @@ def mock_security_config():
     ]
     mock_config.cors_enabled = False
     mock_config.rate_limit_enabled = False
-    
+
     with patch(
         "omen.infrastructure.security.config.get_security_config",
         return_value=mock_config,
@@ -44,7 +44,7 @@ def mock_api_key_manager():
     from datetime import datetime, timezone
     from omen.infrastructure.security.api_key_manager import ApiKeyRecord
     from omen.infrastructure.security.rbac import Scopes
-    
+
     def make_key_record(key_id: str, name: str, scopes: list, raw_key: str) -> ApiKeyRecord:
         """Create a properly formed ApiKeyRecord."""
         return ApiKeyRecord(
@@ -55,7 +55,7 @@ def mock_api_key_manager():
             scopes=scopes,
             created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         )
-    
+
     # Define test keys with different scopes
     test_keys = {
         "test-read-key": make_key_record(
@@ -83,10 +83,10 @@ def mock_api_key_manager():
             "test-partners-key",
         ),
     }
-    
+
     mock_manager = MagicMock()
     mock_manager.verify_key.side_effect = lambda key: test_keys.get(key)
-    
+
     with patch(
         "omen.infrastructure.security.rbac.get_api_key_manager",
         return_value=mock_manager,
@@ -98,17 +98,18 @@ def mock_api_key_manager():
 def client(mock_security_config, mock_api_key_manager):
     """Create test client with mocked security."""
     from omen.main import app
+
     return TestClient(app)
 
 
 class TestRBACEnforcement:
     """Test that RBAC is properly enforced."""
-    
+
     def test_signals_requires_auth(self, client):
         """Signals endpoint requires authentication."""
         response = client.get("/api/v1/signals/")
         assert response.status_code == 401
-    
+
     def test_read_key_can_list_signals(self, client):
         """Read-only key can list signals."""
         response = client.get(
@@ -121,7 +122,7 @@ class TestRBACEnforcement:
         if response.status_code == 401:
             pytest.skip("API key mocking not working in test environment")
         assert response.status_code in [200, 403]
-    
+
     def test_read_key_cannot_process(self, client):
         """Read-only key CANNOT process signals."""
         response = client.post(
@@ -134,7 +135,7 @@ class TestRBACEnforcement:
             pytest.skip("API key mocking not working in test environment")
         assert response.status_code == 403
         assert "INSUFFICIENT_PERMISSIONS" in str(response.json())
-    
+
     def test_write_key_can_process(self, client):
         """Write key can process signals."""
         response = client.post(
@@ -143,7 +144,7 @@ class TestRBACEnforcement:
         )
         # Should NOT be 403 (might be other errors like source unavailable)
         assert response.status_code != 403 or "INSUFFICIENT_PERMISSIONS" not in str(response.json())
-    
+
     def test_admin_can_access_everything(self, client):
         """Admin key can access all endpoints."""
         endpoints = [
@@ -151,16 +152,16 @@ class TestRBACEnforcement:
             ("GET", "/api/v1/stats"),
             ("GET", "/api/v1/methodology"),
         ]
-        
+
         for method, path in endpoints:
             if method == "GET":
                 response = client.get(path, headers={"X-API-Key": "test-admin-key"})
             else:
                 response = client.post(path, headers={"X-API-Key": "test-admin-key"})
-            
+
             # Admin should never get 403
             assert response.status_code != 403, f"Admin got 403 for {method} {path}"
-    
+
     def test_partner_signals_requires_read_partners(self, client):
         """Partner signals require read:partners scope."""
         # Key without read:partners scope
@@ -172,7 +173,7 @@ class TestRBACEnforcement:
         if response.status_code == 401:
             pytest.skip("API key mocking not working in test environment")
         assert response.status_code == 403
-        
+
         # Key with read:partners scope
         response = client.get(
             "/api/v1/partner-signals/",
@@ -184,22 +185,22 @@ class TestRBACEnforcement:
 
 class TestPublicEndpoints:
     """Test that public endpoints don't require auth."""
-    
+
     def test_health_is_public(self, client):
         """Health check is public."""
         response = client.get("/health")
         assert response.status_code == 200
-    
+
     def test_root_is_public(self, client):
         """Root endpoint is public."""
         response = client.get("/")
         assert response.status_code == 200
-    
+
     def test_docs_is_public(self, client):
         """Docs endpoint is public."""
         response = client.get("/docs")
         assert response.status_code == 200
-    
+
     def test_metrics_is_public(self, client):
         """Metrics endpoint is public."""
         response = client.get("/metrics")
@@ -209,14 +210,14 @@ class TestPublicEndpoints:
 
 class TestErrorResponses:
     """Test that auth errors have proper format."""
-    
+
     def test_missing_api_key_error_format(self, client):
         """Missing API key returns proper error format."""
         response = client.get("/api/v1/signals/")
         assert response.status_code == 401
         data = response.json()
         assert "error" in data or "detail" in data
-    
+
     def test_insufficient_scopes_error_format(self, client):
         """Insufficient scopes returns detailed error."""
         response = client.post(

@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .omen_signal import OmenSignal
 
-
 SCHEMA_VERSION = "1.0.0"
 
 
@@ -33,7 +32,7 @@ class SignalEvent(BaseModel):
     Immutability: Once created, a SignalEvent MUST NOT be modified.
     Updates = new SignalEvent with new signal_id.
     """
-    
+
     model_config = ConfigDict(frozen=True)
 
     # === SCHEMA VERSION ===
@@ -148,7 +147,7 @@ class LedgerRecord(BaseModel):
     Format for JSONL storage:
     {"checksum":"crc32:...","length":1234,"signal":{...}}
     """
-    
+
     model_config = ConfigDict(frozen=True)
 
     checksum: str = Field(

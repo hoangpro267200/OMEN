@@ -18,9 +18,9 @@ def calculate_zscore(value: float, mean: float, std: float) -> float:
     """Calculate z-score, bounded to avoid infinity."""
     if std == 0 or std < 1e-10:
         return 0.0
-    
+
     zscore = (value - mean) / std
-    
+
     # Bound to avoid JSON issues
     return max(-10.0, min(10.0, zscore))
 
@@ -33,7 +33,7 @@ def classify_severity(
     """Classify spike severity."""
     abs_change = abs(change_pct)
     abs_zscore = abs(zscore)
-    
+
     # Use both percentage change and z-score
     if abs_change >= threshold_pct * 3 or abs_zscore >= 4.0:
         return "extreme"
@@ -47,10 +47,10 @@ def classify_severity(
 
 class SpikeDetector:
     """Detects significant price movements."""
-    
+
     def __init__(self, config: StockConfig):
         self.config = config
-    
+
     def detect_from_quote(
         self,
         quote: StockQuote,
@@ -59,18 +59,18 @@ class SpikeDetector:
         """Detect spike from a single quote (vs previous close)."""
         if quote.previous_close == 0:
             return None
-        
+
         change_pct = quote.change_pct
         threshold = item.spike_threshold_pct
-        
+
         # Only detect if above threshold
         if abs(change_pct) < threshold:
             return None
-        
+
         # Simple z-score approximation (assumes ~1% daily std for most assets)
         estimated_std_pct = threshold / 2  # Conservative estimate
         zscore = calculate_zscore(change_pct, 0, estimated_std_pct)
-        
+
         return StockSpike(
             symbol=quote.symbol,
             name=quote.name,
@@ -87,7 +87,7 @@ class SpikeDetector:
             lookback_days=1,
             impact_hint=item.impact_hint,
         )
-    
+
     def detect_from_series(
         self,
         series: StockTimeSeries,
@@ -96,27 +96,27 @@ class SpikeDetector:
         """Detect spike from historical series."""
         if not series.prices or len(series.prices) < self.config.lookback_days // 2:
             return None
-        
+
         current_price = series.latest_price
         if current_price is None:
             return None
-        
+
         mean_price = series.mean_price
         std_price = series.std_price
-        
+
         if mean_price == 0:
             return None
-        
+
         # Calculate change from mean
         change_pct = ((current_price - mean_price) / mean_price) * 100
         zscore = calculate_zscore(current_price, mean_price, std_price)
-        
+
         threshold = item.spike_threshold_pct
-        
+
         # Only detect if significant
         if abs(change_pct) < threshold and abs(zscore) < self.config.zscore_threshold:
             return None
-        
+
         return StockSpike(
             symbol=series.symbol,
             name=series.name,

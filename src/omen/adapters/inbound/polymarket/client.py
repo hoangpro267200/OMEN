@@ -59,6 +59,7 @@ class PolymarketClient:
                 timeout=self._timeout,
                 trust_env=self._trust_env,
             ) as client:
+
                 def do_request() -> httpx.Response:
                     return client.get("/markets", params={"limit": limit})
 

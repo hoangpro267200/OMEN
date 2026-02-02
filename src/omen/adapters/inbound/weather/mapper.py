@@ -31,7 +31,7 @@ class WeatherMapper:
 
         # Calculate probability based on category and confidence
         category_score = min(storm.category / 5.0, 1.0)
-        probability = (category_score * 0.7 + storm.path_confidence * 0.3)
+        probability = category_score * 0.7 + storm.path_confidence * 0.3
         probability = max(0.0, min(1.0, probability))
 
         # Storm type name
@@ -63,7 +63,9 @@ class WeatherMapper:
             description += f"Potentially affected ports: {', '.join(storm.affected_ports)}. "
 
         if storm.estimated_vessels_at_risk > 0:
-            description += f"Estimated {storm.estimated_vessels_at_risk} vessels may need to re-route. "
+            description += (
+                f"Estimated {storm.estimated_vessels_at_risk} vessels may need to re-route. "
+            )
 
         description += f"Forecast confidence: {storm.path_confidence:.0%}."
 

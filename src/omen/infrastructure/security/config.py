@@ -13,7 +13,6 @@ from functools import lru_cache
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
-
 # Environment detection
 OMEN_ENV = os.getenv("OMEN_ENV", "development")
 IS_PRODUCTION = OMEN_ENV == "production"
@@ -28,7 +27,7 @@ class SecurityConfig(BaseSettings):
         default="",
         description="Valid API keys (comma-separated in env)",
     )
-    
+
     def get_api_keys(self) -> list[str]:
         """Parse comma-separated API keys from env."""
         if not self.api_keys:
@@ -43,7 +42,7 @@ class SecurityConfig(BaseSettings):
     )
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 24
-    
+
     @field_validator("jwt_secret", mode="after")
     @classmethod
     def validate_jwt_secret_in_production(cls, v: SecretStr) -> SecretStr:
@@ -73,7 +72,7 @@ class SecurityConfig(BaseSettings):
         description="CORS origins (comma-separated in env)",
     )
     cors_allow_credentials: bool = False
-    
+
     def get_cors_origins(self) -> list[str]:
         """Parse comma-separated CORS origins from env."""
         if not self.cors_origins:
@@ -90,7 +89,7 @@ class SecurityConfig(BaseSettings):
         default="_source_assessment,raw_payload",
         description="Fields to redact (comma-separated in env)",
     )
-    
+
     def get_redacted_fields(self) -> list[str]:
         """Parse comma-separated redacted fields from env."""
         if not self.redacted_fields:

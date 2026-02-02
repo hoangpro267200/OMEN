@@ -26,7 +26,6 @@ from omen.domain.errors import (
     SourceUnavailableError,
 )
 
-
 logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
@@ -169,14 +168,10 @@ class CircuitBreaker:
 
             if self._state == CircuitState.HALF_OPEN:
                 self._state = CircuitState.OPEN
-                logger.warning(
-                    f"Circuit {self.name} re-opened after failure in half-open state"
-                )
+                logger.warning(f"Circuit {self.name} re-opened after failure in half-open state")
             elif self._failure_count >= self.failure_threshold:
                 self._state = CircuitState.OPEN
-                logger.warning(
-                    f"Circuit {self.name} opened after {self._failure_count} failures"
-                )
+                logger.warning(f"Circuit {self.name} opened after {self._failure_count} failures")
 
     def is_available(self) -> bool:
         return self.state != CircuitState.OPEN

@@ -139,22 +139,25 @@ class SignalStore:
 
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("PRAGMA busy_timeout=10000")
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO processed_signals
                 (signal_id, trace_id, source_event_id, ack_id,
                  processed_at, emitted_at, partition_date, source, signal_data)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                signal_id,
-                trace_id,
-                source_event_id,
-                ack_id,
-                processed_at.isoformat(),
-                emitted_at.isoformat(),
-                partition_date,
-                source,
-                json.dumps(signal_data),
-            ))
+            """,
+                (
+                    signal_id,
+                    trace_id,
+                    source_event_id,
+                    ack_id,
+                    processed_at.isoformat(),
+                    emitted_at.isoformat(),
+                    partition_date,
+                    source,
+                    json.dumps(signal_data),
+                ),
+            )
             await db.commit()
 
         return ack_id
@@ -176,12 +179,15 @@ class SignalStore:
         await self._ensure_initialized()
 
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("""
+            async with db.execute(
+                """
                 SELECT source, COUNT(*)
                 FROM processed_signals
                 WHERE partition_date = ?
                 GROUP BY source
-            """, (partition_date,)) as cursor:
+            """,
+                (partition_date,),
+            ) as cursor:
                 rows = await cursor.fetchall()
                 return {row[0]: row[1] for row in rows}
 
@@ -206,6 +212,7 @@ def get_store() -> SignalStore:
     global _store
     if _store is None:
         import os
+
         path = os.environ.get("RISKCAST_DB_PATH", "/var/lib/riskcast/signals.db")
         _store = SignalStore(path)
     return _store

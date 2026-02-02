@@ -131,8 +131,10 @@ async def test_duplicate_when_riskcast_returns_409(tmp_path: Path):
 async def test_ledger_write_failure_returns_failed(tmp_path: Path):
     """If ledger write fails -> FAILED, no hot path attempt."""
     ledger = LedgerWriter(tmp_path)
+
     def failing_write(event: SignalEvent) -> SignalEvent:
         from omen.infrastructure.ledger import LedgerWriteError
+
         raise LedgerWriteError("simulated failure")
 
     ledger.write = failing_write

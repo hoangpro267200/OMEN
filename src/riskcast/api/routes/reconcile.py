@@ -88,6 +88,7 @@ async def run_reconcile(
             ],
         )
     else:
+
         async def run_full_reconcile() -> None:
             await job.run(since_days=request.since_days)
 
@@ -122,9 +123,7 @@ async def get_partition_status(
 
     return PartitionStatusResponse(
         partition_date=partition_date,
-        last_reconcile_at=(
-            state.last_reconcile_at.isoformat() if state else None
-        ),
+        last_reconcile_at=(state.last_reconcile_at.isoformat() if state else None),
         ledger_highwater=state.ledger_highwater if state else 0,
         current_highwater=current_highwater,
         needs_reconcile=needs_reconcile,

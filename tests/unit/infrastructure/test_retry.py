@@ -14,6 +14,7 @@ def test_source_retry_returns_when_no_exception():
     @with_source_retry(max_attempts=3)
     def ok():
         return "ok"
+
     assert ok() == "ok"
 
 
@@ -41,6 +42,7 @@ def test_source_retry_succeeds_on_second_attempt():
         if calls < 2:
             raise SourceUnavailableError("down")
         return "ok"
+
     assert flaky() == "ok"
     assert calls == 2
 
@@ -60,4 +62,5 @@ def test_publish_retry_returns_when_success():
     @with_publish_retry(max_attempts=3)
     def ok():
         return True
+
     assert ok() is True

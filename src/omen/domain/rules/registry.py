@@ -45,7 +45,7 @@ class RuleParameter:
 class RuleConfig:
     """
     Configuration for a single rule.
-    
+
     Immutable to ensure rule configurations don't change after creation.
     """
 
@@ -55,10 +55,10 @@ class RuleConfig:
 
     def __init__(self, rule_name: str, rule_version: str, parameters: dict[str, RuleParameter]):
         """Create immutable RuleConfig from mutable dict."""
-        object.__setattr__(self, 'rule_name', rule_name)
-        object.__setattr__(self, 'rule_version', rule_version)
+        object.__setattr__(self, "rule_name", rule_name)
+        object.__setattr__(self, "rule_version", rule_version)
         # Convert dict to immutable tuple of tuples
-        object.__setattr__(self, 'parameters', tuple(parameters.items()))
+        object.__setattr__(self, "parameters", tuple(parameters.items()))
 
     def _get_params_dict(self) -> dict[str, RuleParameter]:
         """Get parameters as dict (for internal use)."""

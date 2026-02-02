@@ -184,7 +184,9 @@ class PipelineMetricsCollector:
             health.avg_latency_ms = alpha * latency_ms + (1 - alpha) * health.avg_latency_ms
             health.error_rate = alpha * (1.0 if error else 0.0) + (1 - alpha) * health.error_rate
             if events_fetched > 0 and not error:
-                health.events_per_minute = alpha * (events_fetched * 60.0) + (1 - alpha) * health.events_per_minute
+                health.events_per_minute = (
+                    alpha * (events_fetched * 60.0) + (1 - alpha) * health.events_per_minute
+                )
 
     def get_stats(self) -> dict[str, Any]:
         """Get current system statistics from actual batches."""
@@ -258,7 +260,9 @@ class PipelineMetricsCollector:
                 "events_per_minute": round(h.events_per_minute, 1),
                 "avg_latency_ms": round(h.avg_latency_ms, 1),
                 "error_rate": round(h.error_rate, 3),
-                "last_success": h.last_successful_fetch.isoformat() if h.last_successful_fetch else None,
+                "last_success": (
+                    h.last_successful_fetch.isoformat() if h.last_successful_fetch else None
+                ),
             }
             for name, h in self._source_health.items()
         }

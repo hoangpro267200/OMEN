@@ -90,9 +90,7 @@ def high_quality_event() -> RawSignalEvent:
         ),
         keywords=["red sea", "shipping", "houthi", "suez"],
         inferred_locations=[
-            GeoLocation(
-                latitude=15.5, longitude=42.5, name="Red Sea", region_code="YE"
-            )
+            GeoLocation(latitude=15.5, longitude=42.5, name="Red Sea", region_code="YE")
         ],
         market=MarketMetadata(
             source="test",
@@ -129,14 +127,10 @@ def red_sea_event() -> RawSignalEvent:
         title="Red Sea shipping disruption due to Houthi attacks",
         description="Will commercial shipping through the Red Sea be significantly disrupted?",
         probability=0.75,
-        movement=ProbabilityMovement(
-            current=0.75, previous=0.60, delta=0.15, window_hours=24
-        ),
+        movement=ProbabilityMovement(current=0.75, previous=0.60, delta=0.15, window_hours=24),
         keywords=["red sea", "shipping", "houthi", "yemen", "suez"],
         inferred_locations=[
-            GeoLocation(
-                latitude=15.5, longitude=42.5, name="Red Sea", region_code="YE"
-            )
+            GeoLocation(latitude=15.5, longitude=42.5, name="Red Sea", region_code="YE")
         ],
         market=MarketMetadata(
             source="stub",
@@ -194,11 +188,7 @@ def validated_red_sea_signal(
         input_summary={"current_liquidity_usd": 75000.0},
         output_summary={"status": "PASSED", "score": 0.9},
     )
-    chain = (
-        ExplanationChain.create(processing_context)
-        .add_step(step)
-        .finalize(processing_context)
-    )
+    chain = ExplanationChain.create(processing_context).add_step(step).finalize(processing_context)
     return ValidatedSignal(
         event_id=high_quality_event.event_id,
         original_event=high_quality_event,
@@ -265,9 +255,7 @@ def pipeline_with_dlq():
     """Pipeline with DLQ for testing error handling."""
     dlq = DeadLetterQueue()
     pipeline = OmenPipeline(
-        validator=SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
-        ),
+        validator=SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]),
         enricher=SignalEnricher(),
         repository=InMemorySignalRepository(),
         publisher=None,
@@ -287,9 +275,7 @@ def dry_run_pipeline():
     repo = MagicMock()
     pub = MagicMock()
     return OmenPipeline(
-        validator=SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
-        ),
+        validator=SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]),
         enricher=SignalEnricher(),
         repository=repo,
         publisher=pub,
@@ -305,9 +291,7 @@ def dry_run_pipeline():
 def async_pipeline() -> AsyncOmenPipeline:
     """Async pipeline for behavior testing."""
     return AsyncOmenPipeline(
-        validator=SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
-        ),
+        validator=SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]),
         enricher=SignalEnricher(),
         repository=AsyncInMemorySignalRepository(),
         publisher=None,
@@ -322,6 +306,7 @@ def async_pipeline() -> AsyncOmenPipeline:
 # ═══════════════════════════════════════════════════════════════════════════════
 # API AUTHENTICATION FIXTURES
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def api_key() -> str:
@@ -351,10 +336,12 @@ def api_headers(api_key: str) -> dict[str, str]:
 # SHUTDOWN STATE FIXTURES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture(autouse=True)
 def clear_shutdown_state():
     """Ensure shutdown state is cleared before and after each test."""
     from omen.infrastructure.middleware.request_tracking import clear_shutdown
+
     clear_shutdown()
     yield
     clear_shutdown()
@@ -364,8 +351,10 @@ def clear_shutdown_state():
 # ASYNC TEST SUPPORT
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture(scope="session")
 def event_loop_policy():
     """Use the default event loop policy for async tests."""
     import asyncio
+
     return asyncio.DefaultEventLoopPolicy()

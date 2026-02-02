@@ -89,13 +89,32 @@ class StructuredJsonFormatter(logging.Formatter):
     }
     """
 
-    RESERVED_ATTRS = frozenset({
-        "name", "msg", "args", "created", "filename", "funcName",
-        "levelname", "levelno", "lineno", "module", "msecs",
-        "pathname", "process", "processName", "relativeCreated",
-        "stack_info", "exc_info", "exc_text", "thread", "threadName",
-        "message", "taskName",
-    })
+    RESERVED_ATTRS = frozenset(
+        {
+            "name",
+            "msg",
+            "args",
+            "created",
+            "filename",
+            "funcName",
+            "levelname",
+            "levelno",
+            "lineno",
+            "module",
+            "msecs",
+            "pathname",
+            "process",
+            "processName",
+            "relativeCreated",
+            "stack_info",
+            "exc_info",
+            "exc_text",
+            "thread",
+            "threadName",
+            "message",
+            "taskName",
+        }
+    )
 
     def format(self, record: logging.LogRecord) -> str:
         log_data: dict[str, Any] = {

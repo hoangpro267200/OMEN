@@ -27,6 +27,7 @@ class UncertaintyBounds:
 
     Represents the range of plausible values given model uncertainty.
     """
+
     lower: float  # 10th percentile estimate
     upper: float  # 90th percentile estimate
     confidence_interval: float = 0.8  # Default 80% CI
@@ -50,6 +51,7 @@ class ImpactMetric(BaseModel):
     Every metric includes point estimate, optional uncertainty bounds,
     confidence, evidence basis, and methodology provenance.
     """
+
     name: str = Field(..., description="Metric identifier")
     value: float = Field(..., description="Point estimate")
     unit: str = Field(..., description="Unit of measurement")
@@ -106,26 +108,28 @@ class ImpactMetric(BaseModel):
 
     def scale_by_probability(self, probability: float) -> "ImpactMetric":
         """Create new metric scaled by probability."""
-        scaled_value = self.value * (probability ** self.sensitivity_to_probability)
+        scaled_value = self.value * (probability**self.sensitivity_to_probability)
 
         scaled_uncertainty = None
         if self.uncertainty:
             scaled_uncertainty = UncertaintyBounds(
                 lower=round(
-                    self.uncertainty.lower * (probability ** self.sensitivity_to_probability),
+                    self.uncertainty.lower * (probability**self.sensitivity_to_probability),
                     2,
                 ),
                 upper=round(
-                    self.uncertainty.upper * (probability ** self.sensitivity_to_probability),
+                    self.uncertainty.upper * (probability**self.sensitivity_to_probability),
                     2,
                 ),
                 confidence_interval=self.uncertainty.confidence_interval,
             )
 
-        return self.model_copy(update={
-            "value": scaled_value,
-            "uncertainty": scaled_uncertainty,
-        })
+        return self.model_copy(
+            update={
+                "value": scaled_value,
+                "uncertainty": scaled_uncertainty,
+            }
+        )
 
     model_config = {"frozen": True}
 
@@ -179,6 +183,7 @@ def create_cost_increase_metric(
 
 class AffectedRoute(BaseModel):
     """A logistics route affected by the signal."""
+
     route_id: str
     route_name: str = Field(..., description="Human-readable route name")
     origin_region: str
@@ -193,6 +198,7 @@ class AffectedRoute(BaseModel):
 
 class AffectedSystem(BaseModel):
     """A system or infrastructure affected by the signal."""
+
     system_id: str
     system_name: str
     system_type: str = Field(..., description="e.g., 'PORT', 'CANAL', 'TERMINAL'")
@@ -209,6 +215,7 @@ class ImpactAssessment(BaseModel):
     This is where belief becomes consequence. Every assessment
     must be deterministic, explainable, and reproducible.
     """
+
     event_id: EventId
     source_signal: ValidatedSignal
 
@@ -220,39 +227,24 @@ class ImpactAssessment(BaseModel):
     affected_systems: list[AffectedSystem] = Field(default_factory=list)
 
     overall_severity: float = Field(
-        ...,
-        ge=0,
-        le=1,
-        description="0 = negligible, 1 = very high (maximum)"
+        ..., ge=0, le=1, description="0 = negligible, 1 = very high (maximum)"
     )
     severity_label: str = Field(..., description="Human-readable severity")
 
-    expected_onset_hours: int | None = Field(
-        None,
-        description="Hours until impact begins"
-    )
-    expected_duration_hours: int | None = Field(
-        None,
-        description="Expected duration of impact"
-    )
+    expected_onset_hours: int | None = Field(None, description="Hours until impact begins")
+    expected_duration_hours: int | None = Field(None, description="Expected duration of impact")
 
     explanation_steps: list[ExplanationStep] = Field(
-        ...,
-        min_length=1,
-        description="Machine-readable reasoning chain. MUST NOT BE EMPTY."
+        ..., min_length=1, description="Machine-readable reasoning chain. MUST NOT BE EMPTY."
     )
     explanation_chain: ExplanationChain
 
     impact_summary: str = Field(
-        ...,
-        min_length=10,
-        max_length=1000,
-        description="Plain English summary of the impact"
+        ..., min_length=10, max_length=1000, description="Plain English summary of the impact"
     )
 
     assumptions: list[str] = Field(
-        default_factory=list,
-        description="Explicit assumptions used in translation"
+        default_factory=list, description="Explicit assumptions used in translation"
     )
 
     ruleset_version: RulesetVersion
@@ -280,7 +272,7 @@ class ImpactAssessment(BaseModel):
             self.source_signal.deterministic_trace_id,
             self.ruleset_version,
             self.domain.value,
-            "impact"
+            "impact",
         )
 
     @computed_field

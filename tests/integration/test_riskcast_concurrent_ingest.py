@@ -96,7 +96,11 @@ async def test_concurrent_ingest_dedupe(tmp_path: Path):
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
     dup = [r for r in results if not isinstance(r, Exception) and r.status_code == 409]
-    err = [r for r in results if isinstance(r, Exception) or (getattr(r, "status_code", None) not in (200, 409))]
+    err = [
+        r
+        for r in results
+        if isinstance(r, Exception) or (getattr(r, "status_code", None) not in (200, 409))
+    ]
 
     assert len(dup) == 19, f"Expected 19x 409, got {len(dup)}; err={err}"
     assert len(err) == 0, f"Unexpected responses: {err}"

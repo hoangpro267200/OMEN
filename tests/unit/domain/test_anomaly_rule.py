@@ -19,8 +19,10 @@ def normal_event() -> RawSignalEvent:
         probability=0.5,
         keywords=["red sea"],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=100000.0, current_liquidity_usd=50000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=100000.0,
+            current_liquidity_usd=50000.0,
             num_traders=500,
         ),
     )
@@ -35,8 +37,10 @@ def extreme_probability_event() -> RawSignalEvent:
         probability=0.99,
         keywords=["test"],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
             num_traders=100,
         ),
     )
@@ -58,27 +62,29 @@ def test_rejects_when_extreme_probability(extreme_probability_event):
     # anomaly (e.g. huge move) to push risk over 0.5.
     from omen.domain.models.common import ProbabilityMovement
 
-    rule = AnomalyDetectionRule(
-        config=AnomalyConfig(max_probability=0.90, min_probability=0.05)
-    )
+    rule = AnomalyDetectionRule(config=AnomalyConfig(max_probability=0.90, min_probability=0.05))
     event = RawSignalEvent(
         event_id=EventId("anom-extreme2"),
         title="Test",
         probability=0.99,
-        movement=ProbabilityMovement(
-            current=0.99, previous=0.3, delta=0.69, window_hours=24
-        ),
+        movement=ProbabilityMovement(current=0.99, previous=0.3, delta=0.69, window_hours=24),
         keywords=["test"],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
             num_traders=100,
         ),
     )
     result = rule.apply(event)
     assert result.status == ValidationStatus.REJECTED_MANIPULATION_SUSPECTED
     assert result.score < 1.0
-    assert "Probability too high" in result.reason or "Unusual probability" in result.reason or "99" in result.reason
+    assert (
+        "Probability too high" in result.reason
+        or "Unusual probability" in result.reason
+        or "99" in result.reason
+    )
 
 
 def test_rejects_when_huge_probability_move():
@@ -96,13 +102,13 @@ def test_rejects_when_huge_probability_move():
         event_id=EventId("anom-move"),
         title="Test",
         probability=0.99,
-        movement=ProbabilityMovement(
-            current=0.99, previous=0.35, delta=0.64, window_hours=24
-        ),
+        movement=ProbabilityMovement(current=0.99, previous=0.35, delta=0.64, window_hours=24),
         keywords=[],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
     result = rule.apply(event)
@@ -126,21 +132,25 @@ def test_rejects_when_few_traders_high_volume():
         probability=0.98,
         keywords=[],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=500000.0, current_liquidity_usd=100000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=500000.0,
+            current_liquidity_usd=100000.0,
             num_traders=3,
         ),
     )
     result = rule.apply(event)
     assert result.status == ValidationStatus.REJECTED_MANIPULATION_SUSPECTED
-    assert "traders" in result.reason.lower() or "volume" in result.reason.lower() or "Probability" in result.reason
+    assert (
+        "traders" in result.reason.lower()
+        or "volume" in result.reason.lower()
+        or "Probability" in result.reason
+    )
 
 
 def test_minor_anomalies_still_pass():
     """Single minor anomaly can still result in PASS with reduced score."""
-    rule = AnomalyDetectionRule(
-        config=AnomalyConfig(max_probability=0.98)  # 0.99 now passes
-    )
+    rule = AnomalyDetectionRule(config=AnomalyConfig(max_probability=0.98))  # 0.99 now passes
     # Probability 0.99 with max 0.98 → anomaly
     event = RawSignalEvent(
         event_id=EventId("anom-minor"),
@@ -148,8 +158,10 @@ def test_minor_anomalies_still_pass():
         probability=0.99,
         keywords=[],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
             num_traders=100,
         ),
     )

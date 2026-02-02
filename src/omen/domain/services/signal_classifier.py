@@ -19,81 +19,111 @@ from typing import Optional
 from ..models.enums import SignalType, ImpactDirection, AffectedDomain
 from ..models.impact_hints import ImpactHints
 
-
 # === PATTERN DEFINITIONS ===
 
 SIGNAL_TYPE_PATTERNS: dict[SignalType, list[str]] = {
     SignalType.GEOPOLITICAL_CONFLICT: [
-        "attack", "military", "war", "conflict", "missile",
-        "drone", "strike", "combat", "houthi", "invasion"
+        "attack",
+        "military",
+        "war",
+        "conflict",
+        "missile",
+        "drone",
+        "strike",
+        "combat",
+        "houthi",
+        "invasion",
     ],
-    SignalType.GEOPOLITICAL_SANCTIONS: [
-        "sanction", "embargo", "tariff", "ban", "restriction"
-    ],
+    SignalType.GEOPOLITICAL_SANCTIONS: ["sanction", "embargo", "tariff", "ban", "restriction"],
     SignalType.SHIPPING_ROUTE_RISK: [
-        "shipping", "route", "vessel", "maritime", "sea",
-        "port", "canal", "strait", "red sea", "suez", "chokepoint"
+        "shipping",
+        "route",
+        "vessel",
+        "maritime",
+        "sea",
+        "port",
+        "canal",
+        "strait",
+        "red sea",
+        "suez",
+        "chokepoint",
     ],
-    SignalType.PORT_OPERATIONS: [
-        "port", "terminal", "dock", "congestion", "berth"
-    ],
-    SignalType.ENERGY_SUPPLY: [
-        "oil", "gas", "energy", "fuel", "petroleum", "pipeline"
-    ],
-    SignalType.LABOR_DISRUPTION: [
-        "strike", "labor", "union", "walkout", "worker"
-    ],
-    SignalType.CLIMATE_EVENT: [
-        "hurricane", "typhoon", "flood", "drought", "storm", "weather"
-    ],
-    SignalType.SUPPLY_CHAIN_DISRUPTION: [
-        "supply chain", "disruption", "shortage", "bottleneck"
-    ],
-    SignalType.REGULATORY_CHANGE: [
-        "regulation", "policy", "law", "compliance", "legislation"
-    ],
+    SignalType.PORT_OPERATIONS: ["port", "terminal", "dock", "congestion", "berth"],
+    SignalType.ENERGY_SUPPLY: ["oil", "gas", "energy", "fuel", "petroleum", "pipeline"],
+    SignalType.LABOR_DISRUPTION: ["strike", "labor", "union", "walkout", "worker"],
+    SignalType.CLIMATE_EVENT: ["hurricane", "typhoon", "flood", "drought", "storm", "weather"],
+    SignalType.SUPPLY_CHAIN_DISRUPTION: ["supply chain", "disruption", "shortage", "bottleneck"],
+    SignalType.REGULATORY_CHANGE: ["regulation", "policy", "law", "compliance", "legislation"],
 }
 
 NEGATIVE_KEYWORDS = [
     # Existing negative operational terms
-    "disrupt", "attack", "block", "close", "delay", "halt",
-    "suspend", "cancel", "crisis", "threat", "risk", "shortage",
+    "disrupt",
+    "attack",
+    "block",
+    "close",
+    "delay",
+    "halt",
+    "suspend",
+    "cancel",
+    "crisis",
+    "threat",
+    "risk",
+    "shortage",
     # Conflict / military terms are ALWAYS negative in OMEN's semantics
-    "conflict", "clash", "military", "war", "invasion", "strike",
-    "missile", "bomb", "combat", "battle", "tension", "escalation",
-    "hostility", "aggression",
+    "conflict",
+    "clash",
+    "military",
+    "war",
+    "invasion",
+    "strike",
+    "missile",
+    "bomb",
+    "combat",
+    "battle",
+    "tension",
+    "escalation",
+    "hostility",
+    "aggression",
 ]
 
 # NOTE: "resolution" is intentionally excluded – it often appears in
 # market metadata (resolution_date) and is semantically ambiguous.
 POSITIVE_KEYWORDS = [
-    "reopen", "resume", "recover", "improve", "stabilize",
-    "agreement", "peace", "ceasefire", "de-escalation",
-    "treaty", "deal", "cooperation",
+    "reopen",
+    "resume",
+    "recover",
+    "improve",
+    "stabilize",
+    "agreement",
+    "peace",
+    "ceasefire",
+    "de-escalation",
+    "treaty",
+    "deal",
+    "cooperation",
 ]
 
 DOMAIN_MAPPING: dict[SignalType, list[AffectedDomain]] = {
     SignalType.GEOPOLITICAL_CONFLICT: [
-        AffectedDomain.LOGISTICS, AffectedDomain.SHIPPING, AffectedDomain.ENERGY
+        AffectedDomain.LOGISTICS,
+        AffectedDomain.SHIPPING,
+        AffectedDomain.ENERGY,
     ],
     SignalType.SHIPPING_ROUTE_RISK: [
-        AffectedDomain.LOGISTICS, AffectedDomain.SHIPPING, AffectedDomain.ENERGY
+        AffectedDomain.LOGISTICS,
+        AffectedDomain.SHIPPING,
+        AffectedDomain.ENERGY,
     ],
-    SignalType.PORT_OPERATIONS: [
-        AffectedDomain.LOGISTICS, AffectedDomain.SHIPPING
-    ],
-    SignalType.ENERGY_SUPPLY: [
-        AffectedDomain.ENERGY, AffectedDomain.LOGISTICS
-    ],
-    SignalType.LABOR_DISRUPTION: [
-        AffectedDomain.LOGISTICS, AffectedDomain.MANUFACTURING
-    ],
+    SignalType.PORT_OPERATIONS: [AffectedDomain.LOGISTICS, AffectedDomain.SHIPPING],
+    SignalType.ENERGY_SUPPLY: [AffectedDomain.ENERGY, AffectedDomain.LOGISTICS],
+    SignalType.LABOR_DISRUPTION: [AffectedDomain.LOGISTICS, AffectedDomain.MANUFACTURING],
     SignalType.CLIMATE_EVENT: [
-        AffectedDomain.LOGISTICS, AffectedDomain.AGRICULTURE, AffectedDomain.INFRASTRUCTURE
+        AffectedDomain.LOGISTICS,
+        AffectedDomain.AGRICULTURE,
+        AffectedDomain.INFRASTRUCTURE,
     ],
-    SignalType.SUPPLY_CHAIN_DISRUPTION: [
-        AffectedDomain.LOGISTICS, AffectedDomain.MANUFACTURING
-    ],
+    SignalType.SUPPLY_CHAIN_DISRUPTION: [AffectedDomain.LOGISTICS, AffectedDomain.MANUFACTURING],
 }
 
 ASSET_PATTERNS: dict[str, list[str]] = {
@@ -105,19 +135,33 @@ ASSET_PATTERNS: dict[str, list[str]] = {
 
 # Terms that typically come from metadata / field names rather than content.
 METADATA_PATTERNS = [
-    "resolution",   # e.g. resolution_date
-    "horizon",      # event_horizon
-    "generated",    # generated_at
-    "observed",     # observed_at
+    "resolution",  # e.g. resolution_date
+    "horizon",  # event_horizon
+    "generated",  # generated_at
+    "observed",  # observed_at
 ]
 
 # Domain / conflict terms we want to capture explicitly from content.
 DOMAIN_KEYWORDS = [
-    "military", "conflict", "clash", "war", "border",
-    "shipping", "route", "port", "vessel",
-    "oil", "gas", "energy", "pipeline",
-    "strike", "labor", "union",
-    "flood", "hurricane", "earthquake",
+    "military",
+    "conflict",
+    "clash",
+    "war",
+    "border",
+    "shipping",
+    "route",
+    "port",
+    "vessel",
+    "oil",
+    "gas",
+    "energy",
+    "pipeline",
+    "strike",
+    "labor",
+    "union",
+    "flood",
+    "hurricane",
+    "earthquake",
 ]
 
 

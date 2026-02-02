@@ -11,7 +11,6 @@ from typing import Literal, Optional
 import threading
 import uuid
 
-
 ActivityType = Literal["signal", "validation", "rule", "alert", "source", "error", "system"]
 
 

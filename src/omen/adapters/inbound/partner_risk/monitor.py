@@ -45,13 +45,15 @@ logger = logging.getLogger(__name__)
 # DEPRECATED CLASSES - For backward compatibility only
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class RiskLevel:
     """
     ⚠️ DEPRECATED - Risk levels should be determined by RiskCast, not OMEN.
-    
+
     This class exists ONLY for backward compatibility.
     New code should NOT use risk levels - OMEN is a Signal Engine.
     """
+
     SAFE = "SAFE"
     CAUTION = "CAUTION"
     WARNING = "WARNING"
@@ -61,18 +63,18 @@ class RiskLevel:
 class PartnerRiskAssessment(BaseModel):
     """
     ⚠️ DEPRECATED - Use PartnerSignalResponse instead.
-    
+
     This class exists ONLY for backward compatibility.
     Risk assessment should be done by RiskCast, not OMEN.
-    
+
     Migration:
         - Use LogisticsSignalMonitor.get_partner_signals() instead
         - This returns PartnerSignalResponse with metrics, evidence, confidence
         - Risk decisions should be made by RiskCast based on context
     """
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     symbol: str
     company_name: str
     price: Optional[float] = None
@@ -83,9 +85,10 @@ class PartnerRiskAssessment(BaseModel):
     risk_status: str = Field(default="CAUTION")  # DEPRECATED field
     message: str = ""
     timestamp: str = ""
-    
+
     def __init__(self, **data):
         import warnings
+
         warnings.warn(
             "PartnerRiskAssessment is deprecated. Use PartnerSignalResponse instead. "
             "Risk decisions should be made by RiskCast, not OMEN.",
@@ -93,7 +96,7 @@ class PartnerRiskAssessment(BaseModel):
             stacklevel=2,
         )
         super().__init__(**data)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary (deprecated)."""
         return {
@@ -154,11 +157,11 @@ class PartnerSignalCalculator:
     Calculate signal metrics from raw market data.
     Does NOT make risk decisions - only calculates metrics.
     """
-    
+
     def __init__(self):
         self.volatility_window = 20
         self.volume_window = 20
-    
+
     def calculate_signals(
         self,
         price_data: dict[str, Any],
@@ -168,7 +171,7 @@ class PartnerSignalCalculator:
     ) -> PartnerSignalMetrics:
         """
         Calculate signal metrics from raw data.
-        
+
         Returns:
             PartnerSignalMetrics - normalized metrics, NO verdict
         """
@@ -176,7 +179,7 @@ class PartnerSignalCalculator:
         price = price_data.get("price")
         change_pct = price_data.get("change_percent")
         volume = price_data.get("volume")
-        
+
         # Volume signals
         volume_ratio = None
         volume_zscore = None
@@ -186,22 +189,24 @@ class PartnerSignalCalculator:
             if volume_avg > 0 and volume:
                 volume_ratio = volume / volume_avg
             if volume:
-                volume_zscore = self._calculate_zscore(float(volume), [float(v) for v in historical_volumes])
-        
+                volume_zscore = self._calculate_zscore(
+                    float(volume), [float(v) for v in historical_volumes]
+                )
+
         # Volatility signals
         volatility = None
         volatility_percentile = None
         if historical_prices and len(historical_prices) >= self.volatility_window:
             volatility = self._calculate_volatility(historical_prices)
             volatility_percentile = self._calculate_volatility_percentile(volatility)
-        
+
         # Trend signals
         trend_7d = self._calculate_trend(historical_prices, 7) if historical_prices else None
         trend_30d = self._calculate_trend(historical_prices, 30) if historical_prices else None
-        
+
         # Liquidity score
         liquidity = self._calculate_liquidity_score(volume, historical_volumes)
-        
+
         return PartnerSignalMetrics(
             price_current=price,
             price_open=price_data.get("open"),
@@ -227,42 +232,40 @@ class PartnerSignalCalculator:
             current_ratio=health_data.get("current_ratio"),
             liquidity_score=liquidity,
         )
-    
+
     def _calculate_volatility(self, prices: list[float]) -> float:
         """Standard deviation of returns."""
         if len(prices) < 2:
             return 0.0
         returns = []
         for i in range(1, len(prices)):
-            if prices[i-1] != 0:
-                returns.append((prices[i] - prices[i-1]) / prices[i-1])
+            if prices[i - 1] != 0:
+                returns.append((prices[i] - prices[i - 1]) / prices[i - 1])
         if not returns:
             return 0.0
         mean = sum(returns) / len(returns)
         variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-        return variance ** 0.5
-    
+        return variance**0.5
+
     def _calculate_volatility_percentile(self, volatility: float) -> float:
         """Calculate volatility percentile (simplified)."""
         # Typical stock volatility ranges: 0.01 (1%) to 0.10 (10%)
         # Normalize to 0-1 percentile
         return min(1.0, max(0.0, volatility / 0.05))
-    
+
     def _calculate_zscore(self, value: float, historical: list[float]) -> float:
         """Z-score calculation."""
         if not historical:
             return 0.0
         mean = sum(historical) / len(historical)
         variance = sum((x - mean) ** 2 for x in historical) / len(historical)
-        std = variance ** 0.5
+        std = variance**0.5
         if std == 0:
             return 0.0
         return (value - mean) / std
-    
+
     def _calculate_liquidity_score(
-        self, 
-        volume: Optional[int], 
-        historical_volumes: Optional[list[int]]
+        self, volume: Optional[int], historical_volumes: Optional[list[int]]
     ) -> float:
         """
         Liquidity score 0-1.
@@ -270,18 +273,18 @@ class PartnerSignalCalculator:
         """
         if volume is None:
             return 0.5  # Default score
-        
+
         score = 0.5  # Base score
-        
+
         if historical_volumes and len(historical_volumes) > 0:
             avg_vol = sum(historical_volumes) / len(historical_volumes)
             if avg_vol > 0:
                 ratio = volume / avg_vol
                 # Higher volume = better liquidity
                 score = min(1.0, 0.3 + (ratio * 0.35))
-        
+
         return round(score, 3)
-    
+
     def _calculate_trend(self, prices: Optional[list[float]], days: int) -> Optional[float]:
         """Calculate % change over N days."""
         if not prices or len(prices) < days:
@@ -293,7 +296,7 @@ class PartnerSignalCalculator:
 
 class EvidenceBuilder:
     """Build evidence trail for signals."""
-    
+
     def build_evidence(
         self,
         symbol: str,
@@ -303,80 +306,90 @@ class EvidenceBuilder:
         """Generate evidence list from signals."""
         evidence = []
         now = datetime.now(timezone.utc)
-        
+
         # Price change evidence
         if signals.price_change_percent is not None and abs(signals.price_change_percent) > 0.5:
             direction = "increased" if signals.price_change_percent > 0 else "decreased"
-            evidence.append(PartnerSignalEvidence(
-                evidence_id=f"{symbol}-PRICE-{now.strftime('%Y%m%d%H%M%S')}",
-                evidence_type="PRICE_CHANGE",
-                title=f"{symbol} price {direction} {abs(signals.price_change_percent):.2f}%",
-                description="Daily price movement detected",
-                raw_value=signals.price_change_percent,
-                normalized_value=min(1.0, abs(signals.price_change_percent) / 10),
-                threshold_reference=thresholds.get("price_change") if thresholds else None,
-                source="vnstock",
-                observed_at=now,
-            ))
-        
+            evidence.append(
+                PartnerSignalEvidence(
+                    evidence_id=f"{symbol}-PRICE-{now.strftime('%Y%m%d%H%M%S')}",
+                    evidence_type="PRICE_CHANGE",
+                    title=f"{symbol} price {direction} {abs(signals.price_change_percent):.2f}%",
+                    description="Daily price movement detected",
+                    raw_value=signals.price_change_percent,
+                    normalized_value=min(1.0, abs(signals.price_change_percent) / 10),
+                    threshold_reference=thresholds.get("price_change") if thresholds else None,
+                    source="vnstock",
+                    observed_at=now,
+                )
+            )
+
         # Volume anomaly evidence
         if signals.volume_anomaly_zscore is not None and abs(signals.volume_anomaly_zscore) > 2:
-            evidence.append(PartnerSignalEvidence(
-                evidence_id=f"{symbol}-VOLUME-{now.strftime('%Y%m%d%H%M%S')}",
-                evidence_type="VOLUME_ANOMALY",
-                title=f"{symbol} volume anomaly (z-score: {signals.volume_anomaly_zscore:.2f})",
-                description="Unusual trading volume detected",
-                raw_value=signals.volume_anomaly_zscore,
-                normalized_value=min(1.0, abs(signals.volume_anomaly_zscore) / 5),
-                source="vnstock",
-                observed_at=now,
-            ))
-        
+            evidence.append(
+                PartnerSignalEvidence(
+                    evidence_id=f"{symbol}-VOLUME-{now.strftime('%Y%m%d%H%M%S')}",
+                    evidence_type="VOLUME_ANOMALY",
+                    title=f"{symbol} volume anomaly (z-score: {signals.volume_anomaly_zscore:.2f})",
+                    description="Unusual trading volume detected",
+                    raw_value=signals.volume_anomaly_zscore,
+                    normalized_value=min(1.0, abs(signals.volume_anomaly_zscore) / 5),
+                    source="vnstock",
+                    observed_at=now,
+                )
+            )
+
         # Volatility evidence
         if signals.volatility_20d is not None and signals.volatility_20d > 0.03:
-            evidence.append(PartnerSignalEvidence(
-                evidence_id=f"{symbol}-VOLATILITY-{now.strftime('%Y%m%d%H%M%S')}",
-                evidence_type="HIGH_VOLATILITY",
-                title=f"{symbol} elevated volatility ({signals.volatility_20d*100:.1f}%)",
-                description="20-day volatility above normal levels",
-                raw_value=signals.volatility_20d,
-                normalized_value=min(1.0, signals.volatility_20d / 0.1),
-                source="calculated",
-                observed_at=now,
-            ))
-        
+            evidence.append(
+                PartnerSignalEvidence(
+                    evidence_id=f"{symbol}-VOLATILITY-{now.strftime('%Y%m%d%H%M%S')}",
+                    evidence_type="HIGH_VOLATILITY",
+                    title=f"{symbol} elevated volatility ({signals.volatility_20d*100:.1f}%)",
+                    description="20-day volatility above normal levels",
+                    raw_value=signals.volatility_20d,
+                    normalized_value=min(1.0, signals.volatility_20d / 0.1),
+                    source="calculated",
+                    observed_at=now,
+                )
+            )
+
         # Low ROE evidence
         if signals.roe is not None and signals.roe < 5.0:
-            evidence.append(PartnerSignalEvidence(
-                evidence_id=f"{symbol}-ROE-{now.strftime('%Y%m%d%H%M%S')}",
-                evidence_type="LOW_PROFITABILITY",
-                title=f"{symbol} low ROE ({signals.roe:.1f}%)",
-                description="Return on equity below typical threshold",
-                raw_value=signals.roe,
-                normalized_value=max(0.0, min(1.0, 1.0 - (signals.roe / 10))),
-                source="vnstock",
-                observed_at=now,
-            ))
-        
+            evidence.append(
+                PartnerSignalEvidence(
+                    evidence_id=f"{symbol}-ROE-{now.strftime('%Y%m%d%H%M%S')}",
+                    evidence_type="LOW_PROFITABILITY",
+                    title=f"{symbol} low ROE ({signals.roe:.1f}%)",
+                    description="Return on equity below typical threshold",
+                    raw_value=signals.roe,
+                    normalized_value=max(0.0, min(1.0, 1.0 - (signals.roe / 10))),
+                    source="vnstock",
+                    observed_at=now,
+                )
+            )
+
         # High PE evidence
         if signals.pe_ratio is not None and signals.pe_ratio > 30:
-            evidence.append(PartnerSignalEvidence(
-                evidence_id=f"{symbol}-PE-{now.strftime('%Y%m%d%H%M%S')}",
-                evidence_type="HIGH_VALUATION",
-                title=f"{symbol} high PE ratio ({signals.pe_ratio:.1f})",
-                description="Price-to-earnings ratio above typical range",
-                raw_value=signals.pe_ratio,
-                normalized_value=min(1.0, signals.pe_ratio / 50),
-                source="vnstock",
-                observed_at=now,
-            ))
-        
+            evidence.append(
+                PartnerSignalEvidence(
+                    evidence_id=f"{symbol}-PE-{now.strftime('%Y%m%d%H%M%S')}",
+                    evidence_type="HIGH_VALUATION",
+                    title=f"{symbol} high PE ratio ({signals.pe_ratio:.1f})",
+                    description="Price-to-earnings ratio above typical range",
+                    raw_value=signals.pe_ratio,
+                    normalized_value=min(1.0, signals.pe_ratio / 50),
+                    source="vnstock",
+                    observed_at=now,
+                )
+            )
+
         return evidence
 
 
 class ConfidenceCalculator:
     """Calculate confidence scores for signal data."""
-    
+
     def calculate_confidence(
         self,
         signals: PartnerSignalMetrics,
@@ -384,7 +397,7 @@ class ConfidenceCalculator:
         data_source: str = "vnstock",
     ) -> PartnerSignalConfidence:
         """Calculate confidence based on data completeness and freshness."""
-        
+
         # Calculate data completeness
         fields = [
             signals.price_current,
@@ -396,13 +409,13 @@ class ConfidenceCalculator:
         ]
         non_null = sum(1 for f in fields if f is not None)
         completeness = non_null / len(fields)
-        
+
         # Calculate freshness
         now = datetime.now(timezone.utc)
         if data_timestamp.tzinfo is None:
             data_timestamp = data_timestamp.replace(tzinfo=timezone.utc)
         freshness_seconds = int((now - data_timestamp).total_seconds())
-        
+
         # Missing fields
         missing = []
         if signals.price_current is None:
@@ -413,26 +426,30 @@ class ConfidenceCalculator:
             missing.append("roe")
         if signals.volatility_20d is None:
             missing.append("volatility_20d")
-        
+
         # Calculate confidence scores
         price_confidence = 1.0 if signals.price_current is not None else 0.0
-        fundamental_confidence = 1.0 if (signals.pe_ratio is not None and signals.roe is not None) else 0.5 if (signals.pe_ratio is not None or signals.roe is not None) else 0.0
+        fundamental_confidence = (
+            1.0
+            if (signals.pe_ratio is not None and signals.roe is not None)
+            else 0.5 if (signals.pe_ratio is not None or signals.roe is not None) else 0.0
+        )
         volume_confidence = 1.0 if signals.volume is not None else 0.0
-        
+
         # Overall confidence
         overall = (
-            price_confidence * 0.4 +
-            fundamental_confidence * 0.3 +
-            volume_confidence * 0.2 +
-            completeness * 0.1
+            price_confidence * 0.4
+            + fundamental_confidence * 0.3
+            + volume_confidence * 0.2
+            + completeness * 0.1
         )
-        
+
         # Reduce confidence for stale data
         if freshness_seconds > 3600:  # > 1 hour
             overall *= 0.8
         if freshness_seconds > 86400:  # > 1 day
             overall *= 0.7
-        
+
         return PartnerSignalConfidence(
             overall_confidence=round(overall, 3),
             data_completeness=round(completeness, 3),
@@ -449,28 +466,28 @@ class ConfidenceCalculator:
 class LogisticsSignalMonitor:
     """
     Monitor Vietnamese logistics companies and emit SIGNALS.
-    
+
     This is a PURE SIGNAL ENGINE:
     - Fetches real-time price data
     - Gets fundamental health indicators
     - Calculates signal metrics
     - Builds evidence trail
-    
+
     This does NOT:
     - Classify risk levels (SAFE/WARNING/CRITICAL)
     - Make risk decisions
     - Provide risk verdicts
-    
+
     Risk decisions are RiskCast's responsibility.
-    
+
     Example:
         monitor = LogisticsSignalMonitor()
         signal = monitor.get_partner_signals("HAH")
         # signal contains metrics, evidence, confidence - NO verdict
     """
-    
+
     DEFAULT_SYMBOLS = ["GMD", "HAH", "VOS", "VSC", "PVT"]
-    
+
     def __init__(
         self,
         symbols: Optional[list[str]] = None,
@@ -482,21 +499,20 @@ class LogisticsSignalMonitor:
         self._calculator = PartnerSignalCalculator()
         self._evidence_builder = EvidenceBuilder()
         self._confidence_calculator = ConfidenceCalculator()
-    
+
     def _get_vnstock(self):
         """Lazy load vnstock library."""
         if self._vnstock is None:
             try:
                 from vnstock import Vnstock
+
                 self._vnstock = Vnstock
                 logger.info("vnstock library loaded successfully")
             except ImportError:
                 logger.error("vnstock not installed. Run: pip install vnstock")
-                raise ImportError(
-                    "vnstock library is required. Install with: pip install vnstock"
-                )
+                raise ImportError("vnstock library is required. Install with: pip install vnstock")
         return self._vnstock
-    
+
     def _get_stock(self, symbol: str):
         """Get vnstock stock object for a symbol."""
         Vnstock = self._get_vnstock()
@@ -509,22 +525,22 @@ class LogisticsSignalMonitor:
             except Exception as e2:
                 logger.warning(f"Failed with TCBS: {e2}")
                 raise
-    
+
     def _generate_signal_id(self, symbol: str, timestamp: datetime) -> str:
         """Generate unique signal ID."""
         data = f"{symbol}:{timestamp.isoformat()}"
         return f"PS-{hashlib.sha256(data.encode()).hexdigest()[:12]}"
-    
+
     def fetch_price_data(self, symbol: str) -> dict[str, Any]:
         """Fetch the latest price data."""
         try:
             stock = self._get_stock(symbol)
-            
+
             end_date = datetime.now().strftime("%Y-%m-%d")
             start_date = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
-            
+
             history = stock.quote.history(start=start_date, end=end_date)
-            
+
             if history is None or history.empty:
                 logger.warning(f"No price data available for {symbol}")
                 return {
@@ -536,16 +552,16 @@ class LogisticsSignalMonitor:
                     "timestamp": datetime.now(timezone.utc),
                     "error": "No data available",
                 }
-            
+
             latest = history.iloc[-1]
             previous = history.iloc[-2] if len(history) > 1 else latest
-            
+
             price = float(latest.get("close", 0))
             prev_close = float(previous.get("close", price))
             change = price - prev_close
             change_percent = (change / prev_close * 100) if prev_close > 0 else 0
             volume = int(latest.get("volume", 0))
-            
+
             return {
                 "symbol": symbol,
                 "price": price,
@@ -558,7 +574,7 @@ class LogisticsSignalMonitor:
                 "volume": volume,
                 "timestamp": datetime.now(timezone.utc),
             }
-            
+
         except Exception as e:
             logger.error(f"Error fetching price for {symbol}: {e}")
             return {
@@ -570,18 +586,18 @@ class LogisticsSignalMonitor:
                 "timestamp": datetime.now(timezone.utc),
                 "error": str(e),
             }
-    
+
     def fetch_health_indicators(self, symbol: str) -> dict[str, Any]:
         """Fetch fundamental ratios (PE, ROE)."""
         try:
             stock = self._get_stock(symbol)
-            
+
             try:
                 ratios = stock.finance.ratio(period="year", lang="en")
-                
+
                 if ratios is not None and not ratios.empty:
                     latest = ratios.iloc[-1] if len(ratios) > 0 else {}
-                    
+
                     return {
                         "symbol": symbol,
                         "pe_ratio": self._extract_ratio(latest, ["PE", "P/E", "priceToEarning"]),
@@ -594,7 +610,7 @@ class LogisticsSignalMonitor:
                     }
             except Exception as ratio_error:
                 logger.warning(f"Could not fetch ratios for {symbol}: {ratio_error}")
-            
+
             return {
                 "symbol": symbol,
                 "pe_ratio": None,
@@ -606,7 +622,7 @@ class LogisticsSignalMonitor:
                 "timestamp": datetime.now(timezone.utc),
                 "error": "Ratio data not available",
             }
-            
+
         except Exception as e:
             logger.error(f"Error fetching health indicators for {symbol}: {e}")
             return {
@@ -620,67 +636,70 @@ class LogisticsSignalMonitor:
                 "timestamp": datetime.now(timezone.utc),
                 "error": str(e),
             }
-    
+
     def _extract_ratio(self, data: Any, possible_keys: list[str]) -> Optional[float]:
         """Extract ratio value from data using possible key names."""
         if data is None:
             return None
-        
+
         for key in possible_keys:
             try:
-                if hasattr(data, 'get'):
+                if hasattr(data, "get"):
                     value = data.get(key)
                 elif hasattr(data, key):
                     value = getattr(data, key)
                 else:
                     continue
-                
+
                 if value is not None and not (isinstance(value, float) and value != value):
                     return float(value)
             except (KeyError, TypeError, ValueError):
                 continue
-        
+
         return None
-    
+
     def get_partner_signals(self, symbol: str) -> PartnerSignalResponse:
         """
         Get signals for a logistics partner.
-        
+
         Returns:
             PartnerSignalResponse with metrics, evidence, confidence - NO verdict
         """
         symbol = symbol.upper()
-        company_info = LOGISTICS_COMPANIES.get(symbol, {
-            "name": symbol,
-            "sector": "Unknown",
-            "exchange": "HOSE",
-        })
-        
+        company_info = LOGISTICS_COMPANIES.get(
+            symbol,
+            {
+                "name": symbol,
+                "sector": "Unknown",
+                "exchange": "HOSE",
+            },
+        )
+
         # Fetch data
         price_data = self.fetch_price_data(symbol)
         health_data = self.fetch_health_indicators(symbol)
-        
+
         now = datetime.now(timezone.utc)
-        
+
         # Calculate signals
         signals = self._calculator.calculate_signals(
             price_data=price_data,
             health_data=health_data,
         )
-        
+
         # Build evidence
         evidence = self._evidence_builder.build_evidence(symbol, signals)
-        
+
         # Calculate confidence
         confidence = self._confidence_calculator.calculate_confidence(
             signals=signals,
             data_timestamp=now,
             data_source="vnstock",
         )
-        
+
         # Generate suggestion (optional, with disclaimer)
         suggestion = self._generate_suggestion(signals)
-        
+
         return PartnerSignalResponse(
             symbol=symbol,
             company_name=company_info.get("name", symbol),
@@ -695,58 +714,62 @@ class LogisticsSignalMonitor:
             signal_id=self._generate_signal_id(symbol, now),
             timestamp=now,
         )
-    
+
     def _generate_suggestion(self, signals: PartnerSignalMetrics) -> Optional[str]:
         """
         Generate a suggestion based on signals.
         This is NOT a decision - just a signal-based observation.
         """
         observations = []
-        
+
         if signals.price_change_percent is not None:
             if signals.price_change_percent <= -7.0:
                 observations.append(f"significant price drop ({signals.price_change_percent:.1f}%)")
             elif signals.price_change_percent <= -4.0:
                 observations.append(f"notable price decline ({signals.price_change_percent:.1f}%)")
-        
+
         if signals.roe is not None and signals.roe < 0:
             observations.append(f"negative ROE ({signals.roe:.1f}%)")
-        
+
         if signals.volume_anomaly_zscore is not None and abs(signals.volume_anomaly_zscore) > 2:
             observations.append(f"unusual volume (z-score: {signals.volume_anomaly_zscore:.1f})")
-        
+
         if not observations:
             return None
-        
+
         return f"Signals indicate: {', '.join(observations)}. RiskCast should evaluate based on context."
-    
+
     def get_all_signals(self) -> PartnerSignalsListResponse:
         """
         Get signals for all monitored logistics partners.
-        
+
         Returns:
             PartnerSignalsListResponse with all partner signals - NO risk verdict
         """
         partners = []
-        
+
         for symbol in self.symbols:
             try:
                 signal = self.get_partner_signals(symbol)
                 partners.append(signal)
             except Exception as e:
                 logger.error(f"Error getting signals for {symbol}: {e}")
-        
+
         # Calculate aggregated metrics (NO verdict)
         avg_volatility = None
         avg_liquidity = None
-        volatilities = [p.signals.volatility_20d for p in partners if p.signals.volatility_20d is not None]
-        liquidities = [p.signals.liquidity_score for p in partners if p.signals.liquidity_score is not None]
-        
+        volatilities = [
+            p.signals.volatility_20d for p in partners if p.signals.volatility_20d is not None
+        ]
+        liquidities = [
+            p.signals.liquidity_score for p in partners if p.signals.liquidity_score is not None
+        ]
+
         if volatilities:
             avg_volatility = sum(volatilities) / len(volatilities)
         if liquidities:
             avg_liquidity = sum(liquidities) / len(liquidities)
-        
+
         return PartnerSignalsListResponse(
             timestamp=datetime.now(timezone.utc),
             total_partners=len(partners),
@@ -757,8 +780,12 @@ class LogisticsSignalMonitor:
                 "avg_liquidity": avg_liquidity or 0.5,
             },
             data_quality={
-                "partners_with_price": sum(1 for p in partners if p.signals.price_current is not None),
-                "partners_with_fundamentals": sum(1 for p in partners if p.signals.pe_ratio is not None),
+                "partners_with_price": sum(
+                    1 for p in partners if p.signals.price_current is not None
+                ),
+                "partners_with_fundamentals": sum(
+                    1 for p in partners if p.signals.pe_ratio is not None
+                ),
             },
         )
 
@@ -771,10 +798,10 @@ LogisticsFinancialMonitor = LogisticsSignalMonitor
 def get_partner_signals(symbol: str) -> dict[str, Any]:
     """
     Get signals for a single logistics partner.
-    
+
     Args:
         symbol: Stock ticker symbol (e.g., 'HAH')
-        
+
     Returns:
         Signal response dictionary (NO risk verdict)
     """
@@ -785,7 +812,7 @@ def get_partner_signals(symbol: str) -> dict[str, Any]:
 def get_all_partner_signals() -> dict[str, Any]:
     """
     Get signals for all default logistics partners.
-    
+
     Returns:
         List response with all partner signals (NO risk verdict)
     """

@@ -73,9 +73,7 @@ class AsyncOmenPipeline:
 
         try:
             if self._repository is not None:
-                existing = await self._repository.find_by_hash_async(
-                    event.input_event_hash
-                )
+                existing = await self._repository.find_by_hash_async(event.input_event_hash)
                 if existing is not None:
                     stats.events_deduplicated = 1
                     stats.processing_time_ms = (
@@ -125,7 +123,11 @@ class AsyncOmenPipeline:
                 "confidence_factors": {
                     "liquidity": validated_signal.liquidity_score,
                     "geographic": next(
-                        (r.score for r in validated_signal.validation_results if r.rule_name == "geographic_relevance"),
+                        (
+                            r.score
+                            for r in validated_signal.validation_results
+                            if r.rule_name == "geographic_relevance"
+                        ),
                         0.5,
                     ),
                     "source_reliability": 0.85,
@@ -176,15 +178,11 @@ class AsyncOmenPipeline:
             if self._repository is not None:
                 tasks.append(asyncio.create_task(self._repository.save_async(signal)))
             if self._publisher is not None:
-                tasks.append(
-                    asyncio.create_task(self._publisher.publish_async(signal))
-                )
+                tasks.append(asyncio.create_task(self._publisher.publish_async(signal)))
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def process_batch(
-        self, events: Sequence[RawSignalEvent]
-    ) -> list[PipelineResult]:
+    async def process_batch(self, events: Sequence[RawSignalEvent]) -> list[PipelineResult]:
         """Process multiple events concurrently with backpressure."""
         tasks = [self.process_single(event) for event in events]
         return list(await asyncio.gather(*tasks))

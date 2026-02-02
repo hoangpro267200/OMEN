@@ -145,11 +145,7 @@ class SignalValidator:
             else 0.0
         )
         liquidity_score = next(
-            (
-                r.score
-                for r in validation_results
-                if r.rule_name == "liquidity_validation"
-            ),
+            (r.score for r in validation_results if r.rule_name == "liquidity_validation"),
             0.0,
         )
         signal_strength = overall_score
@@ -187,10 +183,7 @@ class SignalValidator:
             for kw in ["war", "conflict", "attack", "geopolitical"]
         ):
             return SignalCategory.GEOPOLITICAL
-        if any(
-            kw in content_lower or kw in keywords_lower
-            for kw in ["strike", "labor", "union"]
-        ):
+        if any(kw in content_lower or kw in keywords_lower for kw in ["strike", "labor", "union"]):
             return SignalCategory.LABOR
         if any(
             kw in content_lower or kw in keywords_lower
@@ -198,18 +191,15 @@ class SignalValidator:
         ):
             return SignalCategory.INFRASTRUCTURE
         if any(
-            kw in content_lower or kw in keywords_lower
-            for kw in ["climate", "weather", "storm"]
+            kw in content_lower or kw in keywords_lower for kw in ["climate", "weather", "storm"]
         ):
             return SignalCategory.CLIMATE
         if any(
-            kw in content_lower or kw in keywords_lower
-            for kw in ["regulation", "policy", "law"]
+            kw in content_lower or kw in keywords_lower for kw in ["regulation", "policy", "law"]
         ):
             return SignalCategory.REGULATORY
         if any(
-            kw in content_lower or kw in keywords_lower
-            for kw in ["economic", "market", "trade"]
+            kw in content_lower or kw in keywords_lower for kw in ["economic", "market", "trade"]
         ):
             return SignalCategory.ECONOMIC
 

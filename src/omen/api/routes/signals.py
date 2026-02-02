@@ -105,10 +105,10 @@ Returns counts, pass rates, and latency metrics. No impact or recommendation dat
                         "pass_rate": 0.833,
                         "rejection_by_stage": {"liquidity": 150, "semantic": 60, "geographic": 40},
                         "latency_ms": 45,
-                        "uptime_seconds": 86400
+                        "uptime_seconds": 86400,
                     }
                 }
-            }
+            },
         }
     },
 )
@@ -122,11 +122,7 @@ async def get_signal_stats(
     """
     tracker = get_rejection_tracker()
     stats = tracker.get_statistics()
-    by_stage = (
-        stats.get("by_stage")
-        if isinstance(stats.get("by_stage"), dict)
-        else {}
-    )
+    by_stage = stats.get("by_stage") if isinstance(stats.get("by_stage"), dict) else {}
     rejection_by_stage: dict[str, int] = {}
     if by_stage:
         for stage, data in by_stage.items():
@@ -177,7 +173,7 @@ async def create_signals_batch(
     try:
         source = PolymarketSignalSource(logistics_only=False)
         raw_list = list(source.fetch_events(limit=min(limit * 2, 1000)))
-        
+
         # Update source health and log fetch
         fetch_time = (time.perf_counter() - start_time) * 1000
         metrics.update_source_health(
@@ -193,14 +189,11 @@ async def create_signals_batch(
             latency_ms=fetch_time,
             success=True,
         )
-        
-        filtered = [
-            e for e in raw_list
-            if e.market.current_liquidity_usd >= min_liquidity
-        ][:limit]
-        
+
+        filtered = [e for e in raw_list if e.market.current_liquidity_usd >= min_liquidity][:limit]
+
         results = pipeline.process_batch(filtered)
-        
+
         signals_out = []
         valid_signals = []
         for r in results:
@@ -216,11 +209,11 @@ async def create_signals_batch(
                     confidence_label=r.signal.confidence_level.value,
                     confidence_level=str(r.signal.confidence_score),
                 )
-        
+
         n = len(results)
         passed = sum(1 for r in results if r.success and r.signal is not None)
         rejected = n - passed
-        
+
         # Record metrics
         processing_time = (time.perf_counter() - start_time) * 1000
         metrics.record_from_pipeline_result(
@@ -231,12 +224,12 @@ async def create_signals_batch(
             processing_time_ms=processing_time,
             signals=valid_signals,
         )
-        
+
         # Log system event for summary
         activity.log_system_event(
             f"Pipeline processed {n} events → {len(signals_out)} signals ({rejected} rejected)"
         )
-        
+
         return SignalListResponse(
             signals=signals_out,
             total=len(signals_out),
@@ -297,22 +290,24 @@ GET /api/v1/signals/?limit=10&since=2026-01-01T00:00:00Z
                                 "confidence_level": "HIGH",
                                 "confidence_score": 0.85,
                                 "category": "GEOPOLITICAL",
-                                "trace_id": "a1b2c3d4e5f6g7h8"
+                                "trace_id": "a1b2c3d4e5f6g7h8",
                             }
                         ],
                         "total": 150,
                         "limit": 100,
-                        "offset": 0
+                        "offset": 0,
                     }
                 }
-            }
+            },
         }
     },
 )
 async def list_signals(
     limit: int = Query(default=100, le=1000, description="Maximum number of signals to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
-    since: datetime | None = Query(default=None, description="Only return signals after this timestamp"),
+    since: datetime | None = Query(
+        default=None, description="Only return signals after this timestamp"
+    ),
     repository: SignalRepository = Depends(get_repository),
     _api_key: str = Depends(verify_api_key),
 ) -> dict:
@@ -363,29 +358,29 @@ GET /api/v1/signals/OMEN-A1B2C3D4E5F6?detail_level=full
                         "confidence_factors": {
                             "liquidity": 0.9,
                             "geographic": 0.85,
-                            "source_reliability": 0.8
+                            "source_reliability": 0.8,
                         },
                         "category": "GEOPOLITICAL",
                         "geographic": {
                             "regions": ["Middle East", "Red Sea"],
-                            "chokepoints": ["bab-el-mandeb", "suez"]
+                            "chokepoints": ["bab-el-mandeb", "suez"],
                         },
                         "temporal": {
                             "event_horizon": "2026-06-30",
-                            "resolution_date": "2026-06-30T00:00:00Z"
+                            "resolution_date": "2026-06-30T00:00:00Z",
                         },
                         "evidence": [
                             {
                                 "source": "Polymarket",
                                 "source_type": "market",
-                                "url": "https://polymarket.com/market/xyz"
+                                "url": "https://polymarket.com/market/xyz",
                             }
                         ],
                         "trace_id": "a1b2c3d4e5f6g7h8",
-                        "generated_at": "2026-02-01T12:00:00Z"
+                        "generated_at": "2026-02-01T12:00:00Z",
                     }
                 }
-            }
+            },
         },
         404: {
             "description": "Signal not found",
@@ -394,18 +389,17 @@ GET /api/v1/signals/OMEN-A1B2C3D4E5F6?detail_level=full
                     "example": {
                         "error": "NOT_FOUND",
                         "message": "Signal 'OMEN-INVALID' not found",
-                        "hint": "Verify the signal ID is correct and exists"
+                        "hint": "Verify the signal ID is correct and exists",
                     }
                 }
-            }
-        }
+            },
+        },
     },
 )
 async def get_signal(
     signal_id: str,
     detail_level: Literal["minimal", "standard", "full"] = Query(
-        default="standard",
-        description="Level of detail to include in response"
+        default="standard", description="Level of detail to include in response"
     ),
     repository: SignalRepository = Depends(get_repository),
     _api_key: str = Depends(verify_api_key),

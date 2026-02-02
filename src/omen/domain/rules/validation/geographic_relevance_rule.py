@@ -18,28 +18,17 @@ from ...models.explanation import ExplanationStep
 from ..base import Rule
 from .keywords import get_matched_keywords, calculate_relevance_score
 
-
 # Known logistics chokepoints with coordinates
 CHOKEPOINTS: dict[str, GeoLocation] = {
     "Suez Canal": GeoLocation(latitude=30.5, longitude=32.3, name="Suez Canal"),
     "Panama Canal": GeoLocation(latitude=9.1, longitude=-79.7, name="Panama Canal"),
-    "Strait of Malacca": GeoLocation(
-        latitude=2.5, longitude=101.5, name="Strait of Malacca"
-    ),
-    "Strait of Hormuz": GeoLocation(
-        latitude=26.5, longitude=56.3, name="Strait of Hormuz"
-    ),
+    "Strait of Malacca": GeoLocation(latitude=2.5, longitude=101.5, name="Strait of Malacca"),
+    "Strait of Hormuz": GeoLocation(latitude=26.5, longitude=56.3, name="Strait of Hormuz"),
     "Bab el-Mandeb": GeoLocation(latitude=12.5, longitude=43.3, name="Bab el-Mandeb"),
     "Red Sea": GeoLocation(latitude=20.0, longitude=38.0, name="Red Sea"),
-    "Cape of Good Hope": GeoLocation(
-        latitude=-34.4, longitude=18.5, name="Cape of Good Hope"
-    ),
-    "English Channel": GeoLocation(
-        latitude=50.5, longitude=-1.0, name="English Channel"
-    ),
-    "Taiwan Strait": GeoLocation(
-        latitude=24.0, longitude=119.0, name="Taiwan Strait"
-    ),
+    "Cape of Good Hope": GeoLocation(latitude=-34.4, longitude=18.5, name="Cape of Good Hope"),
+    "English Channel": GeoLocation(latitude=50.5, longitude=-1.0, name="English Channel"),
+    "Taiwan Strait": GeoLocation(latitude=24.0, longitude=119.0, name="Taiwan Strait"),
 }
 
 # Keywords that indicate geographic relevance
@@ -108,9 +97,7 @@ class GeographicRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
                 if distance <= self._config.proximity_threshold_km:
                     if cp_name not in matched_chokepoints:
                         matched_chokepoints.append(cp_name)
-                        match_reasons.append(
-                            f"location within {distance:.0f}km of {cp_name}"
-                        )
+                        match_reasons.append(f"location within {distance:.0f}km of {cp_name}")
 
         # Expanded: any logistics keyword match counts as relevant
         logistics_matched = get_matched_keywords(event_text)

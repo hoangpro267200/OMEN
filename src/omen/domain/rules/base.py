@@ -14,7 +14,6 @@ from typing import Generic, TypeVar
 from ..models.common import RulesetVersion
 from ..models.explanation import ExplanationStep
 
-
 InputT = TypeVar("InputT")
 OutputT = TypeVar("OutputT")
 

@@ -23,6 +23,7 @@ def _log_source_failure(source_name: str, start: float, error_message: str) -> N
         latency_ms = (time.perf_counter() - start) * 1000
         from omen.infrastructure.activity.activity_logger import get_activity_logger
         from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
+
         get_activity_logger().log_source_fetch(
             source_name=source_name,
             events_count=0,
@@ -106,6 +107,7 @@ class PolymarketLiveClient:
             try:
                 from omen.infrastructure.activity.activity_logger import get_activity_logger
                 from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
+
                 get_activity_logger().log_source_fetch(
                     source_name="Polymarket",
                     events_count=len(out),
@@ -156,11 +158,13 @@ class PolymarketLiveClient:
                 context={"circuit_state": self._circuit.state.value},
             )
         try:
+
             def _do_request() -> httpx.Response:
                 return self._client.get(
                     f"{self._base_url}/markets",
                     params={"limit": limit},
                 )
+
             response = run_with_retry(_do_request)
             response.raise_for_status()
             self._circuit.record_success()
@@ -192,8 +196,21 @@ class PolymarketLiveClient:
     def get_logistics_events(self, limit: int = 20) -> list[dict[str, Any]]:
         """Return events relevant to logistics/supply chain. Uses whole-word match so 'port'≠'sport', 'strike'≠'striker'."""
         keywords = [
-            "shipping", "ship", "port", "trade", "tariff", "red sea", "suez",
-            "panama", "taiwan", "china", "sanction", "embargo", "strike", "oil", "freight",
+            "shipping",
+            "ship",
+            "port",
+            "trade",
+            "tariff",
+            "red sea",
+            "suez",
+            "panama",
+            "taiwan",
+            "china",
+            "sanction",
+            "embargo",
+            "strike",
+            "oil",
+            "freight",
         ]
         fetch_limit = max(limit, 200, min(limit * 3, 2000))
         all_events = self.fetch_events(limit=fetch_limit, active=True)

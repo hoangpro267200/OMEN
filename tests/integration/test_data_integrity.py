@@ -89,7 +89,9 @@ class TestAPIResponseIntegrity:
 
     def test_live_process_returns_traceable_data(self, test_client, api_headers):
         """Every field in /live/process response is pure signal contract (traceable)."""
-        response = test_client.post("/api/v1/live/process", params={"limit": 5}, headers=api_headers)
+        response = test_client.post(
+            "/api/v1/live/process", params={"limit": 5}, headers=api_headers
+        )
         if response.status_code != 200:
             pytest.skip("API not available or Polymarket unreachable")
         signals = response.json()
@@ -151,10 +153,16 @@ class TestMethodologyProvenance:
 
     def test_metrics_reference_methodologies(self, test_client, api_headers):
         """Pure contract has no impact metrics; evidence/trace_id satisfy traceability."""
-        response = test_client.post("/api/v1/live/process", params={"limit": 3}, headers=api_headers)
+        response = test_client.post(
+            "/api/v1/live/process", params={"limit": 3}, headers=api_headers
+        )
         if response.status_code != 200:
             pytest.skip("API not available")
         signals = response.json()
         for signal in signals:
             assert "trace_id" in signal
-            assert "evidence" in signal or "validation_scores" in signal or "confidence_factors" in signal
+            assert (
+                "evidence" in signal
+                or "validation_scores" in signal
+                or "confidence_factors" in signal
+            )

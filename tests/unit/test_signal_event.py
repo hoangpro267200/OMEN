@@ -137,7 +137,12 @@ def test_generate_input_event_hash_key_order_independent():
 
 def test_import_signal_event_and_ledger_record():
     """SignalEvent and LedgerRecord are importable from domain.models."""
-    from omen.domain.models import SignalEvent, LedgerRecord, SCHEMA_VERSION, generate_input_event_hash
+    from omen.domain.models import (
+        SignalEvent,
+        LedgerRecord,
+        SCHEMA_VERSION,
+        generate_input_event_hash,
+    )
 
     assert SignalEvent is not None
     assert LedgerRecord is not None

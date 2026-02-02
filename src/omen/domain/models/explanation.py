@@ -128,7 +128,7 @@ class ExplanationChain(BaseModel):
     All timestamps derive from ProcessingContext.
     Enables full auditability and reproducibility.
     """
-    
+
     model_config = {"frozen": True}
 
     trace_id: str = Field(..., description="Unique identifier for this trace")
@@ -150,9 +150,7 @@ class ExplanationChain(BaseModel):
     def add_step(self, step: ExplanationStep) -> "ExplanationChain":
         """Immutable step addition."""
         new_steps = [*self.steps, step]
-        return self.model_copy(
-            update={"steps": new_steps, "total_steps": len(new_steps)}
-        )
+        return self.model_copy(update={"steps": new_steps, "total_steps": len(new_steps)})
 
     def finalize(self, context: ProcessingContext) -> "ExplanationChain":
         """Mark chain as complete using context time."""

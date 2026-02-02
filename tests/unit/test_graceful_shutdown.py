@@ -85,28 +85,45 @@ async def test_health_returns_503_during_shutdown():
 @pytest.mark.asyncio
 async def test_ready_returns_503_during_shutdown():
     """Ready endpoint returns 503 when shutting down."""
+    from unittest.mock import patch
+
     from fastapi.testclient import TestClient
 
     from omen.main import app
 
     # Ensure clean state before test
     clear_shutdown()
-    
-    with TestClient(app) as client:
-        # First verify normal operation
-        response = client.get("/health/ready")
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"
-        assert response.json().get("ready") is True
 
-        # Now set shutdown and verify 503
-        set_shutdown()
-        try:
+    # Mock health checks to avoid filesystem/network dependencies in CI
+    async def mock_ledger_check():
+        return True, "Mocked ledger OK"
+
+    async def mock_riskcast_check():
+        return True, "Mocked riskcast OK"
+
+    with (
+        patch("omen.api.routes.health._check_ledger_writable", new=mock_ledger_check),
+        patch("omen.api.routes.health._check_riskcast_reachable", new=mock_riskcast_check),
+    ):
+        with TestClient(app) as client:
+            # First verify normal operation
             response = client.get("/health/ready")
-            assert response.status_code == 503, f"Expected 503, got {response.status_code}: {response.json()}"
-            assert response.json().get("ready") is False
-            assert response.json().get("reason") == "shutting_down"
-        finally:
-            clear_shutdown()
+            assert (
+                response.status_code == 200
+            ), f"Expected 200, got {response.status_code}: {response.json()}"
+            assert response.json().get("ready") is True
+
+            # Now set shutdown and verify 503
+            set_shutdown()
+            try:
+                response = client.get("/health/ready")
+                assert (
+                    response.status_code == 503
+                ), f"Expected 503, got {response.status_code}: {response.json()}"
+                assert response.json().get("ready") is False
+                assert response.json().get("reason") == "shutting_down"
+            finally:
+                clear_shutdown()
 
 
 def test_is_shutting_down():

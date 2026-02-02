@@ -27,6 +27,7 @@ class OmenError(Exception):
             self.timestamp = timestamp
         else:
             from omen.application.ports.time_provider import utc_now
+
             self.timestamp = utc_now()
 
     def to_dict(self) -> dict[str, Any]:

@@ -59,11 +59,11 @@ async def trace_context_middleware(
     """
     trace_id = _extract_trace_id(request)
     request_id = uuid.uuid4().hex[:8]
-    
+
     # Set on request.state for error handlers and downstream use
     request.state.trace_id = trace_id
     request.state.request_id = request_id
-    
+
     set_trace_context(trace_id=trace_id, request_id=request_id)
     logger.info(
         "%s %s",

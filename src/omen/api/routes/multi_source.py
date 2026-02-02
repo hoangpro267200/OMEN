@@ -18,6 +18,7 @@ router = APIRouter()
 
 class SourceInfo(BaseModel):
     """Information about a signal source."""
+
     name: str
     enabled: bool
     priority: int
@@ -27,6 +28,7 @@ class SourceInfo(BaseModel):
 
 class SourceHealthResponse(BaseModel):
     """Health status of all sources."""
+
     sources: list[SourceInfo]
     healthy_count: int
     total_count: int
@@ -34,6 +36,7 @@ class SourceHealthResponse(BaseModel):
 
 class MultiSourceSignal(BaseModel):
     """Signal from multi-source aggregation."""
+
     event_id: str
     source: str
     title: str
@@ -47,6 +50,7 @@ class MultiSourceSignal(BaseModel):
 
 class MultiSourceResponse(BaseModel):
     """Response from multi-source fetch."""
+
     signals: list[MultiSourceSignal]
     total: int
     by_source: dict[str, int]
@@ -76,13 +80,15 @@ async def list_sources() -> SourceHealthResponse:
         if status == "healthy":
             healthy_count += 1
 
-        source_infos.append(SourceInfo(
-            name=s["name"],
-            enabled=s["enabled"],
-            priority=s["priority"],
-            weight=s["weight"],
-            status=status,
-        ))
+        source_infos.append(
+            SourceInfo(
+                name=s["name"],
+                enabled=s["enabled"],
+                priority=s["priority"],
+                weight=s["weight"],
+                status=status,
+            )
+        )
 
     return SourceHealthResponse(
         sources=source_infos,
@@ -136,17 +142,19 @@ async def get_multi_source_signals(
         source = event.market.source
         by_source[source] = by_source.get(source, 0) + 1
 
-        signals.append(MultiSourceSignal(
-            event_id=event.event_id,
-            source=source,
-            title=event.title,
-            description=event.description[:500] if event.description else "",
-            probability=event.probability,
-            keywords=event.keywords[:10] if event.keywords else [],
-            locations=event.inferred_locations[:5] if event.inferred_locations else [],
-            timestamp=event.observed_at.isoformat() if event.observed_at else "",
-            source_metrics=getattr(event, 'source_metrics', {}),
-        ))
+        signals.append(
+            MultiSourceSignal(
+                event_id=event.event_id,
+                source=source,
+                title=event.title,
+                description=event.description[:500] if event.description else "",
+                probability=event.probability,
+                keywords=event.keywords[:10] if event.keywords else [],
+                locations=event.inferred_locations[:5] if event.inferred_locations else [],
+                timestamp=event.observed_at.isoformat() if event.observed_at else "",
+                source_metrics=getattr(event, "source_metrics", {}),
+            )
+        )
 
     fetch_time = (time.perf_counter() - start_time) * 1000
 
@@ -160,6 +168,7 @@ async def get_multi_source_signals(
 
 class SourceUpdateRequest(BaseModel):
     """Request to update a source's configuration."""
+
     enabled: bool = Field(..., description="Enable or disable the source")
 
 
@@ -171,7 +180,7 @@ async def update_source(
 ) -> dict[str, str]:
     """
     Update a signal source configuration.
-    
+
     Set enabled=true to enable, enabled=false to disable.
     """
     aggregator = get_multi_source_aggregator()
@@ -212,17 +221,19 @@ async def get_single_source_signals(
 
     signals = []
     for event in events:
-        signals.append(MultiSourceSignal(
-            event_id=event.event_id,
-            source=event.market.source,
-            title=event.title,
-            description=event.description[:500] if event.description else "",
-            probability=event.probability,
-            keywords=event.keywords[:10] if event.keywords else [],
-            locations=event.inferred_locations[:5] if event.inferred_locations else [],
-            timestamp=event.observed_at.isoformat() if event.observed_at else "",
-            source_metrics=event.source_metrics,
-        ))
+        signals.append(
+            MultiSourceSignal(
+                event_id=event.event_id,
+                source=event.market.source,
+                title=event.title,
+                description=event.description[:500] if event.description else "",
+                probability=event.probability,
+                keywords=event.keywords[:10] if event.keywords else [],
+                locations=event.inferred_locations[:5] if event.inferred_locations else [],
+                timestamp=event.observed_at.isoformat() if event.observed_at else "",
+                source_metrics=event.source_metrics,
+            )
+        )
 
     fetch_time = (time.perf_counter() - start_time) * 1000
 

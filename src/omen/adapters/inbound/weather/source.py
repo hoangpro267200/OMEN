@@ -93,10 +93,20 @@ class WeatherSignalSource(SignalSource):
         if random.random() < 0.3:  # 30% chance of active storm
             storm = StormAlert(
                 storm_id=f"WP{now.year}{random.randint(1, 30):02d}",
-                name=random.choice([
-                    "Haiyan", "Mangkhut", "Goni", "Rai", "Noru",
-                    "Maria", "Irma", "Harvey", "Dorian", "Ian"
-                ]),
+                name=random.choice(
+                    [
+                        "Haiyan",
+                        "Mangkhut",
+                        "Goni",
+                        "Rai",
+                        "Noru",
+                        "Maria",
+                        "Irma",
+                        "Harvey",
+                        "Dorian",
+                        "Ian",
+                    ]
+                ),
                 storm_type=random.choice(["typhoon", "hurricane", "cyclone"]),
                 category=random.randint(1, 5),
                 lat=random.uniform(10, 25),
@@ -108,8 +118,7 @@ class WeatherSignalSource(SignalSource):
                 path_confidence=random.uniform(0.6, 0.9),
                 affected_shipping_lanes=["Trans-Pacific", "Intra-Asia"],
                 affected_ports=random.sample(
-                    ["HKHKG", "CNSHA", "TWKHH", "JPYOK", "VNSGN"],
-                    k=random.randint(2, 4)
+                    ["HKHKG", "CNSHA", "TWKHH", "JPYOK", "VNSGN"], k=random.randint(2, 4)
                 ),
                 estimated_vessels_at_risk=random.randint(20, 80),
                 timestamp=now,
@@ -133,10 +142,7 @@ class WeatherSignalSource(SignalSource):
                 headline=f"Maritime {random.choice(['Gale', 'High Seas', 'Fog'])} Warning",
                 start_time=now,
                 end_time=now + timedelta(hours=random.randint(12, 48)),
-                affected_ports=random.sample(
-                    ["SGSIN", "HKHKG", "CNSHA"],
-                    k=random.randint(1, 2)
-                ),
+                affected_ports=random.sample(["SGSIN", "HKHKG", "CNSHA"], k=random.randint(1, 2)),
                 timestamp=now,
             )
             warnings.append(warning)
@@ -151,7 +157,7 @@ class WeatherSignalSource(SignalSource):
         for region in self._config.monitored_regions[:3]:
             # Random conditions, occasionally rough
             is_rough = random.random() < 0.2
-            
+
             condition = SeaConditions(
                 region=region,
                 wave_height_m=random.uniform(3, 8) if is_rough else random.uniform(1, 3),

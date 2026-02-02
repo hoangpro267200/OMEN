@@ -33,9 +33,7 @@ def _make_sample_signal() -> OmenSignal:
     """Build one OmenSignal via sync pipeline for use in async repo tests."""
     repo = InMemorySignalRepository()
     pipeline = OmenPipeline(
-        validator=SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
-        ),
+        validator=SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]),
         enricher=SignalEnricher(),
         repository=repo,
         publisher=None,
@@ -97,9 +95,11 @@ def sample_signals(sample_signal: OmenSignal) -> list[OmenSignal]:
 def async_repo_with_data(async_repo: AsyncInMemorySignalRepository, sample_signal: OmenSignal):
     """Repository pre-loaded with one signal. Sync fixture that runs async setup."""
     import asyncio
+
     async def _setup():
         await async_repo.save_async(sample_signal)
         return async_repo
+
     loop = asyncio.new_event_loop()
     try:
         return loop.run_until_complete(_setup())
@@ -181,9 +181,7 @@ class TestFindAsync:
     ) -> None:
         """Existing hash → signal returned."""
         assert sample_signal.input_event_hash is not None, "Expected input_event_hash to be set"
-        found = await async_repo_with_data.find_by_hash_async(
-            sample_signal.input_event_hash
-        )
+        found = await async_repo_with_data.find_by_hash_async(sample_signal.input_event_hash)
         assert found is not None
         assert found.signal_id == sample_signal.signal_id
 

@@ -61,17 +61,17 @@ class Container:
     def create_default(cls) -> "Container":
         """
         Create container with default configuration.
-        
+
         In production (OMEN_ENV=production):
         - Uses PostgreSQL for signal persistence (requires DATABASE_URL)
         - Falls back to in-memory if DATABASE_URL not set (with warning)
-        
+
         In development (default):
         - Uses in-memory repository
         """
         config = get_config()
         env = os.getenv("OMEN_ENV", "development")
-        
+
         validator = SignalValidator(
             rules=[
                 LiquidityValidationRule(min_liquidity_usd=config.min_liquidity_usd),
@@ -81,7 +81,7 @@ class Container:
             ]
         )
         enricher = SignalEnricher()
-        
+
         # Repository selection based on environment
         repository: SignalRepository
         if env == "production":
@@ -92,6 +92,7 @@ class Container:
                     from omen.adapters.persistence.postgres_repository import (
                         PostgresSignalRepository,
                     )
+
                     repository = PostgresSignalRepository(dsn=database_url)
                     logger.info("Using PostgreSQL repository for production")
                 except ImportError:
@@ -103,7 +104,8 @@ class Container:
                 except Exception as e:
                     logger.error(
                         "Failed to initialize PostgreSQL repository: %s. "
-                        "Falling back to in-memory (DATA WILL BE LOST ON RESTART)", e
+                        "Falling back to in-memory (DATA WILL BE LOST ON RESTART)",
+                        e,
                     )
                     repository = InMemorySignalRepository()
             else:
@@ -116,7 +118,7 @@ class Container:
         else:
             repository = InMemorySignalRepository()
             logger.debug("Using in-memory repository (development mode)")
-        
+
         if config.webhook_url:
             publisher = WebhookPublisher(
                 url=config.webhook_url,
@@ -157,9 +159,7 @@ class Container:
             ruleset_version="test-v1.0.0",
             min_liquidity_usd=100.0,
         )
-        validator = SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=100.0)]
-        )
+        validator = SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=100.0)])
         enricher = SignalEnricher()
         repository = InMemorySignalRepository()
         publisher = ConsolePublisher()
@@ -196,7 +196,7 @@ _container_lock = __import__("threading").Lock()
 def get_container() -> Container:
     """
     Return the container instance.
-    
+
     Thread-safe singleton pattern that allows:
     - Testing: call reset_container() between tests
     - Production: efficient reuse of single instance
@@ -213,7 +213,7 @@ def get_container() -> Container:
 def reset_container() -> None:
     """
     Reset the container instance.
-    
+
     Use in tests to ensure clean state between test cases.
     NOT for production use.
     """
@@ -225,7 +225,7 @@ def reset_container() -> None:
 def set_container(container: Container) -> None:
     """
     Set a custom container instance.
-    
+
     Use in tests to inject mock dependencies.
     NOT for production use.
     """

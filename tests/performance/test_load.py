@@ -89,6 +89,7 @@ def run_load_test_emit_style():
     Standalone load test script (run with: python -m tests.performance.test_load).
     Hits health and signals list; prints throughput and latency percentiles.
     """
+
     async def _run():
         num_requests = 100
         concurrency = 10

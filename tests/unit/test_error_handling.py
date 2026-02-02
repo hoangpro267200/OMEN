@@ -61,9 +61,7 @@ class TestPipelineErrorHandling:
 
     @pytest.fixture
     def pipeline_with_dlq(self, dlq):
-        validator = SignalValidator(
-            rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)]
-        )
+        validator = SignalValidator(rules=[LiquidityValidationRule(min_liquidity_usd=1000.0)])
         enricher = SignalEnricher()
         repo = InMemorySignalRepository()
         pub = ConsolePublisher()
@@ -90,9 +88,7 @@ class TestPipelineErrorHandling:
         assert len(result.validation_failures) >= 1
         assert result.stats.events_rejected_validation >= 1
 
-    def test_dlq_empty_when_validation_rejection(
-        self, pipeline_with_dlq, dlq, low_liquidity_event
-    ):
+    def test_dlq_empty_when_validation_rejection(self, pipeline_with_dlq, dlq, low_liquidity_event):
         pipeline_with_dlq.process_single(low_liquidity_event)
         assert dlq.size() == 0
 

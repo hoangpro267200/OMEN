@@ -63,10 +63,7 @@ class AnomalyDetectionRule(Rule[RawSignalEvent, ValidationResult]):
 
         # Check probability movement
         if input_data.movement:
-            if (
-                abs(input_data.movement.delta)
-                > self._config.max_probability_change_24h
-            ):
+            if abs(input_data.movement.delta) > self._config.max_probability_change_24h:
                 anomalies.append(
                     f"Unusual probability change "
                     f"({input_data.movement.delta:+.1%} in "

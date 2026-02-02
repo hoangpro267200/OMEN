@@ -47,9 +47,7 @@ class TestMapMarket:
         assert "disrupted" in (out.description or "")
         assert out.probability == 0.75
 
-    def test_maps_probability_from_outcome_prices(
-        self, mapper: PolymarketMapper
-    ) -> None:
+    def test_maps_probability_from_outcome_prices(self, mapper: PolymarketMapper) -> None:
         raw = {"id": "m1", "outcomePrices": ["0.6", "0.4"]}
         out = mapper.map_market(raw)
         assert out.probability == 0.6
@@ -75,9 +73,7 @@ class TestMapMarket:
         out = mapper.map_market(raw)
         assert out.market.market_url == "https://polymarket.com/event/evt-456"
 
-    def test_parses_iso_timestamps(
-        self, mapper: PolymarketMapper, sample_response: dict
-    ) -> None:
+    def test_parses_iso_timestamps(self, mapper: PolymarketMapper, sample_response: dict) -> None:
         out = mapper.map_market(sample_response)
         assert out.market.created_at is not None
         assert out.market.resolution_date is not None
@@ -159,9 +155,7 @@ class TestMapMarket:
         names = [loc.name for loc in out.inferred_locations]
         assert "Red Sea" in names or "Suez Canal" in names
 
-    def test_stores_raw_payload(
-        self, mapper: PolymarketMapper, sample_response: dict
-    ) -> None:
+    def test_stores_raw_payload(self, mapper: PolymarketMapper, sample_response: dict) -> None:
         out = mapper.map_market(sample_response)
         assert out.raw_payload == sample_response
 

@@ -40,35 +40,35 @@ class AsyncSignalRepository(Protocol):
 class SignalRepository(ABC):
     """
     Abstract interface for signal persistence.
-    
+
     Enables idempotency checking and historical queries.
     """
-    
+
     @abstractmethod
     def save(self, signal: OmenSignal) -> None:
         """Persist an OMEN signal."""
         ...
-    
+
     @abstractmethod
     def find_by_id(self, signal_id: str) -> OmenSignal | None:
         """Find signal by its OMEN ID."""
         ...
-    
+
     @abstractmethod
     def find_by_hash(self, input_event_hash: str) -> OmenSignal | None:
         """
         Find signal by input event hash.
-        
+
         Used for idempotency: if we've already processed this exact
         input, return the cached result.
         """
         ...
-    
+
     @abstractmethod
     def find_by_event_id(self, event_id: str) -> list[OmenSignal]:
         """Find all signals generated from a source event."""
         ...
-    
+
     @abstractmethod
     def find_recent(
         self,

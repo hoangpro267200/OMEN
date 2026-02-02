@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SourceConfig:
     """Configuration for a signal source."""
+
     name: str
     enabled: bool = True
     priority: int = 1  # Higher = more important
@@ -180,6 +181,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
     # Import sources
     try:
         from omen.adapters.inbound.polymarket.source import PolymarketSignalSource
+
         aggregator.register_source(
             PolymarketSignalSource(logistics_only=False),
             SourceConfig(name="polymarket", priority=2, weight=1.0),
@@ -189,6 +191,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
 
     try:
         from omen.adapters.inbound.ais.source import create_ais_source
+
         aggregator.register_source(
             create_ais_source(scenario="congestion"),  # Use mock with congestion scenario for demo
             SourceConfig(name="ais", priority=1, weight=1.2),
@@ -198,6 +201,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
 
     try:
         from omen.adapters.inbound.weather.source import create_weather_source
+
         aggregator.register_source(
             create_weather_source(scenario="typhoon"),  # Use mock with typhoon scenario
             SourceConfig(name="weather", priority=1, weight=1.1),
@@ -207,6 +211,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
 
     try:
         from omen.adapters.inbound.freight.source import create_freight_source
+
         aggregator.register_source(
             create_freight_source(scenario="spike"),  # Use mock with spike scenario
             SourceConfig(name="freight", priority=1, weight=1.0),
@@ -217,6 +222,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
     # Phase 2 sources: News and Commodity
     try:
         from omen.adapters.inbound.news.source import create_news_source
+
         aggregator.register_source(
             create_news_source(scenario="red_sea"),  # Use mock with Red Sea scenario
             SourceConfig(name="news", priority=1, weight=0.8),  # Lower weight - context only
@@ -226,6 +232,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
 
     try:
         from omen.adapters.inbound.commodity.source import create_commodity_source
+
         aggregator.register_source(
             create_commodity_source(scenario="spike"),  # Use mock with spike scenario
             SourceConfig(name="commodity", priority=1, weight=0.7),  # Lower weight - context only
@@ -236,6 +243,7 @@ def _register_default_sources(aggregator: MultiSourceAggregator) -> None:
     # Stock source: Global + Vietnam markets
     try:
         from omen.adapters.inbound.stock.source import create_stock_source
+
         aggregator.register_source(
             create_stock_source(provider="both"),  # yfinance + vnstock
             SourceConfig(name="stock", priority=2, weight=0.9),  # High priority for market data

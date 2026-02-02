@@ -34,11 +34,11 @@ T = TypeVar("T")
 
 class HealthCheckable(Protocol):
     """Protocol for health-checkable sources."""
-    
+
     async def health_check(self) -> dict[str, Any]:
         """
         Check source health.
-        
+
         Returns:
             Dict with keys:
             - healthy: bool
@@ -51,7 +51,7 @@ class HealthCheckable(Protocol):
 
 class SourceHealth:
     """Track health status of a data source."""
-    
+
     def __init__(self, source_name: str):
         self.source_name = source_name
         self.healthy = True
@@ -62,7 +62,7 @@ class SourceHealth:
         self.total_requests = 0
         self.total_failures = 0
         self.total_latency_ms = 0.0
-    
+
     def record_success(self, latency_ms: float) -> None:
         """Record a successful request."""
         self.healthy = True
@@ -70,7 +70,7 @@ class SourceHealth:
         self.consecutive_failures = 0
         self.total_requests += 1
         self.total_latency_ms += latency_ms
-    
+
     def record_failure(self, error: str) -> None:
         """Record a failed request."""
         self.last_failure = datetime.now(timezone.utc)
@@ -78,11 +78,11 @@ class SourceHealth:
         self.consecutive_failures += 1
         self.total_requests += 1
         self.total_failures += 1
-        
+
         # Mark unhealthy after 3 consecutive failures
         if self.consecutive_failures >= 3:
             self.healthy = False
-    
+
     @property
     def avg_latency_ms(self) -> float:
         """Average latency in milliseconds."""
@@ -90,14 +90,14 @@ class SourceHealth:
         if successful == 0:
             return 0.0
         return self.total_latency_ms / successful
-    
+
     @property
     def failure_rate(self) -> float:
         """Failure rate as percentage."""
         if self.total_requests == 0:
             return 0.0
         return (self.total_failures / self.total_requests) * 100
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
@@ -137,12 +137,13 @@ def with_circuit_breaker(
 ):
     """
     Decorator to add circuit breaker protection to a function.
-    
+
     Args:
         source_name: Name of the source (for circuit identification)
         failure_threshold: Number of failures before opening circuit
         recovery_timeout: Seconds before attempting recovery
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         # Create circuit breaker for this source
         cb = create_source_circuit_breaker(
@@ -150,12 +151,12 @@ def with_circuit_breaker(
             failure_threshold=failure_threshold,
             recovery_timeout=recovery_timeout,
         )
-        
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
             health = get_source_health(source_name)
             start_time = time.perf_counter()
-            
+
             try:
                 with cb:
                     result = func(*args, **kwargs)
@@ -165,12 +166,12 @@ def with_circuit_breaker(
             except Exception as e:
                 health.record_failure(str(e))
                 raise
-        
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> T:
             health = get_source_health(source_name)
             start_time = time.perf_counter()
-            
+
             try:
                 async with cb:
                     result = await func(*args, **kwargs)
@@ -180,12 +181,12 @@ def with_circuit_breaker(
             except Exception as e:
                 health.record_failure(str(e))
                 raise
-        
+
         # Return async or sync wrapper based on function type
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return wrapper
-    
+
     return decorator
 
 
@@ -198,7 +199,7 @@ def with_retry(
 ):
     """
     Decorator to add retry with exponential backoff.
-    
+
     Args:
         max_attempts: Maximum number of attempts
         base_delay: Initial delay in seconds
@@ -206,18 +207,19 @@ def with_retry(
         exponential_base: Base for exponential backoff
         retry_exceptions: Tuple of exceptions to retry on
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
             last_exception = None
-            
+
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
                 except retry_exceptions as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        delay = min(base_delay * (exponential_base ** attempt), max_delay)
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
                         logger.warning(
                             f"Attempt {attempt + 1}/{max_attempts} failed: {e}. "
                             f"Retrying in {delay:.1f}s..."
@@ -225,20 +227,20 @@ def with_retry(
                         time.sleep(delay)
                     else:
                         logger.error(f"All {max_attempts} attempts failed: {e}")
-            
+
             raise last_exception
-        
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> T:
             last_exception = None
-            
+
             for attempt in range(max_attempts):
                 try:
                     return await func(*args, **kwargs)
                 except retry_exceptions as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        delay = min(base_delay * (exponential_base ** attempt), max_delay)
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
                         logger.warning(
                             f"Attempt {attempt + 1}/{max_attempts} failed: {e}. "
                             f"Retrying in {delay:.1f}s..."
@@ -246,76 +248,76 @@ def with_retry(
                         await asyncio.sleep(delay)
                     else:
                         logger.error(f"All {max_attempts} attempts failed: {e}")
-            
+
             raise last_exception
-        
+
         # Return async or sync wrapper based on function type
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return wrapper
-    
+
     return decorator
 
 
 class ResilientSourceBase(ABC):
     """
     Base class for resilient data sources.
-    
+
     Provides:
     - Circuit breaker protection
     - Health tracking
     - Standardized health check interface
     """
-    
+
     def __init__(self, source_name: str):
         self.source_name = source_name
         self._health = get_source_health(source_name)
-        
+
         # Create circuit breaker for this source
         self._circuit_breaker = create_source_circuit_breaker(
             source_name=source_name,
             failure_threshold=5,
             recovery_timeout=30.0,
         )
-    
+
     @property
     def health(self) -> SourceHealth:
         """Get health tracker for this source."""
         return self._health
-    
+
     @property
     def is_healthy(self) -> bool:
         """Check if source is healthy."""
         return self._health.healthy
-    
+
     @abstractmethod
     async def _do_health_check(self) -> bool:
         """
         Implement actual health check logic.
-        
+
         Returns:
             True if healthy, False otherwise
         """
         pass
-    
+
     async def health_check(self) -> dict[str, Any]:
         """
         Perform health check.
-        
+
         Returns:
             Health status dictionary
         """
         start_time = time.perf_counter()
-        
+
         try:
             healthy = await self._do_health_check()
             latency_ms = (time.perf_counter() - start_time) * 1000
-            
+
             if healthy:
                 self._health.record_success(latency_ms)
             else:
                 self._health.record_failure("Health check returned unhealthy")
-            
+
             return {
                 "healthy": healthy,
                 "latency_ms": round(latency_ms, 2),
@@ -325,7 +327,7 @@ class ResilientSourceBase(ABC):
         except Exception as e:
             latency_ms = (time.perf_counter() - start_time) * 1000
             self._health.record_failure(str(e))
-            
+
             return {
                 "healthy": False,
                 "latency_ms": round(latency_ms, 2),

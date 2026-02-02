@@ -189,11 +189,7 @@ def audit_action(event_type: str, resource: str, action: str):
                 if request and hasattr(request, "state")
                 else "system"
             )
-            ip = (
-                request.client.host
-                if request and getattr(request, "client", None)
-                else None
-            )
+            ip = request.client.host if request and getattr(request, "client", None) else None
             try:
                 result = await func(*args, **kwargs)
                 log_audit_event(
@@ -231,11 +227,7 @@ def audit_action(event_type: str, resource: str, action: str):
                 if request and hasattr(request, "state")
                 else "system"
             )
-            ip = (
-                request.client.host
-                if request and getattr(request, "client", None)
-                else None
-            )
+            ip = request.client.host if request and getattr(request, "client", None) else None
             try:
                 result = func(*args, **kwargs)
                 log_audit_event(
@@ -266,6 +258,7 @@ def audit_action(event_type: str, resource: str, action: str):
                 raise
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper

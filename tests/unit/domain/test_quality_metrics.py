@@ -40,7 +40,9 @@ def test_record_validation_rejected():
     m = QualityMetrics()
     results = [
         _make_result("liquidity_validation", ValidationStatus.PASSED, 0.9, "OK"),
-        _make_result("semantic_relevance", ValidationStatus.REJECTED_IRRELEVANT_SEMANTIC, 0.2, "No keywords"),
+        _make_result(
+            "semantic_relevance", ValidationStatus.REJECTED_IRRELEVANT_SEMANTIC, 0.2, "No keywords"
+        ),
     ]
     m.record_validation(passed=False, results=results)
     assert m.total_received == 1
@@ -57,7 +59,9 @@ def test_record_validation_rejections_by_rule():
     m = QualityMetrics()
     results = [
         _make_result("liquidity_validation", ValidationStatus.PASSED, 0.9, "OK"),
-        _make_result("geographic_relevance", ValidationStatus.REJECTED_IRRELEVANT_GEOGRAPHY, 0.1, "No geo"),
+        _make_result(
+            "geographic_relevance", ValidationStatus.REJECTED_IRRELEVANT_GEOGRAPHY, 0.1, "No geo"
+        ),
     ]
     m.record_validation(passed=False, results=results)
     assert m.rejections_by_rule.get("geographic_relevance", 0) == 1

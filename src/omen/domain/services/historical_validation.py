@@ -55,9 +55,7 @@ class CalibrationReport:
     mean_absolute_error: float = 0.0
     mean_absolute_percent_error: float = 0.0
 
-    errors_by_metric: dict[str, list[float]] = field(
-        default_factory=lambda: defaultdict(list)
-    )
+    errors_by_metric: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
     coverage_by_confidence: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -116,20 +114,13 @@ class HistoricalValidator:
             for pred in predictions:
                 error = abs(pred.predicted_value - outcome.actual_value)
                 error_pct = (
-                    (error / outcome.actual_value * 100)
-                    if outcome.actual_value != 0
-                    else 0.0
+                    (error / outcome.actual_value * 100) if outcome.actual_value != 0 else 0.0
                 )
 
                 within_bounds: bool | None = None
-                if (
-                    pred.predicted_lower is not None
-                    and pred.predicted_upper is not None
-                ):
+                if pred.predicted_lower is not None and pred.predicted_upper is not None:
                     within_bounds = (
-                        pred.predicted_lower
-                        <= outcome.actual_value
-                        <= pred.predicted_upper
+                        pred.predicted_lower <= outcome.actual_value <= pred.predicted_upper
                     )
                     if within_bounds:
                         report.predictions_within_bounds += 1
@@ -149,11 +140,9 @@ class HistoricalValidator:
                 report.errors_by_metric[pred.metric_name].append(error_pct)
 
         if results:
-            report.mean_absolute_error = sum(r.error for r in results) / len(
+            report.mean_absolute_error = sum(r.error for r in results) / len(results)
+            report.mean_absolute_percent_error = sum(r.error_percent for r in results) / len(
                 results
             )
-            report.mean_absolute_percent_error = sum(
-                r.error_percent for r in results
-            ) / len(results)
 
         return results, report

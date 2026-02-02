@@ -62,13 +62,13 @@ async def readiness_check(response: Response):
 
     checks: dict[str, bool] = {}
     check_details: dict[str, str] = {}
-    
+
     try:
         checks["ledger"], check_details["ledger"] = await _check_ledger_writable()
     except Exception as e:
         checks["ledger"] = False
         check_details["ledger"] = f"Error: {str(e)}"
-        
+
     try:
         checks["riskcast"], check_details["riskcast"] = await _check_riskcast_reachable()
     except Exception as e:
@@ -96,32 +96,36 @@ async def liveness_check():
 async def _check_ledger_writable() -> tuple[bool, str]:
     """
     Check if ledger directory is writable.
-    
+
     Performs an actual write test to verify file system permissions.
     """
     config = get_config()
-    ledger_path = Path(config.ledger_base_path) if hasattr(config, 'ledger_base_path') else Path(".demo/ledger")
-    
+    ledger_path = (
+        Path(config.ledger_base_path)
+        if hasattr(config, "ledger_base_path")
+        else Path(".demo/ledger")
+    )
+
     try:
         # Ensure directory exists
         ledger_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Try to write a test file
         test_file = ledger_path / ".health_check"
         test_content = f"health_check_{datetime.now(timezone.utc).isoformat()}"
-        
+
         # Write and read back
         test_file.write_text(test_content)
         read_back = test_file.read_text()
-        
+
         # Clean up
         test_file.unlink(missing_ok=True)
-        
+
         if read_back == test_content:
             return True, f"Ledger writable at {ledger_path}"
         else:
             return False, "Ledger write verification failed"
-            
+
     except PermissionError as e:
         logger.warning(f"Ledger permission error: {e}")
         return False, f"Permission denied: {ledger_path}"
@@ -136,21 +140,21 @@ async def _check_ledger_writable() -> tuple[bool, str]:
 async def _check_riskcast_reachable() -> tuple[bool, str]:
     """
     Check if RiskCast API is reachable.
-    
+
     Attempts to connect to RiskCast health endpoint.
     """
     riskcast_url = os.getenv("RISKCAST_URL", "http://localhost:8001")
     health_endpoint = f"{riskcast_url}/health"
-    
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(health_endpoint)
-            
+
             if response.status_code == 200:
                 return True, f"RiskCast healthy at {riskcast_url}"
             else:
                 return False, f"RiskCast returned {response.status_code}"
-                
+
     except httpx.ConnectError:
         # RiskCast not running is OK in development
         env = os.getenv("OMEN_ENV", "development")
@@ -168,6 +172,7 @@ async def _check_riskcast_reachable() -> tuple[bool, str]:
 # DATA SOURCE HEALTH ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @router.get(
     "/sources",
     response_model=SourceHealthSummary,
@@ -179,13 +184,13 @@ async def check_all_sources_health(
 ) -> SourceHealthSummary:
     """
     Check health of all registered data sources.
-    
+
     Returns aggregated health information including:
     - Overall system status
     - Per-source status
     - Response latencies
     - Error messages for unhealthy sources
-    
+
     Results are cached for 30 seconds by default. Use `force=true` to bypass.
     """
     aggregator = get_health_aggregator()
@@ -203,7 +208,7 @@ async def check_source_health(
 ) -> HealthCheckResult:
     """
     Check health of a specific data source.
-    
+
     Available sources (when registered):
     - polymarket: Polymarket prediction market API
     - stock: Stock price data (yfinance + vnstock)

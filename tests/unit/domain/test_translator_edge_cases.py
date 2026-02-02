@@ -115,8 +115,10 @@ def logistics_signal() -> ValidatedSignal:
         keywords=["red sea", "shipping", "suez"],
         inferred_locations=[],
         market=MarketMetadata(
-            source="test", market_id=MarketId("m1"),
-            total_volume_usd=100_000.0, current_liquidity_usd=50_000.0,
+            source="test",
+            market_id=MarketId("m1"),
+            total_volume_usd=100_000.0,
+            current_liquidity_usd=50_000.0,
         ),
     )
     return _make_validated_signal(
@@ -138,8 +140,10 @@ def unrelated_signal() -> ValidatedSignal:
         keywords=["weather", "rain"],
         inferred_locations=[],
         market=MarketMetadata(
-            source="test", market_id=MarketId("m2"),
-            total_volume_usd=10_000.0, current_liquidity_usd=5_000.0,
+            source="test",
+            market_id=MarketId("m2"),
+            total_volume_usd=10_000.0,
+            current_liquidity_usd=5_000.0,
         ),
     )
     return _make_validated_signal(
@@ -179,9 +183,7 @@ def translator_with_failing_rule() -> ImpactTranslator:
 
 @pytest.fixture
 def translator_mixed_rules() -> ImpactTranslator:
-    return ImpactTranslator(
-        rules=[FailingTranslationRule(), RedSeaDisruptionRule()]
-    )
+    return ImpactTranslator(rules=[FailingTranslationRule(), RedSeaDisruptionRule()])
 
 
 class TestRuleFiltering:
@@ -195,26 +197,18 @@ class TestRuleFiltering:
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
-            logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = translator.translate(logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is not None
         assert out.domain == ImpactDomain.LOGISTICS
 
-    def test_skips_non_applicable_rules(
-        self, unrelated_signal: ValidatedSignal
-    ) -> None:
+    def test_skips_non_applicable_rules(self, unrelated_signal: ValidatedSignal) -> None:
         """Signal not matching rule keywords → rule skipped, no fallback → None."""
-        no_fallback = ImpactTranslator(
-            rules=[RedSeaDisruptionRule()], fallback_enabled=False
-        )
+        no_fallback = ImpactTranslator(rules=[RedSeaDisruptionRule()], fallback_enabled=False)
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = no_fallback.translate(
-            unrelated_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = no_fallback.translate(unrelated_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is None
 
     def test_multiple_applicable_rules_all_run(
@@ -225,9 +219,7 @@ class TestRuleFiltering:
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
-            multi_match_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = translator.translate(multi_match_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is not None
         assert len(out.metrics) >= 1 or len(out.affected_routes) >= 1
 
@@ -235,54 +227,38 @@ class TestRuleFiltering:
 class TestNoMatchScenarios:
     """No applicable rules scenarios."""
 
-    def test_no_matching_rules_returns_none(
-        self, unrelated_signal: ValidatedSignal
-    ) -> None:
+    def test_no_matching_rules_returns_none(self, unrelated_signal: ValidatedSignal) -> None:
         """No rules match and fallback disabled → returns None."""
-        no_fallback = ImpactTranslator(
-            rules=[RedSeaDisruptionRule()], fallback_enabled=False
-        )
+        no_fallback = ImpactTranslator(rules=[RedSeaDisruptionRule()], fallback_enabled=False)
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = no_fallback.translate(
-            unrelated_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = no_fallback.translate(unrelated_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is None
 
-    def test_empty_rules_list_returns_none(
-        self, logistics_signal: ValidatedSignal
-    ) -> None:
+    def test_empty_rules_list_returns_none(self, logistics_signal: ValidatedSignal) -> None:
         """No rules configured and fallback disabled → returns None."""
         no_fallback = ImpactTranslator(rules=[], fallback_enabled=False)
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = no_fallback.translate(
-            logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = no_fallback.translate(logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is None
 
 
 class TestRuleErrorHandling:
     """Rule exception handling."""
 
-    def test_rule_exception_logged_and_skipped(
-        self, logistics_signal: ValidatedSignal
-    ) -> None:
+    def test_rule_exception_logged_and_skipped(self, logistics_signal: ValidatedSignal) -> None:
         """Rule raises → logged, no applicable results, fallback disabled → None."""
-        failing_only = ImpactTranslator(
-            rules=[FailingTranslationRule()], fallback_enabled=False
-        )
+        failing_only = ImpactTranslator(rules=[FailingTranslationRule()], fallback_enabled=False)
         ctx = ProcessingContext.create_for_replay(
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = failing_only.translate(
-            logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = failing_only.translate(logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is None
 
     def test_partial_results_returned_on_some_failures(
@@ -312,9 +288,7 @@ class TestAssessmentBuilding:
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
-            multi_match_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = translator.translate(multi_match_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is not None
         assert len(out.metrics) >= 1 or len(out.affected_routes) >= 1
 
@@ -326,9 +300,7 @@ class TestAssessmentBuilding:
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
-            high_prob_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = translator.translate(high_prob_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is not None
         assert 0 <= out.overall_severity <= 1
         assert out.severity_label in ("VERY_HIGH", "HIGH", "MEDIUM", "LOW")
@@ -341,9 +313,7 @@ class TestAssessmentBuilding:
             processing_time=_FIXED_TIME,
             ruleset_version=RulesetVersion("test"),
         )
-        out = translator.translate(
-            logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx
-        )
+        out = translator.translate(logistics_signal, domain=ImpactDomain.LOGISTICS, context=ctx)
         assert out is not None
         assert out.explanation_chain is not None
         assert out.explanation_chain.completed_at is not None

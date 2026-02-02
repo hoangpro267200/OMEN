@@ -16,9 +16,7 @@ DANGEROUS_PATTERNS = [
     r"\$\{.*?\}",
 ]
 
-COMPILED_PATTERNS = [
-    re.compile(p, re.IGNORECASE | re.DOTALL) for p in DANGEROUS_PATTERNS
-]
+COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in DANGEROUS_PATTERNS]
 
 
 def sanitize_string(value: str, max_length: int = 10000) -> str:
@@ -58,11 +56,11 @@ def sanitize_dict(data: dict[str, Any], max_depth: int = 10) -> dict[str, Any]:
             value = sanitize_dict(value, max_depth - 1)
         elif isinstance(value, list):
             value = [
-                sanitize_dict(v, max_depth - 1)
-                if isinstance(v, dict)
-                else sanitize_string(v)
-                if isinstance(v, str)
-                else v
+                (
+                    sanitize_dict(v, max_depth - 1)
+                    if isinstance(v, dict)
+                    else sanitize_string(v) if isinstance(v, str) else v
+                )
                 for v in value
             ]
 
@@ -89,9 +87,7 @@ class SecureEventInput(BaseModel):
     def validate_event_id(cls, v: str) -> str:
         v = sanitize_string(v, max_length=100)
         if not re.match(r"^[a-zA-Z0-9_-]+$", v):
-            raise ValueError(
-                "event_id must be alphanumeric with hyphens/underscores only"
-            )
+            raise ValueError("event_id must be alphanumeric with hyphens/underscores only")
         return v
 
     @field_validator("title")

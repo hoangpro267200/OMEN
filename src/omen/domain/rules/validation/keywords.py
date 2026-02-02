@@ -177,7 +177,9 @@ def get_matched_keywords(text: str) -> list[str]:
     if not text:
         return []
     text_lower = text.lower()
-    return [kw for kw in _ALL_LOGISTICS_KEYWORDS if re.search(r"\b" + re.escape(kw) + r"\b", text_lower)]
+    return [
+        kw for kw in _ALL_LOGISTICS_KEYWORDS if re.search(r"\b" + re.escape(kw) + r"\b", text_lower)
+    ]
 
 
 def get_keyword_categories(keywords: list[str]) -> dict[str, list[str]]:

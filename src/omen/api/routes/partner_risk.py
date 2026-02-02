@@ -27,8 +27,8 @@ DEPRECATION_RESPONSE = {
     "example_migration": {
         "old": "GET /api/v1/partner-risk/partners/{symbol}",
         "new": "GET /api/v1/partner-signals/{symbol}",
-        "note": "New endpoint returns signals/metrics instead of risk verdicts"
-    }
+        "note": "New endpoint returns signals/metrics instead of risk verdicts",
+    },
 }
 
 
@@ -49,12 +49,12 @@ DEPRECATION_RESPONSE = {
 async def list_partners() -> dict:
     """
     ⚠️ DEPRECATED - List all monitored logistics partners.
-    
+
     Use GET /api/v1/partner-signals/partners instead.
     """
     # Still functional but with deprecation warning
     from omen.adapters.inbound.partner_risk.monitor import LOGISTICS_COMPANIES
-    
+
     return {
         "_deprecated": True,
         "_migration": "Use GET /api/v1/partner-signals/partners instead",
@@ -77,18 +77,15 @@ async def list_partners() -> dict:
 async def get_partner_risk(symbol: str) -> dict:
     """
     ⚠️ DEPRECATED - Get risk assessment for a specific partner.
-    
+
     This endpoint violates Signal Engine principles by returning risk verdicts.
-    
+
     **Migration:**
     - Use `GET /api/v1/partner-signals/{symbol}` instead
     - The new endpoint returns signals/metrics
     - RiskCast should make risk decisions
     """
-    raise HTTPException(
-        status_code=410,
-        detail=DEPRECATION_RESPONSE
-    )
+    raise HTTPException(status_code=410, detail=DEPRECATION_RESPONSE)
 
 
 @router.get(
@@ -102,10 +99,7 @@ async def get_partner_price(symbol: str) -> dict:
     """
     raise HTTPException(
         status_code=410,
-        detail={
-            **DEPRECATION_RESPONSE,
-            "new_endpoint": f"/api/v1/partner-signals/{symbol}/price"
-        }
+        detail={**DEPRECATION_RESPONSE, "new_endpoint": f"/api/v1/partner-signals/{symbol}/price"},
     )
 
 
@@ -122,8 +116,8 @@ async def get_partner_health(symbol: str) -> dict:
         status_code=410,
         detail={
             **DEPRECATION_RESPONSE,
-            "new_endpoint": f"/api/v1/partner-signals/{symbol}/fundamentals"
-        }
+            "new_endpoint": f"/api/v1/partner-signals/{symbol}/fundamentals",
+        },
     )
 
 
@@ -137,7 +131,7 @@ async def get_portfolio_summary(
 ) -> dict:
     """
     ⚠️ DEPRECATED - This endpoint returns risk verdicts which violates Signal Engine principles.
-    
+
     **Migration:**
     - Use `GET /api/v1/partner-signals/` instead
     - The new endpoint returns signals/metrics without risk verdicts
@@ -148,8 +142,8 @@ async def get_portfolio_summary(
         detail={
             **DEPRECATION_RESPONSE,
             "reason": "Portfolio risk summary with overall_risk violates Signal Engine principles. "
-                      "RiskCast should compute portfolio-level risk from individual signals."
-        }
+            "RiskCast should compute portfolio-level risk from individual signals.",
+        },
     )
 
 
@@ -163,7 +157,7 @@ async def get_risk_alerts(
 ) -> dict:
     """
     ⚠️ DEPRECATED - OMEN is a Signal Engine, not an Alert Engine.
-    
+
     **Migration:**
     - Use `GET /api/v1/partner-signals/` to get signals
     - RiskCast should evaluate signals and generate alerts based on business rules
@@ -173,8 +167,8 @@ async def get_risk_alerts(
         detail={
             **DEPRECATION_RESPONSE,
             "reason": "OMEN is a Signal Engine. Alert generation based on risk levels "
-                      "should be implemented in RiskCast, not OMEN."
-        }
+            "should be implemented in RiskCast, not OMEN.",
+        },
     )
 
 
@@ -186,7 +180,7 @@ async def get_risk_alerts(
 async def trigger_clawbot_notification() -> dict:
     """
     ⚠️ DEPRECATED - Clawbot notification should be triggered by RiskCast, not OMEN.
-    
+
     **Migration:**
     - RiskCast should consume signals from OMEN
     - RiskCast evaluates risk and triggers Clawbot notifications
@@ -197,6 +191,6 @@ async def trigger_clawbot_notification() -> dict:
         detail={
             **DEPRECATION_RESPONSE,
             "reason": "Clawbot notification is a risk-based action. "
-                      "RiskCast should evaluate signals and trigger notifications."
-        }
+            "RiskCast should evaluate signals and trigger notifications.",
+        },
     )

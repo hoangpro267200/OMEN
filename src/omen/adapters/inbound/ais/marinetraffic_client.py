@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 class MarineTrafficVesselResponse(BaseModel):
     """MarineTraffic vessel response."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     MMSI: int
     IMO: Optional[int] = None
     SHIPNAME: Optional[str] = None
@@ -51,9 +51,9 @@ class MarineTrafficVesselResponse(BaseModel):
 
 class MarineTrafficPortResponse(BaseModel):
     """MarineTraffic port congestion response."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     PORTID: int
     PORTNAME: str
     UNLOCODE: str
@@ -67,13 +67,13 @@ class MarineTrafficPortResponse(BaseModel):
 class RealMarineTrafficClient:
     """
     Real MarineTraffic API client.
-    
+
     Provides real-time vessel tracking and port congestion data.
     Uses circuit breaker for resilience.
     """
-    
+
     BASE_URL = "https://services.marinetraffic.com/api"
-    
+
     # Vessel type mapping
     VESSEL_TYPES = {
         70: "Cargo",
@@ -97,7 +97,7 @@ class RealMarineTrafficClient:
         88: "Tanker",
         89: "Tanker",
     }
-    
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -112,17 +112,15 @@ class RealMarineTrafficClient:
             failure_threshold=5,
             recovery_timeout=60.0,
         )
-        
+
         if not self.api_key:
-            logger.warning(
-                "MARINETRAFFIC_API_KEY not set. AIS data will be unavailable."
-            )
-    
+            logger.warning("MARINETRAFFIC_API_KEY not set. AIS data will be unavailable.")
+
     @property
     def is_configured(self) -> bool:
         """Check if API key is configured."""
         return bool(self.api_key)
-    
+
     async def get_vessels_in_area(
         self,
         lat_min: float,
@@ -133,16 +131,16 @@ class RealMarineTrafficClient:
     ) -> list[Vessel]:
         """
         Get vessels in a geographic bounding box.
-        
+
         Uses MarineTraffic PS01 - Vessel Positions in Area API.
         """
         if not self.is_configured:
             return []
-        
+
         if not self._circuit_breaker.can_execute():
             logger.debug("Circuit breaker open for MarineTraffic")
             return []
-        
+
         try:
             response = await self._client.get(
                 f"{self.BASE_URL}/exportvessels/{self.api_key}",
@@ -157,12 +155,12 @@ class RealMarineTrafficClient:
                 },
             )
             response.raise_for_status()
-            
+
             self._circuit_breaker.record_success()
-            
+
             data = response.json()
             vessels = []
-            
+
             for item in data if isinstance(data, list) else []:
                 try:
                     mt_vessel = MarineTrafficVesselResponse(**item)
@@ -170,9 +168,9 @@ class RealMarineTrafficClient:
                     vessels.append(vessel)
                 except Exception as e:
                     logger.debug("Failed to parse vessel: %s", e)
-            
+
             return vessels
-            
+
         except httpx.HTTPStatusError as e:
             logger.error("MarineTraffic API error: %s", e.response.status_code)
             self._circuit_breaker.record_failure()
@@ -181,19 +179,19 @@ class RealMarineTrafficClient:
             logger.error("MarineTraffic fetch error: %s", e)
             self._circuit_breaker.record_failure()
             return []
-    
+
     async def get_port_status(self, port_code: str) -> Optional[PortStatus]:
         """
         Get port congestion status.
-        
+
         Uses MarineTraffic VI01 - Vessel Count in Ports API.
         """
         if not self.is_configured:
             return None
-        
+
         if not self._circuit_breaker.can_execute():
             return None
-        
+
         try:
             response = await self._client.get(
                 f"{self.BASE_URL}/portvesselcount/{self.api_key}",
@@ -204,53 +202,53 @@ class RealMarineTrafficClient:
                 },
             )
             response.raise_for_status()
-            
+
             self._circuit_breaker.record_success()
-            
+
             data = response.json()
             if not data:
                 return None
-            
+
             port_data = data[0] if isinstance(data, list) else data
             mt_port = MarineTrafficPortResponse(**port_data)
-            
+
             return self._convert_port_status(port_code, mt_port)
-            
+
         except Exception as e:
             logger.error("MarineTraffic port status error: %s", e)
             self._circuit_breaker.record_failure()
             return None
-    
+
     async def get_chokepoint_status(
         self,
         chokepoint_name: str,
     ) -> Optional[ChokePointStatus]:
         """
         Get chokepoint traffic status.
-        
+
         Aggregates vessel counts in chokepoint areas.
         """
         if not self.is_configured:
             return None
-        
+
         # Get chokepoint metadata
         meta = CHOKEPOINT_METADATA.get(chokepoint_name)
         if not meta:
             logger.warning("Unknown chokepoint: %s", chokepoint_name)
             return None
-        
+
         # Define bounding box for chokepoint
         lat, lon = meta["location"]
         lat_min, lat_max = lat - 1.0, lat + 1.0
         lon_min, lon_max = lon - 1.0, lon + 1.0
-        
+
         vessels = await self.get_vessels_in_area(lat_min, lat_max, lon_min, lon_max)
-        
+
         # Calculate statistics
         vessels_in_transit = len([v for v in vessels if v.speed_knots > 5])
         vessels_at_anchor = len([v for v in vessels if v.speed_knots <= 1])
         vessels_waiting = len([v for v in vessels if 1 < v.speed_knots <= 5])
-        
+
         return ChokePointStatus(
             name=chokepoint_name,
             location=meta["location"],
@@ -264,19 +262,19 @@ class RealMarineTrafficClient:
             timestamp=datetime.now(timezone.utc),
             data_source="marinetraffic",
         )
-    
+
     async def get_vessel_by_mmsi(self, mmsi: int) -> Optional[Vessel]:
         """
         Get vessel details by MMSI.
-        
+
         Uses MarineTraffic PS07 - Single Vessel Position API.
         """
         if not self.is_configured:
             return None
-        
+
         if not self._circuit_breaker.can_execute():
             return None
-        
+
         try:
             response = await self._client.get(
                 f"{self.BASE_URL}/exportvessel/{self.api_key}",
@@ -288,27 +286,27 @@ class RealMarineTrafficClient:
                 },
             )
             response.raise_for_status()
-            
+
             self._circuit_breaker.record_success()
-            
+
             data = response.json()
             if not data:
                 return None
-            
+
             vessel_data = data[0] if isinstance(data, list) else data
             mt_vessel = MarineTrafficVesselResponse(**vessel_data)
-            
+
             return self._convert_vessel(mt_vessel)
-            
+
         except Exception as e:
             logger.error("MarineTraffic vessel fetch error: %s", e)
             self._circuit_breaker.record_failure()
             return None
-    
+
     def _convert_vessel(self, mt_vessel: MarineTrafficVesselResponse) -> Vessel:
         """Convert MarineTraffic response to Vessel model."""
         vessel_type = self.VESSEL_TYPES.get(mt_vessel.SHIPTYPE or 0, "Unknown")
-        
+
         return Vessel(
             mmsi=mt_vessel.MMSI,
             imo=mt_vessel.IMO,
@@ -325,7 +323,7 @@ class RealMarineTrafficClient:
             draught_m=mt_vessel.DRAUGHT,
             timestamp=datetime.now(timezone.utc),
         )
-    
+
     def _convert_port_status(
         self,
         port_code: str,
@@ -334,7 +332,7 @@ class RealMarineTrafficClient:
         """Convert MarineTraffic response to PortStatus model."""
         # Get additional metadata
         meta = PORT_METADATA.get(port_code, {})
-        
+
         return PortStatus(
             port_code=port_code,
             port_name=mt_port.PORTNAME,
@@ -351,18 +349,18 @@ class RealMarineTrafficClient:
             timestamp=datetime.now(timezone.utc),
             data_quality=0.95,
         )
-    
+
     async def fetch_logistics_signals(self) -> list[RawSignalEvent]:
         """
         Fetch logistics-relevant signals from AIS data.
-        
+
         Detects:
         - Port congestion anomalies
         - Chokepoint delays
         - Unusual vessel behavior
         """
         events = []
-        
+
         # Check major ports for congestion
         major_ports = ["SGSIN", "CNSHA", "HKHKG", "NLRTM", "USLAX"]
         for port_code in major_ports:
@@ -370,7 +368,7 @@ class RealMarineTrafficClient:
             if status and self._is_congestion_anomaly(status):
                 event = self._create_congestion_signal(status)
                 events.append(event)
-        
+
         # Check chokepoints
         chokepoints = ["Suez Canal", "Panama Canal", "Strait of Malacca"]
         for cp_name in chokepoints:
@@ -378,32 +376,32 @@ class RealMarineTrafficClient:
             if status and self._is_chokepoint_anomaly(status):
                 event = self._create_chokepoint_signal(status)
                 events.append(event)
-        
+
         return events
-    
+
     def _is_congestion_anomaly(self, status: PortStatus) -> bool:
         """Check if port shows congestion anomaly."""
         if status.normal_waiting == 0:
             return False
         ratio = status.vessels_waiting / status.normal_waiting
         return ratio > 1.5  # 50% above normal
-    
+
     def _is_chokepoint_anomaly(self, status: ChokePointStatus) -> bool:
         """Check if chokepoint shows delay anomaly."""
         if status.normal_transit_time_hours == 0:
             return False
         ratio = status.avg_transit_time_hours / status.normal_transit_time_hours
         return ratio > 1.3  # 30% above normal
-    
+
     def _create_congestion_signal(self, status: PortStatus) -> RawSignalEvent:
         """Create signal for port congestion."""
         ratio = status.vessels_waiting / max(status.normal_waiting, 1)
-        
+
         return RawSignalEvent(
             event_id=f"ais-congestion-{status.port_code}-{status.timestamp.strftime('%Y%m%d')}",
             title=f"Port Congestion: {status.port_name} ({status.port_code})",
             description=f"Vessel waiting count is {ratio:.1f}x normal levels. "
-                       f"{status.vessels_waiting} vessels waiting vs normal {status.normal_waiting}.",
+            f"{status.vessels_waiting} vessels waiting vs normal {status.normal_waiting}.",
             probability=min(0.95, 0.5 + (ratio - 1) * 0.2),
             probability_is_fallback=False,
             keywords=["port", "congestion", status.port_code.lower(), status.country.lower()],
@@ -415,16 +413,16 @@ class RealMarineTrafficClient:
                 "avg_wait_hours": status.avg_wait_time_hours,
             },
         )
-    
+
     def _create_chokepoint_signal(self, status: ChokePointStatus) -> RawSignalEvent:
         """Create signal for chokepoint delays."""
         ratio = status.avg_transit_time_hours / max(status.normal_transit_time_hours, 1)
-        
+
         return RawSignalEvent(
             event_id=f"ais-chokepoint-{status.name.replace(' ', '_')}-{status.timestamp.strftime('%Y%m%d')}",
             title=f"Chokepoint Delay: {status.name}",
             description=f"Transit time is {ratio:.1f}x normal. "
-                       f"{status.vessels_waiting} vessels waiting for passage.",
+            f"{status.vessels_waiting} vessels waiting for passage.",
             probability=min(0.95, 0.5 + (ratio - 1) * 0.3),
             probability_is_fallback=False,
             keywords=["chokepoint", status.name.lower().replace(" ", "_"), "delay"],
@@ -436,7 +434,7 @@ class RealMarineTrafficClient:
                 "delay_ratio": round(ratio, 2),
             },
         )
-    
+
     async def health_check(self) -> dict:
         """Check MarineTraffic API health."""
         status = {
@@ -444,25 +442,27 @@ class RealMarineTrafficClient:
             "configured": self.is_configured,
             "circuit_breaker": self._circuit_breaker.state,
         }
-        
+
         if not self.is_configured:
             status["status"] = "unconfigured"
             return status
-        
+
         # Test with a simple vessel query
         try:
             vessels = await self.get_vessels_in_area(
-                lat_min=1.2, lat_max=1.4,
-                lon_min=103.7, lon_max=103.9,
+                lat_min=1.2,
+                lat_max=1.4,
+                lon_min=103.7,
+                lon_max=103.9,
             )
             status["status"] = "healthy"
             status["test_vessels_found"] = len(vessels)
         except Exception as e:
             status["status"] = "unhealthy"
             status["error"] = str(e)
-        
+
         return status
-    
+
     async def close(self):
         """Close HTTP client."""
         await self._client.aclose()

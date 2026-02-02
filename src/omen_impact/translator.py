@@ -19,7 +19,6 @@ from omen_impact.assessment import (
 from omen_impact.rules.base import ImpactTranslationRule, TranslationResult
 from omen_impact.methodology.red_sea_impact import TIMING_METHODOLOGY
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -82,10 +81,7 @@ class ImpactTranslator:
         When fallback_enabled and domain is LOGISTICS, returns a generic
         generic high-probability indicator assessment if no rule matches.
         """
-        applicable_rules = [
-            r for r in self.rules
-            if r.domain == domain and r.is_applicable(signal)
-        ]
+        applicable_rules = [r for r in self.rules if r.domain == domain and r.is_applicable(signal)]
         if not applicable_rules:
             if self._fallback_enabled and domain == ImpactDomain.LOGISTICS:
                 return self._create_fallback_assessment(signal, domain, context)
@@ -96,9 +92,7 @@ class ImpactTranslator:
 
         for rule in applicable_rules:
             try:
-                result = rule.translate(
-                    signal, processing_time=context.processing_time
-                )
+                result = rule.translate(signal, processing_time=context.processing_time)
                 if result.applicable:
                     applicable_results_with_names.append((rule.name, result))
             except Exception as e:
@@ -154,9 +148,7 @@ class ImpactTranslator:
         explanation_chain = ExplanationChain.create(context)
         steps_with_context_time: List[ExplanationStep] = []
         for i, step in enumerate(explanation_steps, start=1):
-            step = step.model_copy(
-                update={"step_id": i, "timestamp": context.processing_time}
-            )
+            step = step.model_copy(update={"step_id": i, "timestamp": context.processing_time})
             steps_with_context_time.append(step)
             explanation_chain = explanation_chain.add_step(step)
         explanation_chain = explanation_chain.finalize(context)

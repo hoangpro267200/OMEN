@@ -61,8 +61,10 @@ def test_score_scales_with_liquidity():
         title="Test",
         probability=0.5,
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=2000.0, current_liquidity_usd=2000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=2000.0,
+            current_liquidity_usd=2000.0,
         ),
     )
     high = RawSignalEvent(
@@ -70,8 +72,10 @@ def test_score_scales_with_liquidity():
         title="Test",
         probability=0.5,
         market=MarketMetadata(
-            source="t", market_id=MarketId("m2"),
-            total_volume_usd=50000.0, current_liquidity_usd=50000.0,
+            source="t",
+            market_id=MarketId("m2"),
+            total_volume_usd=50000.0,
+            current_liquidity_usd=50000.0,
         ),
     )
     res_low = rule.apply(low)

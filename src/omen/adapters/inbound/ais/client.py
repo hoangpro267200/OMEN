@@ -115,15 +115,18 @@ class MockAISClient(AISClient):
         now = datetime.now(timezone.utc)
 
         # Get port metadata or use defaults
-        meta = PORT_METADATA.get(port_code, {
-            "name": port_code,
-            "country": "Unknown",
-            "region": "Unknown",
-            "lat": 0.0,
-            "lon": 0.0,
-            "normal_waiting": 10,
-            "normal_wait_hours": 6.0,
-        })
+        meta = PORT_METADATA.get(
+            port_code,
+            {
+                "name": port_code,
+                "country": "Unknown",
+                "region": "Unknown",
+                "lat": 0.0,
+                "lon": 0.0,
+                "normal_waiting": 10,
+                "normal_wait_hours": 6.0,
+            },
+        )
 
         normal_waiting = meta["normal_waiting"]
         normal_wait_hours = meta["normal_wait_hours"]
@@ -178,12 +181,15 @@ class MockAISClient(AISClient):
         now = datetime.now(timezone.utc)
 
         # Get chokepoint metadata
-        meta = CHOKEPOINT_METADATA.get(chokepoint_name, {
-            "location": (0.0, 0.0),
-            "normal_transit_hours": 12.0,
-            "daily_transits": 40,
-            "affected_routes": ["Global shipping"],
-        })
+        meta = CHOKEPOINT_METADATA.get(
+            chokepoint_name,
+            {
+                "location": (0.0, 0.0),
+                "normal_transit_hours": 12.0,
+                "daily_transits": 40,
+                "affected_routes": ["Global shipping"],
+            },
+        )
 
         normal_transit = meta["normal_transit_hours"]
         daily_transits = meta["daily_transits"]

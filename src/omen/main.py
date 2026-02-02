@@ -152,7 +152,7 @@ async def lifespan(app: FastAPI) -> Any:
         initialize_connection_manager,
         shutdown_connection_manager,
     )
-    
+
     omen_config = get_config()
     setup_logging(
         level=omen_config.log_level,
@@ -160,7 +160,7 @@ async def lifespan(app: FastAPI) -> Any:
         service_name="omen",
     )
     config = get_security_config()
-    
+
     # CRITICAL: Fail fast in production if no API keys configured
     if not config.get_api_keys():
         if IS_PRODUCTION:
@@ -178,14 +178,14 @@ async def lifespan(app: FastAPI) -> Any:
             )
 
     logger.info("OMEN starting up (env=%s)...", OMEN_ENV)
-    
+
     # Initialize distributed WebSocket manager
     try:
         await initialize_connection_manager()
         logger.info("Distributed connection manager initialized")
     except Exception as e:
         logger.warning("Failed to initialize distributed connection manager: %s", e)
-    
+
     try:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -203,14 +203,14 @@ async def lifespan(app: FastAPI) -> Any:
 
     logger.info("OMEN shutting down gracefully...")
     await graceful_shutdown(timeout_seconds=30)
-    
+
     # Shutdown distributed components
     try:
         await shutdown_connection_manager()
         logger.info("Distributed connection manager shutdown")
     except Exception as e:
         logger.error("Error shutting down connection manager: %s", e)
-    
+
     logger.info("OMEN shutdown complete.")
 
 
@@ -259,7 +259,7 @@ Impact assessment is the responsibility of downstream systems.
 
     # === ERROR HANDLERS (register early) ===
     register_error_handlers(app)
-    
+
     # === REQUEST BODY SIZE LIMIT ===
     @app.middleware("http")
     async def limit_request_body(
@@ -268,7 +268,7 @@ Impact assessment is the responsibility of downstream systems.
     ) -> Response:
         """
         Limit request body size to prevent DoS attacks.
-        
+
         Returns 413 Payload Too Large if body exceeds MAX_REQUEST_BODY_SIZE.
         """
         content_length = request.headers.get("content-length")
@@ -277,6 +277,7 @@ Impact assessment is the responsibility of downstream systems.
                 size = int(content_length)
                 if size > MAX_REQUEST_BODY_SIZE:
                     from fastapi.responses import JSONResponse
+
                     return JSONResponse(
                         status_code=413,
                         content={
@@ -290,12 +291,12 @@ Impact assessment is the responsibility of downstream systems.
         return await call_next(request)
 
     # === MIDDLEWARE STACK (order matters - last added runs first) ===
-    
+
     # HTTPS Redirect (production only, runs first)
     if IS_PRODUCTION:
         app.add_middleware(HTTPSRedirectMiddleware)
         logger.info("HTTPS redirect middleware enabled (production)")
-    
+
     # CORS middleware
     if config.cors_enabled:
         app.add_middleware(
@@ -311,7 +312,7 @@ Impact assessment is the responsibility of downstream systems.
 
     # Request tracking
     app.middleware("http")(request_tracking_middleware)
-    
+
     # HTTP metrics (p50, p95, p99 latency tracking)
     app.middleware("http")(http_metrics_middleware)
 
@@ -329,9 +330,7 @@ Impact assessment is the responsibility of downstream systems.
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = "default-src 'self'"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-OMEN-Contract-Version"] = "2.0.0"
@@ -345,10 +344,10 @@ Impact assessment is the responsibility of downstream systems.
         return response
 
     # === PUBLIC ROUTES (no authentication required) ===
-    
+
     # Health checks - always public
     app.include_router(health.router, prefix="/health", tags=["Health"])
-    
+
     # Metrics - public for Prometheus scraping
     app.include_router(metrics_prometheus.router, tags=["Metrics"])
 
@@ -364,7 +363,7 @@ Impact assessment is the responsibility of downstream systems.
         }
 
     # === PROTECTED ROUTES (authentication + RBAC required) ===
-    
+
     # Signals API - core functionality
     # GET: read:signals, POST: write:signals
     app.include_router(
@@ -373,7 +372,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Signals"],
         dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
     )
-    
+
     # Explanations API
     app.include_router(
         explanations.router,
@@ -381,7 +380,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Explanations"],
         dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
     )
-    
+
     # Live data API (requires write access)
     app.include_router(
         live.router,
@@ -389,7 +388,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Live Data"],
         dependencies=WRITE_SIGNALS,  # 🔒 RBAC: write:signals
     )
-    
+
     # Circuit breaker metrics
     app.include_router(
         metrics_circuit.router,
@@ -397,7 +396,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Circuit Breaker"],
         dependencies=READ_STATS,  # 🔒 RBAC: read:stats
     )
-    
+
     # Storage API
     app.include_router(
         storage.router,
@@ -405,7 +404,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Storage"],
         dependencies=READ_STORAGE,  # 🔒 RBAC: read:storage
     )
-    
+
     # Stats API
     app.include_router(
         stats.router,
@@ -413,7 +412,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Statistics"],
         dependencies=READ_STATS,  # 🔒 RBAC: read:stats
     )
-    
+
     # Activity API
     app.include_router(
         activity.router,
@@ -421,7 +420,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Activity"],
         dependencies=READ_ACTIVITY,  # 🔒 RBAC: read:activity
     )
-    
+
     # Realtime API
     app.include_router(
         realtime.router,
@@ -429,7 +428,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Realtime"],
         dependencies=READ_REALTIME,  # 🔒 RBAC: read:realtime
     )
-    
+
     # Methodology API
     app.include_router(
         methodology.router,
@@ -437,7 +436,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Methodology"],
         dependencies=READ_METHODOLOGY,  # 🔒 RBAC: read:methodology
     )
-    
+
     # Multi-source Intelligence API
     app.include_router(
         multi_source.router,
@@ -445,10 +444,10 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Multi-Source Intelligence"],
         dependencies=READ_MULTI_SOURCE,  # 🔒 RBAC: read:multi-source
     )
-    
+
     # WebSocket (has its own auth)
     app.include_router(websocket.router, tags=["WebSocket"])
-    
+
     # Partner Signals Engine - Pure Signal API
     app.include_router(
         partner_signals.router,
@@ -456,7 +455,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Partner Signals"],
         dependencies=READ_PARTNERS,  # 🔒 RBAC: read:partners
     )
-    
+
     # Partner Risk Engine - DEPRECATED
     app.include_router(
         partner_risk.router,
@@ -464,7 +463,7 @@ Impact assessment is the responsibility of downstream systems.
         tags=["Partner Risk (DEPRECATED)"],
         dependencies=READ_PARTNERS,  # 🔒 RBAC: read:partners
     )
-    
+
     # UI API (for demo frontend) - uses read:signals scope
     app.include_router(
         ui.router,
@@ -472,11 +471,12 @@ Impact assessment is the responsibility of downstream systems.
         tags=["UI"],
         dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
     )
-    
+
     # === DEBUG ROUTES (development only, requires debug scope) ===
-    
+
     if not IS_PRODUCTION:
         from omen.api.routes import debug
+
         app.include_router(
             debug.router,
             prefix="/api/v1",

@@ -16,30 +16,30 @@ from ..registry import get_rule_registry
 class LiquidityValidationRule(Rule[RawSignalEvent, ValidationResult]):
     """
     Validates that a signal has sufficient market liquidity.
-    
+
     Markets with low liquidity are susceptible to manipulation
     and do not represent genuine collective belief.
     """
-    
+
     def __init__(self, min_liquidity_usd: float = 1000.0):
         """
         Args:
             min_liquidity_usd: Minimum liquidity threshold in USD
         """
         self._min_liquidity = min_liquidity_usd
-    
+
     @property
     def name(self) -> str:
         return "liquidity_validation"
-    
+
     @property
     def version(self) -> str:
         return "1.0.0"
-    
+
     def apply(self, input_data: RawSignalEvent) -> ValidationResult:
         """Check if the event has sufficient liquidity."""
         liquidity = input_data.market.current_liquidity_usd
-        
+
         if liquidity >= self._min_liquidity:
             # Calculate score: higher liquidity = higher score (with diminishing returns)
             score = min(1.0, liquidity / (self._min_liquidity * 10))
@@ -48,7 +48,7 @@ class LiquidityValidationRule(Rule[RawSignalEvent, ValidationResult]):
                 rule_version=self.version,
                 status=ValidationStatus.PASSED,
                 score=score,
-                reason=f"Sufficient liquidity: ${liquidity:,.0f} >= ${self._min_liquidity:,.0f} threshold"
+                reason=f"Sufficient liquidity: ${liquidity:,.0f} >= ${self._min_liquidity:,.0f} threshold",
             )
         else:
             score = liquidity / self._min_liquidity  # Partial score
@@ -57,9 +57,9 @@ class LiquidityValidationRule(Rule[RawSignalEvent, ValidationResult]):
                 rule_version=self.version,
                 status=ValidationStatus.REJECTED_LOW_LIQUIDITY,
                 score=score,
-                reason=f"Insufficient liquidity: ${liquidity:,.0f} below ${self._min_liquidity:,.0f} threshold"
+                reason=f"Insufficient liquidity: ${liquidity:,.0f} below ${self._min_liquidity:,.0f} threshold",
             )
-    
+
     def explain(
         self,
         input_data: RawSignalEvent,

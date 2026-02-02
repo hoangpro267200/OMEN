@@ -12,7 +12,6 @@ from pydantic import BaseModel
 from omen.infrastructure.activity.activity_logger import get_activity_logger
 from omen.infrastructure.security.auth import verify_api_key
 
-
 router = APIRouter(prefix="/activity", tags=["Activity"])
 
 ActivityType = Literal["signal", "validation", "rule", "alert", "source", "error", "system"]

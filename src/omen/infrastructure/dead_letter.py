@@ -13,7 +13,6 @@ from typing import Any
 from omen.domain.errors import OmenError
 from omen.domain.models.raw_signal import RawSignalEvent
 
-
 logger = logging.getLogger(__name__)
 
 

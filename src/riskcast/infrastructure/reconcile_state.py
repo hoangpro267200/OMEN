@@ -144,7 +144,8 @@ class ReconcileStateStore:
         now = datetime.now(timezone.utc).isoformat()
 
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO reconcile_state
                 (partition_date, last_reconcile_at, ledger_highwater, manifest_revision,
                  ledger_record_count, processed_count, missing_count, status, updated_at)
@@ -158,35 +159,40 @@ class ReconcileStateStore:
                     missing_count = excluded.missing_count,
                     status = excluded.status,
                     updated_at = excluded.updated_at
-            """, (
-                partition_date,
-                now,
-                ledger_highwater,
-                manifest_revision,
-                ledger_record_count,
-                processed_count,
-                missing_count,
-                status,
-                now,
-            ))
+            """,
+                (
+                    partition_date,
+                    now,
+                    ledger_highwater,
+                    manifest_revision,
+                    ledger_record_count,
+                    processed_count,
+                    missing_count,
+                    status,
+                    now,
+                ),
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO reconcile_history
                 (partition_date, reconcile_at, ledger_highwater, ledger_record_count,
                  processed_count, missing_count, replayed_count, status, duration_ms, error_message)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                partition_date,
-                now,
-                ledger_highwater,
-                ledger_record_count,
-                processed_count,
-                missing_count,
-                replayed_count,
-                status,
-                duration_ms,
-                error_message,
-            ))
+            """,
+                (
+                    partition_date,
+                    now,
+                    ledger_highwater,
+                    ledger_record_count,
+                    processed_count,
+                    missing_count,
+                    replayed_count,
+                    status,
+                    duration_ms,
+                    error_message,
+                ),
+            )
 
             await db.commit()
 
@@ -211,9 +217,7 @@ class ReconcileStateStore:
             return True, f"previous_status_{state.status.lower()}"
 
         if current_highwater > state.ledger_highwater:
-            return True, (
-                f"highwater_increased_{state.ledger_highwater}_to_{current_highwater}"
-            )
+            return True, (f"highwater_increased_{state.ledger_highwater}_to_{current_highwater}")
 
         # manifest_revision not used for needs_reconcile (Option A: highwater only)
         return False, "up_to_date"
@@ -227,6 +231,7 @@ def get_reconcile_store() -> ReconcileStateStore:
     global _reconcile_store
     if _reconcile_store is None:
         import os
+
         db_path = os.environ.get("RISKCAST_DB_PATH", "/var/lib/riskcast/signals.db")
         state_path = str(Path(db_path).parent / "reconcile_state.db")
         _reconcile_store = ReconcileStateStore(state_path)

@@ -79,76 +79,71 @@ router = APIRouter(
                                     "price_change_percent": -3.5,
                                     "volume": 1234567,
                                     "pe_ratio": 12.5,
-                                    "roe": 15.2
+                                    "roe": 15.2,
                                 },
                                 "confidence": {
                                     "overall_confidence": 0.85,
-                                    "data_completeness": 0.9
+                                    "data_completeness": 0.9,
                                 },
                                 "evidence": [],
                                 "omen_suggestion": None,
-                                "suggestion_disclaimer": "This is OMEN's signal-based suggestion only..."
+                                "suggestion_disclaimer": "This is OMEN's signal-based suggestion only...",
                             }
                         ],
-                        "aggregated_metrics": {
-                            "avg_volatility": 0.025,
-                            "avg_liquidity": 0.7
-                        }
+                        "aggregated_metrics": {"avg_volatility": 0.025, "avg_liquidity": 0.7},
                     }
                 }
-            }
+            },
         },
-        503: {"description": "Data source unavailable"}
-    }
+        503: {"description": "Data source unavailable"},
+    },
 )
 async def get_all_partner_signals(
     symbols: Optional[str] = Query(
         default=None,
         description="Comma-separated list of symbols (default: GMD,HAH,VOS,VSC,PVT)",
-        example="HAH,GMD,VOS"
+        example="HAH,GMD,VOS",
     ),
-    include_evidence: bool = Query(
-        default=True,
-        description="Include signal evidence in response"
-    ),
+    include_evidence: bool = Query(default=True, description="Include signal evidence in response"),
     include_market_context: bool = Query(
-        default=False,
-        description="Include market context (VNINDEX, sector)"
+        default=False, description="Include market context (VNINDEX, sector)"
     ),
     _api_key: str = Depends(verify_api_key),
 ) -> PartnerSignalsListResponse:
     """
     Get signals for all monitored partners.
-    
+
     Returns raw signal metrics - NO risk verdict.
     """
     try:
         symbol_list = None
         if symbols:
             symbol_list = [s.strip().upper() for s in symbols.split(",")]
-        
+
         monitor = LogisticsSignalMonitor(symbols=symbol_list)
         response = monitor.get_all_signals()
-        
+
         # Optionally strip evidence
         if not include_evidence:
             partners = []
             for p in response.partners:
                 # Create new response without evidence
-                partners.append(PartnerSignalResponse(
-                    symbol=p.symbol,
-                    company_name=p.company_name,
-                    sector=p.sector,
-                    exchange=p.exchange,
-                    signals=p.signals,
-                    confidence=p.confidence,
-                    evidence=[],  # Empty
-                    market_context=p.market_context if include_market_context else None,
-                    omen_suggestion=p.omen_suggestion,
-                    suggestion_confidence=p.suggestion_confidence,
-                    signal_id=p.signal_id,
-                    timestamp=p.timestamp,
-                ))
+                partners.append(
+                    PartnerSignalResponse(
+                        symbol=p.symbol,
+                        company_name=p.company_name,
+                        sector=p.sector,
+                        exchange=p.exchange,
+                        signals=p.signals,
+                        confidence=p.confidence,
+                        evidence=[],  # Empty
+                        market_context=p.market_context if include_market_context else None,
+                        omen_suggestion=p.omen_suggestion,
+                        suggestion_confidence=p.suggestion_confidence,
+                        signal_id=p.signal_id,
+                        timestamp=p.timestamp,
+                    )
+                )
             response = PartnerSignalsListResponse(
                 timestamp=response.timestamp,
                 total_partners=response.total_partners,
@@ -157,25 +152,21 @@ async def get_all_partner_signals(
                 aggregated_metrics=response.aggregated_metrics,
                 data_quality=response.data_quality,
             )
-        
+
         return response
-        
+
     except ImportError as e:
         raise HTTPException(
             status_code=503,
             detail={
                 "error": "DATA_SOURCE_UNAVAILABLE",
                 "message": f"vnstock library not available: {str(e)}",
-                "suggestion": "Install vnstock with: pip install vnstock"
-            }
+                "suggestion": "Install vnstock with: pip install vnstock",
+            },
         )
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "SIGNAL_FETCH_ERROR",
-                "message": str(e)
-            }
+            status_code=500, detail={"error": "SIGNAL_FETCH_ERROR", "message": str(e)}
         )
 
 
@@ -217,15 +208,15 @@ async def get_partner_signal(
 ) -> PartnerSignalResponse:
     """
     Get detailed signals for one partner.
-    
+
     Returns metrics, evidence, confidence - NO risk verdict.
     """
     symbol = symbol.upper()
-    
+
     try:
         monitor = LogisticsSignalMonitor(symbols=[symbol])
         response = monitor.get_partner_signals(symbol)
-        
+
         if not include_evidence:
             response = PartnerSignalResponse(
                 symbol=response.symbol,
@@ -241,24 +232,24 @@ async def get_partner_signal(
                 signal_id=response.signal_id,
                 timestamp=response.timestamp,
             )
-        
+
         return response
-        
+
     except ImportError as e:
         raise HTTPException(
             status_code=503,
             detail={
                 "error": "DATA_SOURCE_UNAVAILABLE",
-                "message": f"vnstock library not available: {str(e)}"
-            }
+                "message": f"vnstock library not available: {str(e)}",
+            },
         )
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "SIGNAL_FETCH_ERROR",
-                "message": f"Error fetching signals for {symbol}: {str(e)}"
-            }
+                "message": f"Error fetching signals for {symbol}: {str(e)}",
+            },
         )
 
 
@@ -273,20 +264,14 @@ async def get_partner_price(
 ) -> dict:
     """Get raw price data for a logistics partner."""
     symbol = symbol.upper()
-    
+
     try:
         monitor = LogisticsSignalMonitor(symbols=[symbol])
         return monitor.fetch_price_data(symbol)
     except ImportError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"vnstock library not available: {str(e)}"
-        )
+        raise HTTPException(status_code=503, detail=f"vnstock library not available: {str(e)}")
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching price for {symbol}: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error fetching price for {symbol}: {str(e)}")
 
 
 @router.get(
@@ -300,17 +285,13 @@ async def get_partner_fundamentals(
 ) -> dict:
     """Get fundamental health indicators for a logistics partner."""
     symbol = symbol.upper()
-    
+
     try:
         monitor = LogisticsSignalMonitor(symbols=[symbol])
         return monitor.fetch_health_indicators(symbol)
     except ImportError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"vnstock library not available: {str(e)}"
-        )
+        raise HTTPException(status_code=503, detail=f"vnstock library not available: {str(e)}")
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching fundamentals for {symbol}: {str(e)}"
+            status_code=500, detail=f"Error fetching fundamentals for {symbol}: {str(e)}"
         )

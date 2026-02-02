@@ -11,6 +11,7 @@ router = APIRouter(tags=["metrics"])
 
 class CircuitBreakerUpdateRequest(BaseModel):
     """Request to update circuit breaker state."""
+
     state: str = Field(..., description="Target state: 'closed' to reset")
 
 
@@ -31,9 +32,7 @@ async def get_circuit_breaker_stats():
 
     stats = cb.stats
     total = stats.total_calls
-    failure_rate = (
-        (stats.total_failures / total) if total > 0 else 0.0
-    )
+    failure_rate = (stats.total_failures / total) if total > 0 else 0.0
 
     return {
         "circuit_breakers": {
@@ -47,14 +46,10 @@ async def get_circuit_breaker_stats():
                 "total_rejected": stats.total_rejected,
                 "failure_rate": round(failure_rate, 4),
                 "last_failure_time": (
-                    stats.last_failure_time.isoformat()
-                    if stats.last_failure_time
-                    else None
+                    stats.last_failure_time.isoformat() if stats.last_failure_time else None
                 ),
                 "last_success_time": (
-                    stats.last_success_time.isoformat()
-                    if stats.last_success_time
-                    else None
+                    stats.last_success_time.isoformat() if stats.last_success_time else None
                 ),
                 "last_state_change": stats.last_state_change.isoformat(),
             }
@@ -66,7 +61,7 @@ async def get_circuit_breaker_stats():
 async def update_circuit_breaker(name: str, request: CircuitBreakerUpdateRequest):
     """
     Update circuit breaker state.
-    
+
     Set state='closed' to reset the circuit breaker.
     Use only when downstream service is confirmed healthy.
     """

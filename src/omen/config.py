@@ -31,7 +31,9 @@ class RetentionConfig(BaseSettings):
     compression_algorithm: str = Field(default="gzip", description="gzip, zstd, lz4")
     compression_level: int = Field(default=6, ge=1, le=9, description="Gzip level 1-9")
     # Archive
-    archive_path: Optional[str] = Field(default=None, description="Archive path (None = base/_archive)")
+    archive_path: Optional[str] = Field(
+        default=None, description="Archive path (None = base/_archive)"
+    )
     archive_format: str = Field(default="directory", description="directory, tar, tar.gz")
 
     model_config = {"env_prefix": "OMEN_RETENTION_", "extra": "ignore"}
@@ -44,47 +46,35 @@ DEFAULT_RETENTION = RetentionConfig()
 class OmenConfig(BaseSettings):
     """
     Configuration for OMEN system.
-    
+
     All settings can be overridden via environment variables
     with the OMEN_ prefix.
     """
-    
+
     # Versioning
-    ruleset_version: str = Field(
-        default="v1.0.0",
-        description="Current ruleset version"
-    )
-    
+    ruleset_version: str = Field(default="v1.0.0", description="Current ruleset version")
+
     # Validation thresholds
     min_liquidity_usd: float = Field(
-        default=1000.0,
-        description="Minimum liquidity for signal validity"
+        default=1000.0, description="Minimum liquidity for signal validity"
     )
     min_volume_usd: float = Field(
-        default=5000.0,
-        description="Minimum total volume for signal validity"
+        default=5000.0, description="Minimum total volume for signal validity"
     )
-    
+
     # Confidence thresholds
     min_confidence_for_output: float = Field(
-        default=0.3,
-        ge=0,
-        le=1,
-        description="Minimum confidence score to emit a signal"
+        default=0.3, ge=0, le=1, description="Minimum confidence score to emit a signal"
     )
-    
+
     # Target domains
     target_domains: list[str] = Field(
-        default=["LOGISTICS"],
-        description="Domains to generate impact assessments for"
+        default=["LOGISTICS"], description="Domains to generate impact assessments for"
     )
-    
+
     # Persistence
-    enable_persistence: bool = Field(
-        default=True,
-        description="Enable signal persistence"
-    )
-    
+    enable_persistence: bool = Field(default=True, description="Enable signal persistence")
+
     # Logging
     log_level: str = Field(
         default="INFO",
@@ -123,11 +113,11 @@ class OmenConfig(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",  # Ignore security config vars with nested prefix
     }
-    
+
     @property
     def parsed_ruleset_version(self) -> RulesetVersion:
         return RulesetVersion(self.ruleset_version)
-    
+
     @property
     def parsed_target_domains(self) -> frozenset[ImpactDomain]:
         return frozenset(ImpactDomain(d) for d in self.target_domains)

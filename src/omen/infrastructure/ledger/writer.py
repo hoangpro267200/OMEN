@@ -36,6 +36,7 @@ try:
         LEDGER_WRITES,
         LEDGER_WRITE_DURATION,
     )
+
     _LEDGER_METRICS_AVAILABLE = True
 except ImportError:
     _LEDGER_METRICS_AVAILABLE = False
@@ -289,9 +290,7 @@ class LedgerWriter:
         size = segment_file.stat().st_size
         count = self._get_record_count(segment_file)
 
-        needs_rollover = (
-            size >= MAX_SEGMENT_SIZE_BYTES or count >= MAX_SEGMENT_RECORDS
-        )
+        needs_rollover = size >= MAX_SEGMENT_SIZE_BYTES or count >= MAX_SEGMENT_RECORDS
 
         if not needs_rollover:
             return
@@ -401,12 +400,14 @@ class LedgerWriter:
             with open(segment, "rb") as f:
                 content = f.read()
             checksum = f"crc32:{zlib.crc32(content) & 0xFFFFFFFF:08x}"
-            segments.append({
-                "file": segment.name,
-                "record_count": count,
-                "size_bytes": size,
-                "checksum": checksum,
-            })
+            segments.append(
+                {
+                    "file": segment.name,
+                    "record_count": count,
+                    "size_bytes": size,
+                    "checksum": checksum,
+                }
+            )
             total_records += count
             max_sequence = max(max_sequence, total_records)
 

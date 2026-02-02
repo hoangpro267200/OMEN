@@ -36,7 +36,7 @@ router = APIRouter()
 class ConnectionManager:
     """
     Manages WebSocket connections and broadcasting.
-    
+
     Now uses DistributedConnectionManager for horizontal scaling.
     """
 
@@ -158,9 +158,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-async def broadcast_signal_emitted(
-    signal_id: str, title: str, category: str, status: str
-) -> None:
+async def broadcast_signal_emitted(signal_id: str, title: str, category: str, status: str) -> None:
     """Broadcast when a signal is emitted."""
     await manager.broadcast(
         "signal_emitted",
@@ -173,9 +171,7 @@ async def broadcast_signal_emitted(
     )
 
 
-async def broadcast_signal_ingested(
-    signal_id: str, ack_id: str, duplicate: bool
-) -> None:
+async def broadcast_signal_ingested(signal_id: str, ack_id: str, duplicate: bool) -> None:
     """Broadcast when a signal is ingested to RiskCast."""
     await manager.broadcast(
         "signal_ingested",

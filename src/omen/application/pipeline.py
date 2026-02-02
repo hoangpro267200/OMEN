@@ -38,7 +38,6 @@ from .ports.signal_repository import SignalRepository
 from .ports.output_publisher import OutputPublisher
 from .dto.pipeline_result import PipelineResult, PipelineStats
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -150,8 +149,8 @@ class OmenPipeline:
                 )
                 stats.events_deduplicated = 1
                 stats.processing_time_ms = (
-                    (datetime.now(timezone.utc) - started_at).total_seconds() * 1000
-                )
+                    datetime.now(timezone.utc) - started_at
+                ).total_seconds() * 1000
                 result = PipelineResult(
                     success=True,
                     signals=[existing],
@@ -187,8 +186,8 @@ class OmenPipeline:
             )
             stats.events_rejected_validation = 1
             stats.processing_time_ms = (
-                (datetime.now(timezone.utc) - started_at).total_seconds() * 1000
-            )
+                datetime.now(timezone.utc) - started_at
+            ).total_seconds() * 1000
             result = PipelineResult(
                 success=True,
                 signals=[],
@@ -229,7 +228,11 @@ class OmenPipeline:
             "confidence_factors": {
                 "liquidity": validated_signal.liquidity_score,
                 "geographic": next(
-                    (r.score for r in validated_signal.validation_results if r.rule_name == "geographic_relevance"),
+                    (
+                        r.score
+                        for r in validated_signal.validation_results
+                        if r.rule_name == "geographic_relevance"
+                    ),
                     0.5,
                 ),
                 "source_reliability": 0.85,
@@ -254,8 +257,8 @@ class OmenPipeline:
             except Exception as e2:
                 logger.warning("Failed to record generation rejection: %s", e2)
             stats.processing_time_ms = (
-                (datetime.now(timezone.utc) - started_at).total_seconds() * 1000
-            )
+                datetime.now(timezone.utc) - started_at
+            ).total_seconds() * 1000
             result = PipelineResult(success=True, signals=[], stats=stats)
             self._record_metrics(result)
             return result
@@ -279,8 +282,8 @@ class OmenPipeline:
                 self._config.min_confidence_for_output,
             )
             stats.processing_time_ms = (
-                (datetime.now(timezone.utc) - started_at).total_seconds() * 1000
-            )
+                datetime.now(timezone.utc) - started_at
+            ).total_seconds() * 1000
             result = PipelineResult(success=True, signals=[], stats=stats)
             self._record_metrics(result)
             return result
@@ -313,7 +316,9 @@ class OmenPipeline:
             logger.warning("Failed to record signal history: %s", e)
 
         token_id = getattr(event.market, "condition_token_id", None) or (
-            (event.market.clob_token_ids or [None])[0] if getattr(event.market, "clob_token_ids", None) else None
+            (event.market.clob_token_ids or [None])[0]
+            if getattr(event.market, "clob_token_ids", None)
+            else None
         )
         if token_id:
             try:
@@ -377,9 +382,7 @@ class OmenPipeline:
                         if self._config.fail_on_publish_error:
                             raise
 
-        stats.processing_time_ms = (
-            (datetime.now(timezone.utc) - started_at).total_seconds() * 1000
-        )
+        stats.processing_time_ms = (datetime.now(timezone.utc) - started_at).total_seconds() * 1000
         result = PipelineResult(success=True, signals=signals, stats=stats)
         self._record_metrics(result)
         return result
@@ -402,8 +405,8 @@ class OmenPipeline:
             self._dlq.add(event, error)
         stats.events_failed = 1
         stats.processing_time_ms = (
-            (datetime.now(timezone.utc) - ctx.processing_time).total_seconds() * 1000
-        )
+            datetime.now(timezone.utc) - ctx.processing_time
+        ).total_seconds() * 1000
         result = PipelineResult(
             success=False,
             error=error.message,
@@ -429,8 +432,8 @@ class OmenPipeline:
             self._dlq.add(event, omen_error)
         stats.events_failed = 1
         stats.processing_time_ms = (
-            (datetime.now(timezone.utc) - ctx.processing_time).total_seconds() * 1000
-        )
+            datetime.now(timezone.utc) - ctx.processing_time
+        ).total_seconds() * 1000
         result = PipelineResult(
             success=False,
             error=str(error),

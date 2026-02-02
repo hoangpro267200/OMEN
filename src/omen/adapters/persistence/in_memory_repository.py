@@ -26,11 +26,9 @@ class InMemorySignalRepository(SignalRepository):
         if event_key not in self._signals_by_event_id:
             self._signals_by_event_id[event_key] = []
         self._signals_by_event_id[event_key].append(signal)
-        
+
         # Update list (remove old if exists, add new)
-        self._signals_list = [
-            s for s in self._signals_list if s.signal_id != signal.signal_id
-        ]
+        self._signals_list = [s for s in self._signals_list if s.signal_id != signal.signal_id]
         self._signals_list.append(signal)
         # Sort by generated_at descending
         self._signals_list.sort(key=lambda s: s.generated_at, reverse=True)

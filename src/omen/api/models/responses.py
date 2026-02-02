@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+
 def _format_generated_at(value: datetime | str) -> str:
     """Format generated_at as ISO 8601 string (append Z for naive UTC)."""
     if hasattr(value, "isoformat"):
@@ -29,18 +30,21 @@ if TYPE_CHECKING:
 
 class GeographicContextResponse(BaseModel):
     """Geographic context in API response."""
+
     regions: list[str] = []
     chokepoints: list[str] = []
 
 
 class TemporalContextResponse(BaseModel):
     """Temporal context in API response."""
+
     event_horizon: Optional[str] = None
     resolution_date: Optional[str] = None
 
 
 class EvidenceResponse(BaseModel):
     """Evidence item in API response."""
+
     source: str
     source_type: str
     url: Optional[str] = None
@@ -48,6 +52,7 @@ class EvidenceResponse(BaseModel):
 
 class ImpactHintsResponse(BaseModel):
     """Routing metadata response. NOT impact data."""
+
     domains: list[str] = []
     direction: str = "unknown"
     affected_asset_types: list[str] = []
@@ -75,25 +80,16 @@ class SignalResponse(BaseModel):
     signal_id: str
     source_event_id: str
 
-    signal_type: str = Field(
-        default="UNCLASSIFIED",
-        description="Signal classification"
-    )
-    status: str = Field(
-        default="ACTIVE",
-        description="Lifecycle status"
-    )
+    signal_type: str = Field(default="UNCLASSIFIED", description="Signal classification")
+    status: str = Field(default="ACTIVE", description="Lifecycle status")
     impact_hints: ImpactHintsResponse = Field(
-        default_factory=ImpactHintsResponse,
-        description="Routing hints for downstream"
+        default_factory=ImpactHintsResponse, description="Routing hints for downstream"
     )
 
     title: str
     description: Optional[str] = None
 
-    probability: float = Field(
-        description="Probability from source market (0-1)"
-    )
+    probability: float = Field(description="Probability from source market (0-1)")
     probability_source: str
     probability_is_estimate: bool = False
 
@@ -139,14 +135,45 @@ class SignalResponse(BaseModel):
         return cls(
             signal_id=s.signal_id,
             source_event_id=s.source_event_id,
-            signal_type=getattr(s.signal_type, "value", str(getattr(s, "signal_type", "UNCLASSIFIED"))),
+            signal_type=getattr(
+                s.signal_type, "value", str(getattr(s, "signal_type", "UNCLASSIFIED"))
+            ),
             status=getattr(s.status, "value", str(getattr(s, "status", "ACTIVE"))),
-            impact_hints=ImpactHintsResponse(
-                domains=[getattr(d, "value", str(d)) for d in (s.impact_hints.domains if hasattr(s, "impact_hints") and s.impact_hints else [])],
-                direction=str(s.impact_hints.direction.value) if hasattr(s, "impact_hints") and s.impact_hints and hasattr(s.impact_hints.direction, "value") else (str(s.impact_hints.direction) if hasattr(s, "impact_hints") and s.impact_hints else "unknown"),
-                affected_asset_types=list(s.impact_hints.affected_asset_types if hasattr(s, "impact_hints") and s.impact_hints else []),
-                keywords=list(s.impact_hints.keywords if hasattr(s, "impact_hints") and s.impact_hints else []),
-            ) if hasattr(s, "impact_hints") and s.impact_hints else ImpactHintsResponse(),
+            impact_hints=(
+                ImpactHintsResponse(
+                    domains=[
+                        getattr(d, "value", str(d))
+                        for d in (
+                            s.impact_hints.domains
+                            if hasattr(s, "impact_hints") and s.impact_hints
+                            else []
+                        )
+                    ],
+                    direction=(
+                        str(s.impact_hints.direction.value)
+                        if hasattr(s, "impact_hints")
+                        and s.impact_hints
+                        and hasattr(s.impact_hints.direction, "value")
+                        else (
+                            str(s.impact_hints.direction)
+                            if hasattr(s, "impact_hints") and s.impact_hints
+                            else "unknown"
+                        )
+                    ),
+                    affected_asset_types=list(
+                        s.impact_hints.affected_asset_types
+                        if hasattr(s, "impact_hints") and s.impact_hints
+                        else []
+                    ),
+                    keywords=list(
+                        s.impact_hints.keywords
+                        if hasattr(s, "impact_hints") and s.impact_hints
+                        else []
+                    ),
+                )
+                if hasattr(s, "impact_hints") and s.impact_hints
+                else ImpactHintsResponse()
+            ),
             title=s.title,
             description=s.description,
             probability=s.probability,
@@ -154,7 +181,9 @@ class SignalResponse(BaseModel):
             probability_is_estimate=s.probability_is_estimate,
             confidence_score=s.confidence_score,
             confidence_level=getattr(s.confidence_level, "value", str(s.confidence_level)),
-            confidence_factors=dict(s.confidence_factors) if getattr(s, "confidence_factors", None) else {},
+            confidence_factors=(
+                dict(s.confidence_factors) if getattr(s, "confidence_factors", None) else {}
+            ),
             category=getattr(s.category, "value", str(s.category)),
             tags=list(s.tags) if getattr(s, "tags", None) else [],
             geographic=GeographicContextResponse(
@@ -162,17 +191,33 @@ class SignalResponse(BaseModel):
                 chokepoints=list(s.geographic.chokepoints) if s.geographic.chokepoints else [],
             ),
             temporal=TemporalContextResponse(
-                event_horizon=str(s.temporal.event_horizon) if getattr(s.temporal, "event_horizon", None) else None,
-                resolution_date=s.temporal.resolution_date.isoformat() if getattr(s.temporal, "resolution_date", None) else None,
+                event_horizon=(
+                    str(s.temporal.event_horizon)
+                    if getattr(s.temporal, "event_horizon", None)
+                    else None
+                ),
+                resolution_date=(
+                    s.temporal.resolution_date.isoformat()
+                    if getattr(s.temporal, "resolution_date", None)
+                    else None
+                ),
             ),
             evidence=[
-                EvidenceResponse(source=e.source, source_type=e.source_type, url=getattr(e, "url", None))
+                EvidenceResponse(
+                    source=e.source, source_type=e.source_type, url=getattr(e, "url", None)
+                )
                 for e in (getattr(s, "evidence", None) or [])
             ],
             trace_id=s.trace_id,
-            ruleset_version=str(s.ruleset_version) if getattr(s, "ruleset_version", None) else "1.0.0",
+            ruleset_version=(
+                str(s.ruleset_version) if getattr(s, "ruleset_version", None) else "1.0.0"
+            ),
             source_url=getattr(s, "source_url", None),
-            observed_at=_format_generated_at(getattr(s, "observed_at", None)) if getattr(s, "observed_at", None) else None,
+            observed_at=(
+                _format_generated_at(getattr(s, "observed_at", None))
+                if getattr(s, "observed_at", None)
+                else None
+            ),
             generated_at=_format_generated_at(s.generated_at),
             confidence_method=getattr(s, "confidence_method", None),
         )
@@ -180,6 +225,7 @@ class SignalResponse(BaseModel):
 
 class SignalListResponse(BaseModel):
     """Response for list of signals (e.g. from /signals/process)."""
+
     signals: list[SignalResponse]
     total: int
 
@@ -191,6 +237,7 @@ class SignalListResponse(BaseModel):
 
 class PipelineStatsResponse(BaseModel):
     """Pipeline statistics (e.g. from /signals/stats)."""
+
     total_processed: int
     total_passed: int
     total_rejected: int

@@ -28,6 +28,7 @@ class TranslationResult:
     A rule may produce partial results that are combined
     by the translator service.
     """
+
     def __init__(
         self,
         applicable: bool,
@@ -104,13 +105,11 @@ class BaseTranslationRule(Rule[ValidatedSignal, TranslationResult]):
 
     @property
     @abstractmethod
-    def domain(self) -> ImpactDomain:
-        ...
+    def domain(self) -> ImpactDomain: ...
 
     @property
     @abstractmethod
-    def applicable_categories(self) -> set[SignalCategory]:
-        ...
+    def applicable_categories(self) -> set[SignalCategory]: ...
 
     @property
     def applicable_keywords(self) -> set[str]:

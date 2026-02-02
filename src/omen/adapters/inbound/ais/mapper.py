@@ -183,7 +183,9 @@ class AISMapper:
         market = MarketMetadata(
             source="ais",
             market_id=f"chokepoint-{chokepoint_key}",
-            total_volume_usd=self._estimate_cargo_value(chokepoint.vessels_waiting + chokepoint.vessels_in_transit),
+            total_volume_usd=self._estimate_cargo_value(
+                chokepoint.vessels_waiting + chokepoint.vessels_in_transit
+            ),
             current_liquidity_usd=0.0,
             created_at=chokepoint.timestamp,
         )
@@ -235,8 +237,8 @@ class AISMapper:
             event_id=alert.alert_id,
             title=title,
             description=f"Port congestion at {alert.port_name}: {alert.vessels_waiting} vessels waiting. "
-                        f"Average wait time: {alert.wait_time_hours:.1f}h. "
-                        f"Estimated cargo value affected: ${alert.estimated_cargo_value_usd/1e6:.0f}M.",
+            f"Average wait time: {alert.wait_time_hours:.1f}h. "
+            f"Estimated cargo value affected: ${alert.estimated_cargo_value_usd/1e6:.0f}M.",
             probability=probability,
             keywords=["port_congestion", alert.port_code.lower(), f"severity_{alert.severity}"],
             market=MarketMetadata(
@@ -275,10 +277,14 @@ class AISMapper:
             event_id=alert.alert_id,
             title=title,
             description=f"{alert.alert_type.title()} at {alert.chokepoint_name}: "
-                        f"{alert.vessels_waiting} vessels waiting, +{alert.delay_hours:.1f}h delay. "
-                        f"Affected routes: {', '.join(alert.affected_routes)}.",
+            f"{alert.vessels_waiting} vessels waiting, +{alert.delay_hours:.1f}h delay. "
+            f"Affected routes: {', '.join(alert.affected_routes)}.",
             probability=probability,
-            keywords=["chokepoint_" + alert.alert_type, chokepoint_key, f"severity_{alert.severity}"],
+            keywords=[
+                "chokepoint_" + alert.alert_type,
+                chokepoint_key,
+                f"severity_{alert.severity}",
+            ],
             market=MarketMetadata(
                 source="ais",
                 market_id=f"chokepoint-{chokepoint_key}",

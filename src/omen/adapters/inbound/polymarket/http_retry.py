@@ -92,7 +92,9 @@ def run_with_retry(
                 raise SourceUnavailableError(
                     f"Polymarket unreachable after {s.retry_max + 1} attempts: {e}",
                     context={
-                        "event": "timeout" if isinstance(e, httpx.TimeoutException) else "connect_error",
+                        "event": (
+                            "timeout" if isinstance(e, httpx.TimeoutException) else "connect_error"
+                        ),
                         "attempts": attempt + 1,
                     },
                 ) from e

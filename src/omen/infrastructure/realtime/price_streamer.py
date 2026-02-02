@@ -18,7 +18,6 @@ from omen.adapters.inbound.polymarket.websocket_client import (
     PriceUpdate,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

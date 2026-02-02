@@ -112,9 +112,7 @@ def test_calibration_report_is_well_calibrated():
 def test_calibration_report_mean_errors():
     """Report aggregates mean_absolute_error and MAPE."""
     v = HistoricalValidator()
-    v.record_prediction(
-        PredictionRecord("a", "m", 10.0, None, None, datetime(2025, 1, 1), 0.5)
-    )
+    v.record_prediction(PredictionRecord("a", "m", 10.0, None, None, datetime(2025, 1, 1), 0.5))
     v.record_outcome(OutcomeRecord("a", "m", 12.0, datetime(2025, 1, 10), "x"))
     _, report = v.validate()
     assert report.mean_absolute_error == 2.0

@@ -5,6 +5,7 @@ from fastapi.responses import PlainTextResponse
 
 try:
     from prometheus_client import REGISTRY, generate_latest, CONTENT_TYPE_LATEST
+
     _metrics_available = True
 except ImportError:
     _metrics_available = False

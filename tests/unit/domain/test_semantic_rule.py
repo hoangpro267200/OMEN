@@ -21,8 +21,10 @@ def logistics_risk_event() -> RawSignalEvent:
         probability=0.5,
         keywords=["strike", "port", "closure", "blockade", "shipping"],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
 
@@ -37,8 +39,10 @@ def irrelevant_semantic_event() -> RawSignalEvent:
         probability=0.3,
         keywords=["football", "final", "cup"],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m2"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m2"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
 
@@ -70,8 +74,10 @@ def test_rejects_when_no_matching_categories():
         probability=0.5,
         keywords=[],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
     # "vessel" and "cargo" are not in RISK_CATEGORIES
@@ -110,8 +116,10 @@ def test_multiple_categories_increase_score():
         probability=0.5,
         keywords=[],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m1"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m1"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
     multi = RawSignalEvent(
@@ -121,8 +129,10 @@ def test_multiple_categories_increase_score():
         probability=0.5,
         keywords=[],
         market=MarketMetadata(
-            source="t", market_id=MarketId("m2"),
-            total_volume_usd=10000.0, current_liquidity_usd=5000.0,
+            source="t",
+            market_id=MarketId("m2"),
+            total_volume_usd=10000.0,
+            current_liquidity_usd=5000.0,
         ),
     )
     r_single = rule.apply(single)

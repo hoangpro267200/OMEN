@@ -60,22 +60,15 @@ class StrikeImpactRule(BaseTranslationRule):
         prob = signal.original_event.probability
         title_lower = signal.original_event.title.lower()
 
-        is_port_strike = any(
-            kw in title_lower
-            for kw in ["port", "dock", "longshore", "terminal"]
-        )
+        is_port_strike = any(kw in title_lower for kw in ["port", "dock", "longshore", "terminal"])
         if is_port_strike:
             productivity_loss, source = get_param(
                 STRIKE_PARAMS, "port_strike_productivity_loss_pct"
             )
         else:
-            productivity_loss, source = get_param(
-                STRIKE_PARAMS, "truck_strike_capacity_loss_pct"
-            )
+            productivity_loss, source = get_param(STRIKE_PARAMS, "truck_strike_capacity_loss_pct")
 
-        duration_days, duration_source = get_param(
-            STRIKE_PARAMS, "strike_duration_avg_days"
-        )
+        duration_days, duration_source = get_param(STRIKE_PARAMS, "strike_duration_avg_days")
 
         metrics = [
             ImpactMetric(

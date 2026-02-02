@@ -15,39 +15,96 @@ from ...models.common import ValidationStatus
 from ...models.explanation import ExplanationStep
 from ..base import Rule
 
-
 # Cụm từ thể thao/giải trí — nếu có trong text thì loại ngay (không phải logistics)
 OFF_TOPIC_BLOCKLIST: set[str] = {
-    "ligue 1", "serie a", "premier league", "la liga", "bundesliga",
-    "vua phá lưới", "top scorer", "relegation", "xuống hạng",
-    "championship", "world cup", "euro", "uefa", "fifa",
+    "ligue 1",
+    "serie a",
+    "premier league",
+    "la liga",
+    "bundesliga",
+    "vua phá lưới",
+    "top scorer",
+    "relegation",
+    "xuống hạng",
+    "championship",
+    "world cup",
+    "euro",
+    "uefa",
+    "fifa",
 }
 
 # Semantic categories and their keywords (whole-word match)
 RISK_CATEGORIES: dict[str, set[str]] = {
     "conflict": {
-        "war", "attack", "military", "missile", "bomb", "strike", "combat",
-        "invasion", "conflict", "hostility", "warfare", "armed",
+        "war",
+        "attack",
+        "military",
+        "missile",
+        "bomb",
+        "strike",
+        "combat",
+        "invasion",
+        "conflict",
+        "hostility",
+        "warfare",
+        "armed",
     },
     "sanctions": {
-        "sanction", "embargo", "ban", "restriction", "tariff", "trade war",
-        "blacklist", "prohibition", "blockade",
+        "sanction",
+        "embargo",
+        "ban",
+        "restriction",
+        "tariff",
+        "trade war",
+        "blacklist",
+        "prohibition",
+        "blockade",
     },
     "labor": {
-        "strike", "labor", "union", "workers", "protest", "walkout",
-        "shutdown", "stoppage", "industrial action",
+        "strike",
+        "labor",
+        "union",
+        "workers",
+        "protest",
+        "walkout",
+        "shutdown",
+        "stoppage",
+        "industrial action",
     },
     "infrastructure": {
-        "port", "canal", "bridge", "tunnel", "terminal", "dock", "berth",
-        "closure", "damage", "collapse", "blockage",
+        "port",
+        "canal",
+        "bridge",
+        "tunnel",
+        "terminal",
+        "dock",
+        "berth",
+        "closure",
+        "damage",
+        "collapse",
+        "blockage",
     },
     "climate": {
-        "storm", "hurricane", "typhoon", "flood", "drought", "weather",
-        "cyclone", "tsunami", "earthquake",
+        "storm",
+        "hurricane",
+        "typhoon",
+        "flood",
+        "drought",
+        "weather",
+        "cyclone",
+        "tsunami",
+        "earthquake",
     },
     "regulatory": {
-        "regulation", "law", "policy", "compliance", "inspection",
-        "customs", "border", "visa", "permit",
+        "regulation",
+        "law",
+        "policy",
+        "compliance",
+        "inspection",
+        "customs",
+        "border",
+        "visa",
+        "permit",
     },
 }
 
@@ -75,8 +132,7 @@ class SemanticRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
     def apply(self, input_data: RawSignalEvent) -> ValidationResult:
         """Check semantic relevance. Reject off-topic (sports) first; then require whole-word risk keywords."""
         text = (
-            f"{input_data.title} {input_data.description or ''} "
-            f"{' '.join(input_data.keywords)}"
+            f"{input_data.title} {input_data.description or ''} " f"{' '.join(input_data.keywords)}"
         ).lower()
 
         # Chặn thể thao / giải trí

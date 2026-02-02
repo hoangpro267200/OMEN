@@ -17,6 +17,7 @@ try:
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
     _CRYPTO_AVAILABLE = True
 except ImportError:
     _CRYPTO_AVAILABLE = False
@@ -33,27 +34,28 @@ _DEFAULT_SALT_MARKER = "dev-only-default-salt-change-in-production"
 def _get_encryption_salt() -> bytes:
     """
     Get encryption salt from environment.
-    
+
     In production, this MUST be explicitly set.
     In development, uses a default (with warning).
     """
     salt = os.environ.get("OMEN_ENCRYPTION_SALT", "")
-    
+
     if not salt or salt == _DEFAULT_SALT_MARKER:
         if IS_PRODUCTION:
             raise RuntimeError(
                 "CRITICAL: OMEN_ENCRYPTION_SALT must be explicitly set in production! "
-                "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
             )
         # Development: use default but warn
         import warnings
+
         warnings.warn(
             "Using default encryption salt. Set OMEN_ENCRYPTION_SALT in production.",
             UserWarning,
             stacklevel=3,
         )
         return _DEFAULT_SALT_MARKER.encode()
-    
+
     return salt.encode()
 
 

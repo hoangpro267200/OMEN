@@ -23,6 +23,7 @@ def minimal_signal():
         TemporalContext,
         EvidenceItem,
     )
+
     return OmenSignal(
         signal_id="OMEN-TESTINTEG001",
         source_event_id="polymarket-0xabc",

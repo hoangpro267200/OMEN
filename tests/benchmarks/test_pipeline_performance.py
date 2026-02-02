@@ -51,9 +51,7 @@ def async_pipeline() -> AsyncOmenPipeline:
 class TestSyncPipelinePerformance:
     """Benchmarks for synchronous pipeline."""
 
-    def test_single_event_latency(
-        self, sync_pipeline: OmenPipeline, benchmark
-    ) -> None:
+    def test_single_event_latency(self, sync_pipeline: OmenPipeline, benchmark) -> None:
         """
         Benchmark single event processing latency.
 
@@ -63,17 +61,14 @@ class TestSyncPipelinePerformance:
         result = benchmark(sync_pipeline.process_single, event)
         assert result.success
 
-    def test_batch_throughput(
-        self, sync_pipeline: OmenPipeline, benchmark
-    ) -> None:
+    def test_batch_throughput(self, sync_pipeline: OmenPipeline, benchmark) -> None:
         """
         Measure batch processing throughput.
 
         Target: >100 events/second.
         """
         events = [
-            StubSignalSource.create_red_sea_event(probability=0.5 + i * 0.004)
-            for i in range(100)
+            StubSignalSource.create_red_sea_event(probability=0.5 + i * 0.004) for i in range(100)
         ]
         results = benchmark(sync_pipeline.process_batch, events)
         assert all(r.success for r in results)
@@ -83,9 +78,7 @@ class TestAsyncPipelinePerformance:
     """Benchmarks for async pipeline."""
 
     @pytest.mark.asyncio
-    async def test_single_event_latency(
-        self, async_pipeline: AsyncOmenPipeline, benchmark
-    ) -> None:
+    async def test_single_event_latency(self, async_pipeline: AsyncOmenPipeline, benchmark) -> None:
         """
         Benchmark async single event latency.
 
@@ -95,9 +88,7 @@ class TestAsyncPipelinePerformance:
 
         def run():
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                return ex.submit(
-                    asyncio.run, async_pipeline.process_single(event)
-                ).result()
+                return ex.submit(asyncio.run, async_pipeline.process_single(event)).result()
 
         result = benchmark(run)
         assert result.success
@@ -118,9 +109,7 @@ class TestAsyncPipelinePerformance:
 
         def run():
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                return ex.submit(
-                    asyncio.run, async_pipeline.process_batch(events)
-                ).result()
+                return ex.submit(asyncio.run, async_pipeline.process_batch(events)).result()
 
         results = benchmark(run)
         assert all(r.success for r in results)
@@ -133,15 +122,12 @@ class TestAsyncPipelinePerformance:
         Verify backpressure does not cause failures under load.
         """
         events = [
-            StubSignalSource.create_red_sea_event(probability=0.5 + i * 0.0001)
-            for i in range(100)
+            StubSignalSource.create_red_sea_event(probability=0.5 + i * 0.0001) for i in range(100)
         ]
 
         def run():
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                return ex.submit(
-                    asyncio.run, async_pipeline.process_batch(events)
-                ).result()
+                return ex.submit(asyncio.run, async_pipeline.process_batch(events)).result()
 
         results = benchmark(run)
         assert sum(1 for r in results if r.success) == len(events)
@@ -150,17 +136,14 @@ class TestAsyncPipelinePerformance:
 class TestMemoryEfficiency:
     """Memory usage benchmarks."""
 
-    def test_large_batch_memory(
-        self, sync_pipeline: OmenPipeline, benchmark
-    ) -> None:
+    def test_large_batch_memory(self, sync_pipeline: OmenPipeline, benchmark) -> None:
         """
         Ensure memory usage is bounded for large batches.
         """
         import tracemalloc
 
         events = [
-            StubSignalSource.create_red_sea_event(probability=0.5 + i * 0.0001)
-            for i in range(1000)
+            StubSignalSource.create_red_sea_event(probability=0.5 + i * 0.0001) for i in range(1000)
         ]
 
         def run() -> tuple[list, int]:
