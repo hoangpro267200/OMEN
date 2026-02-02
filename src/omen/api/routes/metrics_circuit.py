@@ -16,7 +16,7 @@ class CircuitBreakerUpdateRequest(BaseModel):
 
 
 @router.get("/metrics/circuit-breakers")
-async def get_circuit_breaker_stats():
+async def get_circuit_breaker_stats() -> dict:
     """
     Get circuit breaker statistics for monitoring.
 
@@ -58,7 +58,7 @@ async def get_circuit_breaker_stats():
 
 
 @router.patch("/metrics/circuit-breakers/{name}")
-async def update_circuit_breaker(name: str, request: CircuitBreakerUpdateRequest):
+async def update_circuit_breaker(name: str, request: CircuitBreakerUpdateRequest) -> dict:
     """
     Update circuit breaker state.
 

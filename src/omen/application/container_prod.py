@@ -137,6 +137,7 @@ class ProductionContainer:
                     logger.error("Failed to initialize Redis rate limiter: %s", e)
 
         # Publisher
+        publisher: OutputPublisher
         if config.webhook_url:
             publisher = WebhookPublisher(
                 url=config.webhook_url,
@@ -197,6 +198,7 @@ class ProductionContainer:
         enricher = SignalEnricher()
         repository = InMemorySignalRepository()
 
+        publisher: OutputPublisher
         if config.webhook_url:
             publisher = WebhookPublisher(
                 url=config.webhook_url,

@@ -63,7 +63,7 @@ def _pure_signal_to_response(signal: OmenSignal) -> SignalResponse:
         trace_id=signal.trace_id,
         ruleset_version=signal.ruleset_version,
         source_url=signal.source_url,
-        generated_at=signal.generated_at.isoformat(),
+        generated_at=signal.generated_at.isoformat() if signal.generated_at else "",
     )
 
 

@@ -150,7 +150,7 @@ async def get_multi_source_signals(
                 description=event.description[:500] if event.description else "",
                 probability=event.probability,
                 keywords=event.keywords[:10] if event.keywords else [],
-                locations=event.inferred_locations[:5] if event.inferred_locations else [],
+                locations=[loc.name for loc in event.inferred_locations[:5] if loc.name] if event.inferred_locations else [],
                 timestamp=event.observed_at.isoformat() if event.observed_at else "",
                 source_metrics=getattr(event, "source_metrics", {}),
             )
@@ -229,7 +229,7 @@ async def get_single_source_signals(
                 description=event.description[:500] if event.description else "",
                 probability=event.probability,
                 keywords=event.keywords[:10] if event.keywords else [],
-                locations=event.inferred_locations[:5] if event.inferred_locations else [],
+                locations=[loc.name for loc in event.inferred_locations[:5] if loc.name] if event.inferred_locations else [],
                 timestamp=event.observed_at.isoformat() if event.observed_at else "",
                 source_metrics=event.source_metrics,
             )

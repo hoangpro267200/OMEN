@@ -119,6 +119,7 @@ class Container:
             repository = InMemorySignalRepository()
             logger.debug("Using in-memory repository (development mode)")
 
+        publisher: OutputPublisher
         if config.webhook_url:
             publisher = WebhookPublisher(
                 url=config.webhook_url,
