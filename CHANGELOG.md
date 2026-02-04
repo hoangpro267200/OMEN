@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Production Hardening** (v2.1.0 prep)
+  - Event fingerprinting for cross-source correlation (`EventFingerprint`, `EventFingerprintCache`)
+  - Production startup validation (`startup_checks.py`)
+  - Enhanced health checks with Redis and database connectivity
+  - Deployment verification script (`scripts/verify-deployment.sh`)
+  - Complete production Docker Compose with PostgreSQL, Redis, Prometheus, Grafana
+  - Production configuration templates (`.env.production.example`)
+  - Deployment guide (`DEPLOYMENT.md`)
+
 - Certification check script `scripts/certification_check.py` for Signal Intelligence Engine compliance (target 90+/100).
 - Async pipeline (`AsyncOmenPipeline`) for high-throughput processing with backpressure.
 - Async signal repository port and in-memory implementation.
@@ -20,7 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- None yet.
+- `CrossSourceValidationRule` now uses fingerprint-based matching (v2.0.0 of the rule)
+  - Provides confidence boost up to +35% when multiple sources confirm
+  - Uses global fingerprint cache for event matching
 
 ### Deprecated
 
@@ -28,7 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Removed
 
-- None.
+- `src/omen_impact/` package (15 files) - isolated for separate RiskCast service
+- Impact assessment is now downstream consumer responsibility
 
 ### Fixed
 
