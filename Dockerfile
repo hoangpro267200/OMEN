@@ -69,5 +69,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Default command
+# Default command - single worker for dev/small deployments
+# For production, use gunicorn with multiple workers:
+#   gunicorn omen.main:app -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:8000
 CMD ["python", "-m", "uvicorn", "omen.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Production command with Gunicorn (override in docker-compose)
+# CMD ["gunicorn", "omen.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8000", "--timeout", "30", "--access-logfile", "-"]

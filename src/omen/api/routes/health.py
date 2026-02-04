@@ -75,6 +75,18 @@ async def readiness_check(response: Response):
         checks["riskcast"] = False
         check_details["riskcast"] = f"Error: {str(e)}"
 
+    try:
+        checks["redis"], check_details["redis"] = await _check_redis_connection()
+    except Exception as e:
+        checks["redis"] = False
+        check_details["redis"] = f"Error: {str(e)}"
+
+    try:
+        checks["database"], check_details["database"] = await _check_database_connection()
+    except Exception as e:
+        checks["database"] = False
+        check_details["database"] = f"Error: {str(e)}"
+
     all_ready = all(checks.values()) if checks else True
     if not all_ready:
         response.status_code = 503
@@ -197,6 +209,75 @@ async def _check_riskcast_reachable() -> tuple[bool, str]:
     except Exception as e:
         logger.warning(f"RiskCast check error: {e}")
         return False, f"Error: {str(e)}"
+
+
+async def _check_redis_connection() -> tuple[bool, str]:
+    """
+    Check if Redis is reachable.
+    
+    Returns (True, message) if connected or Redis is not configured.
+    Returns (False, message) if configured but unreachable.
+    """
+    redis_url = os.getenv("REDIS_URL")
+    
+    if not redis_url:
+        return True, "Redis not configured (using in-memory fallback)"
+    
+    try:
+        from omen.infrastructure.redis.state_manager import get_redis_state_manager
+        
+        manager = get_redis_state_manager()
+        health = await manager.health_check()
+        
+        if health.get("status") == "healthy":
+            latency = health.get("latency_ms", 0)
+            return True, f"Redis healthy (latency: {latency:.1f}ms)"
+        elif health.get("status") == "fallback":
+            return True, "Redis using in-memory fallback"
+        else:
+            return False, health.get("error", "Redis unhealthy")
+            
+    except ImportError:
+        return True, "Redis package not installed (using in-memory)"
+    except Exception as e:
+        env = os.getenv("OMEN_ENV", "development")
+        if env != "production":
+            return True, f"Redis error (acceptable in {env}): {e}"
+        return False, f"Redis error: {e}"
+
+
+async def _check_database_connection() -> tuple[bool, str]:
+    """
+    Check if PostgreSQL database is reachable.
+    
+    Returns (True, message) if connected or database is not configured.
+    Returns (False, message) if configured but unreachable.
+    """
+    db_url = os.getenv("DATABASE_URL")
+    
+    if not db_url:
+        return True, "Database not configured (using in-memory)"
+    
+    try:
+        import asyncpg
+        
+        # Quick connection test
+        conn = await asyncpg.connect(db_url, timeout=5)
+        result = await conn.fetchval("SELECT 1")
+        await conn.close()
+        
+        if result == 1:
+            return True, "PostgreSQL connected"
+        else:
+            return False, "PostgreSQL query failed"
+            
+    except ImportError:
+        return True, "asyncpg not installed (using in-memory)"
+    except Exception as e:
+        env = os.getenv("OMEN_ENV", "development")
+        if env != "production":
+            return True, f"Database error (acceptable in {env}): {e}"
+        return False, f"Database error: {e}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
