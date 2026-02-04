@@ -36,6 +36,14 @@ from omen.domain.services.confidence_calculator import (
 # ✅ NEW: ExplanationBuilder for programmatic explanations
 from omen.domain.services.explanation_builder import ExplanationBuilder
 
+# ✅ NEW: Event Fingerprinting for cross-source correlation
+from omen.domain.services.event_fingerprint import (
+    EventFingerprint,
+    EventFingerprintCache,
+    get_fingerprint_cache,
+    reset_fingerprint_cache,
+)
+
 # Note: explanation_report is imported lazily to avoid circular imports
 # Use: from omen.domain.services.explanation_report import generate_text_report
 def generate_text_report(signal):
@@ -100,4 +108,9 @@ __all__ = [
     "ExplanationBuilder",
     "generate_text_report",
     "generate_json_audit_report",
+    # ✅ NEW: Event fingerprinting for cross-source correlation
+    "EventFingerprint",
+    "EventFingerprintCache",
+    "get_fingerprint_cache",
+    "reset_fingerprint_cache",
 ]

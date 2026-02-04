@@ -3,51 +3,66 @@ Cross-source validation rule.
 
 Validates signals by correlating multiple data sources for higher confidence.
 This is the "killer feature" that makes OMEN multi-source intelligence powerful.
+
+ENHANCED: Now uses EventFingerprint for intelligent event matching across sources.
 """
 
 from typing import Any
 from collections import defaultdict
+import logging
 
 from omen.domain.rules.base import Rule
 from omen.domain.models.raw_signal import RawSignalEvent
+
+logger = logging.getLogger(__name__)
 
 
 class CrossSourceValidationRule(Rule):
     """
     Validate signals by correlating multiple sources.
 
+    ENHANCED: Uses event fingerprinting to match similar events across
+    different data sources, enabling cross-validation even when events
+    are processed individually.
+
     Example scenarios:
 
     1. Port congestion confirmed:
        - AIS: Port SGSIN has 45 ships waiting
        - Freight: SHA-SG rates spiked 30%
-       → HIGH CONFIDENCE: Real congestion
+       → HIGH CONFIDENCE: Real congestion (+20% boost)
 
     2. Storm impact validation:
        - Weather: Category 4 typhoon approaching Philippines
        - AIS: 50 ships re-routed from Manila
-       → HIGH CONFIDENCE: Storm causing disruption
+       → HIGH CONFIDENCE: Storm causing disruption (+25% boost)
 
-    3. False positive filter:
-       - AIS: Congestion detected
-       - No other sources confirm
-       → MEDIUM CONFIDENCE: Could be data error or localized issue
+    3. Red Sea disruption (cross-source):
+       - Polymarket: "Red Sea shipping disruption" (70%)
+       - News: "Houthi attacks on cargo ships"
+       - Freight: Red Sea rates spike 40%
+       → VERY HIGH CONFIDENCE: Multi-source confirmation (+35% boost)
+
+    4. False positive filter:
+       - Single source with no corroboration
+       → No boost, standard confidence
     """
 
     rule_type = "validation"
     name = "cross_source_validation"
-    version = "1.0.0"
-    description = "Validates signals by cross-referencing multiple data sources"
+    version = "2.0.0"  # Updated for fingerprint matching
+    description = "Validates signals by cross-referencing multiple data sources with fingerprint matching"
     category = "multi_source"
     applicable_signal_types = ["disruption", "opportunity", "risk"]
 
     def __init__(
         self,
         min_sources_for_boost: int = 2,
-        base_boost_2_sources: float = 0.2,
-        base_boost_3_sources: float = 0.3,
-        keyword_overlap_bonus: float = 0.1,
-        max_boost: float = 0.4,
+        base_boost_2_sources: float = 0.15,
+        base_boost_3_sources: float = 0.25,
+        keyword_overlap_bonus: float = 0.10,
+        max_boost: float = 0.35,
+        min_similarity: float = 0.6,
     ):
         """
         Initialize cross-source validation.
@@ -58,12 +73,14 @@ class CrossSourceValidationRule(Rule):
             base_boost_3_sources: Confidence boost for 3+ source confirmation
             keyword_overlap_bonus: Extra boost for keyword/topic alignment
             max_boost: Maximum total confidence boost
+            min_similarity: Minimum fingerprint similarity for matching (0.0-1.0)
         """
         self.min_sources_for_boost = min_sources_for_boost
         self.base_boost_2_sources = base_boost_2_sources
         self.base_boost_3_sources = base_boost_3_sources
         self.keyword_overlap_bonus = keyword_overlap_bonus
         self.max_boost = max_boost
+        self.min_similarity = min_similarity
 
     @property
     def name(self) -> str:
@@ -71,13 +88,14 @@ class CrossSourceValidationRule(Rule):
     
     @property
     def version(self) -> str:
-        return "1.0.0"
+        return "2.0.0"
 
     def apply(self, input_data: RawSignalEvent) -> "ValidationResult":
         """
         Apply cross-source validation to single event.
         
-        For batch validation with multiple events, use evaluate_batch.
+        ENHANCED: Uses fingerprint cache to find similar events from
+        other sources, enabling cross-validation for individual events.
         """
         from omen.domain.models.validated_signal import ValidationResult
         from omen.domain.models.common import ValidationStatus
@@ -116,19 +134,110 @@ class CrossSourceValidationRule(Rule):
         self, event: RawSignalEvent, context: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
-        Evaluate single event (no cross-validation possible).
+        Evaluate single event using fingerprint-based cross-source matching.
 
-        For batch validation with multiple events, use evaluate_batch.
+        ENHANCED: Uses the global fingerprint cache to find similar events
+        from different sources, enabling cross-validation even when events
+        are processed individually.
         """
-        # Single event can't be cross-validated
-        return {
-            "passed": True,
-            "score": 0.0,
-            "reason": "Single event - no cross-validation",
-            "metadata": {
-                "cross_validation_available": False,
-            },
-        }
+        try:
+            from omen.domain.services.event_fingerprint import (
+                get_fingerprint_cache,
+                EventFingerprint,
+            )
+            
+            cache = get_fingerprint_cache()
+            
+            # Find similar events from other sources
+            matches = cache.find_similar(
+                event,
+                min_similarity=self.min_similarity,
+                exclude_source=event.market.source,
+            )
+            
+            # Add this event to cache for future matching
+            fingerprint = cache.add(event)
+            
+            if not matches:
+                return {
+                    "passed": True,
+                    "score": 0.0,
+                    "reason": "Single source - no corroborating events found",
+                    "metadata": {
+                        "cross_validation_available": True,
+                        "fingerprint": fingerprint,
+                        "cache_size": cache.size,
+                        "matches": 0,
+                    },
+                }
+            
+            # Count unique sources
+            source_set = {m["source"] for m in matches}
+            n_sources = len(source_set) + 1  # +1 for current event
+            
+            # Calculate boost based on number of confirming sources
+            if n_sources >= 3:
+                boost = self.base_boost_3_sources
+            elif n_sources >= 2:
+                boost = self.base_boost_2_sources
+            else:
+                boost = 0.0
+            
+            # Apply similarity bonus (higher similarity = more reliable match)
+            best_similarity = max(m["similarity"] for m in matches)
+            if best_similarity >= 0.9:
+                boost += self.keyword_overlap_bonus
+            elif best_similarity >= 0.8:
+                boost += self.keyword_overlap_bonus * 0.5
+            
+            # Cap at max boost
+            boost = min(boost, self.max_boost)
+            
+            # Generate reason
+            source_list = sorted(source_set)
+            match_summaries = [
+                f"{m['source']} ({m['similarity']:.0%})"
+                for m in matches[:3]
+            ]
+            
+            if boost > 0:
+                reason = f"Cross-source confirmation: {n_sources} sources ({', '.join(source_list)}). Matches: {', '.join(match_summaries)}"
+            else:
+                reason = f"Found {len(matches)} similar event(s) but insufficient for boost"
+            
+            logger.info(
+                "Cross-source validation for %s: %d matches from %s, boost=%.2f",
+                event.event_id,
+                len(matches),
+                source_list,
+                boost,
+            )
+            
+            return {
+                "passed": True,
+                "score": boost,
+                "reason": reason,
+                "metadata": {
+                    "cross_validation_available": True,
+                    "fingerprint": fingerprint,
+                    "matches": len(matches),
+                    "sources": source_list,
+                    "best_similarity": best_similarity,
+                    "confidence_boost": boost,
+                },
+            }
+            
+        except Exception as e:
+            logger.warning("Cross-source validation error: %s", e)
+            return {
+                "passed": True,
+                "score": 0.0,
+                "reason": f"Cross-source validation unavailable: {e}",
+                "metadata": {
+                    "cross_validation_available": False,
+                    "error": str(e),
+                },
+            }
 
     def evaluate_batch(self, events: list[RawSignalEvent]) -> list[dict[str, Any]]:
         """
