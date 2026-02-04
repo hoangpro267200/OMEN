@@ -181,6 +181,12 @@ async def lifespan(app: FastAPI):  # type: ignore[arg-type]
         shutdown_connection_manager,
     )
 
+    # === RUN PRODUCTION STARTUP CHECKS ===
+    # Must run FIRST before any other initialization
+    if IS_PRODUCTION:
+        from omen.infrastructure.startup_checks import run_production_checks
+        run_production_checks()  # Exits if checks fail
+    
     omen_config = get_config()
     setup_logging(
         level=omen_config.log_level,
@@ -189,7 +195,7 @@ async def lifespan(app: FastAPI):  # type: ignore[arg-type]
     )
     config = get_security_config()
 
-    # CRITICAL: Fail fast in production if no API keys configured
+    # Additional API key check (duplicates startup check but provides better error message)
     if not config.get_api_keys():
         if IS_PRODUCTION:
             raise RuntimeError(
