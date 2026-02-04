@@ -13,7 +13,23 @@ export default defineConfig(({ mode }) => ({
       ? visualizer({ open: true, gzipSize: true, brotliSize: true, filename: 'dist/stats.html' })
       : undefined,
   ].filter(Boolean),
-  server: { port: 5174 },
+  server: {
+    port: 5174,
+    proxy: {
+      // Proxy API requests to backend server
+      '/api/v1': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Proxy health check
+      '/health': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', 'react-simple-maps'],
   },

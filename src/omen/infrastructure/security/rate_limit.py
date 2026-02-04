@@ -78,11 +78,18 @@ class TokenBucketRateLimiter:
                 return False, headers
 
 
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
 _rate_limiter: TokenBucketRateLimiter | None = None
+_redis_rate_limiter = None
+_use_redis = False
 
 
 def get_rate_limiter() -> TokenBucketRateLimiter:
-    """Return the global rate limiter instance."""
+    """Return the global rate limiter instance (in-memory fallback)."""
     global _rate_limiter
     if _rate_limiter is None:
         config = get_security_config()
@@ -93,11 +100,44 @@ def get_rate_limiter() -> TokenBucketRateLimiter:
     return _rate_limiter
 
 
+async def _init_redis_rate_limiter():
+    """Initialize Redis rate limiter if REDIS_URL is available."""
+    global _redis_rate_limiter, _use_redis
+    
+    if _redis_rate_limiter is not None:
+        return _redis_rate_limiter
+    
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        return None
+    
+    try:
+        from omen.infrastructure.security.redis_rate_limit import RedisRateLimiter
+        
+        config = get_security_config()
+        _redis_rate_limiter = RedisRateLimiter(
+            redis_url=redis_url,
+            requests_per_minute=config.rate_limit_requests_per_minute,
+            burst_size=config.rate_limit_burst,
+        )
+        await _redis_rate_limiter.initialize()
+        _use_redis = True
+        logger.info("✅ Using Redis-based rate limiting (distributed)")
+        return _redis_rate_limiter
+    except Exception as e:
+        logger.warning(f"Redis rate limiter unavailable, using in-memory: {e}")
+        return None
+
+
 async def rate_limit_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable],
 ):
-    """FastAPI middleware for rate limiting."""
+    """FastAPI middleware for rate limiting.
+    
+    ✅ ACTIVATED: Uses Redis for distributed rate limiting when REDIS_URL is set.
+    Falls back to in-memory rate limiting otherwise.
+    """
     config = get_security_config()
 
     if not config.rate_limit_enabled:
@@ -107,8 +147,20 @@ async def rate_limit_middleware(
         request.client.host if request.client else "unknown"
     )
 
-    limiter = get_rate_limiter()
-    allowed, headers = await limiter.check(client_id)
+    # ✅ Try Redis rate limiter first (distributed)
+    redis_limiter = await _init_redis_rate_limiter()
+    
+    if redis_limiter and _use_redis:
+        try:
+            allowed, headers = await redis_limiter.is_allowed(client_id)
+        except Exception as e:
+            logger.warning(f"Redis rate limit check failed, using in-memory: {e}")
+            limiter = get_rate_limiter()
+            allowed, headers = await limiter.check(client_id)
+    else:
+        # In-memory fallback
+        limiter = get_rate_limiter()
+        allowed, headers = await limiter.check(client_id)
 
     if not allowed:
         return JSONResponse(

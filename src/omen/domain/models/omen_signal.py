@@ -24,6 +24,7 @@ NOTE: No logging in domain layer - maintain purity for determinism and testabili
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from datetime import datetime
 from enum import Enum
@@ -31,15 +32,24 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# P1-3: Feature flag for explanation in hot path
+EXPLANATIONS_HOT_PATH = os.environ.get("EXPLANATIONS_HOT_PATH", "0") == "1"
+
 if TYPE_CHECKING:
     from .validated_signal import ValidatedSignal
 
 from .enums import SignalType, SignalStatus
 from .impact_hints import ImpactHints
 from ..services.signal_classifier import SignalClassifier
+from ..services.confidence_calculator import (
+    EnhancedConfidenceCalculator,
+    ConfidenceInterval,
+    get_confidence_calculator,
+)
 
-# Module-level classifier instance
+# Module-level instances for hot path
 _classifier = SignalClassifier()
+_confidence_calculator = get_confidence_calculator()
 
 
 def _generate_deterministic_trace_id(
@@ -267,8 +277,8 @@ class OmenSignal(BaseModel):
         "Based on liquidity, source reliability, validation scores.",
     )
     confidence_method: str = Field(
-        default="weighted_factors_v1",
-        description="Method used to calculate confidence_score",
+        default="enhanced_calculator_v2",
+        description="Method used to calculate confidence_score (enhanced_calculator_v2 uses EnhancedConfidenceCalculator)",
     )
     confidence_level: ConfidenceLevel = Field(
         description="Categorical confidence: HIGH, MEDIUM, LOW",
@@ -283,6 +293,10 @@ class OmenSignal(BaseModel):
     probability_uncertainty: Optional[UncertaintyBounds] = Field(
         default=None,
         description="Uncertainty bounds on probability if calculable",
+    )
+    confidence_interval: Optional[dict] = Field(
+        default=None,
+        description="Confidence interval from EnhancedConfidenceCalculator: {point_estimate, lower_bound, upper_bound, confidence_level, method}",
     )
 
     # === CATEGORIZATION ===
@@ -318,6 +332,16 @@ class OmenSignal(BaseModel):
     validation_scores: list[ValidationScore] = Field(
         default_factory=list,
         description="Scores from each validation rule",
+    )
+    
+    # === EXPLANATION (P1-3: Feature-flagged via EXPLANATIONS_HOT_PATH=1) ===
+    explanation_text: Optional[str] = Field(
+        default=None,
+        description="Human-readable explanation chain (only populated when EXPLANATIONS_HOT_PATH=1)",
+    )
+    explanation_summary: Optional[str] = Field(
+        default=None,
+        description="Brief summary of reasoning steps (only populated when EXPLANATIONS_HOT_PATH=1)",
     )
 
     # === TRACEABILITY ===
@@ -397,7 +421,31 @@ class OmenSignal(BaseModel):
                     factors["geographic"] = r.score
             factors.setdefault("liquidity", validated_signal.liquidity_score)
             factors.setdefault("geographic", 0.5)
-        confidence_score = sum(factors.values()) / len(factors) if factors else 0.5
+        
+        # === P0-2: Use EnhancedConfidenceCalculator instead of inline calculation ===
+        # Extract base confidence from validation scores average
+        base_confidence = (
+            sum(factors.values()) / len(factors) if factors else 0.5
+        )
+        # Data completeness: based on how many validation rules passed
+        data_completeness = min(1.0, len(factors) / 3.0) if factors else 0.5
+        # Source reliability from factors or default
+        source_reliability = factors.get("source_reliability", 0.85)
+        
+        # Calculate confidence with interval using the service
+        confidence_result = _confidence_calculator.calculate_confidence_with_interval(
+            base_confidence=base_confidence,
+            data_completeness=data_completeness,
+            source_reliability=source_reliability,
+        )
+        confidence_score = confidence_result.point_estimate
+        confidence_interval_data = {
+            "point_estimate": confidence_result.point_estimate,
+            "lower_bound": confidence_result.lower_bound,
+            "upper_bound": confidence_result.upper_bound,
+            "confidence_level": confidence_result.confidence_level,
+            "method": confidence_result.method,
+        }
 
         keyword_cats = enrichment.get("keyword_categories", {})
         category = cls._infer_category(keyword_cats)
@@ -461,6 +509,27 @@ class OmenSignal(BaseModel):
         else:
             status = SignalStatus.DEGRADED
 
+        # === P1-3: EXPLANATION (feature-flagged) ===
+        explanation_text = None
+        explanation_summary = None
+        if EXPLANATIONS_HOT_PATH:
+            explanation_chain = getattr(validated_signal, "explanation", None)
+            if explanation_chain and hasattr(explanation_chain, "steps"):
+                # Build human-readable explanation text
+                explanation_parts = []
+                for step in explanation_chain.steps:
+                    if hasattr(step, "to_human_readable"):
+                        explanation_parts.append(step.to_human_readable())
+                    elif hasattr(step, "reasoning"):
+                        explanation_parts.append(
+                            f"Step {step.step_id}: {step.rule_name} - {step.reasoning}"
+                        )
+                if explanation_parts:
+                    explanation_text = "\n\n".join(explanation_parts)
+                # Summary is the chain of rule names
+                if hasattr(explanation_chain, "summary"):
+                    explanation_summary = explanation_chain.summary
+
         return cls(
             signal_id=f"OMEN-{trace_id[:12].upper()}",
             source_event_id=str(event.event_id),
@@ -473,6 +542,7 @@ class OmenSignal(BaseModel):
             confidence_score=confidence_score,
             confidence_level=ConfidenceLevel.from_score(confidence_score),
             confidence_factors=factors,
+            confidence_interval=confidence_interval_data,  # P0-2: Add confidence interval
             category=category,
             tags=tags,
             keywords_matched=keywords_matched,
@@ -480,6 +550,8 @@ class OmenSignal(BaseModel):
             temporal=temporal,
             evidence=evidence,
             validation_scores=validation_scores,
+            explanation_text=explanation_text,  # P1-3: Feature-flagged explanation
+            explanation_summary=explanation_summary,  # P1-3: Feature-flagged explanation summary
             trace_id=trace_id,
             ruleset_version=ruleset,
             source_url=event.market.market_url,

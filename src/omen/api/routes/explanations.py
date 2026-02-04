@@ -7,12 +7,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from omen.api.dependencies import get_repository
+from omen.api.route_dependencies import require_signals_read
 from omen.application.ports.signal_repository import SignalRepository
 from omen.domain.services.explanation_report import (
     generate_json_audit_report,
     generate_text_report,
 )
-from omen.infrastructure.security.auth import verify_api_key
+from omen.infrastructure.security.unified_auth import AuthContext
 
 router = APIRouter()
 
@@ -22,7 +23,7 @@ async def get_signal_explanation(
     signal_id: str,
     format: str = "json",
     repository: SignalRepository = Depends(get_repository),
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_signals_read),  # RBAC: read:signals
 ) -> dict[str, Any] | Response:
     """
     Get detailed explanation for a signal.
@@ -43,7 +44,7 @@ async def get_signal_explanation(
 
 @router.get("/parameters")
 async def list_all_parameters(
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_signals_read),  # RBAC: read:signals
 ) -> dict[str, Any]:
     """
     List all rule parameters used by OMEN.

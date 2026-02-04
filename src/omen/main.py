@@ -4,6 +4,23 @@ FastAPI entrypoint with security middleware.
 All endpoints require authentication except explicitly whitelisted public endpoints.
 """
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CRITICAL: Load environment variables FIRST, before any other imports
+# This ensures all modules see the correct env vars from .env file
+# ═══════════════════════════════════════════════════════════════════════════════
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from project root (3 levels up from main.py: src/omen/main.py -> project root)
+_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
+    print(f"[OMEN] Loaded environment from: {_env_path}")
+else:
+    print(f"[OMEN] Warning: No .env file found at {_env_path}")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+
 import asyncio
 import logging
 import os
@@ -19,14 +36,16 @@ from starlette.responses import Response
 
 from omen.api.routes import (
     activity,
+    calibration,  # P1-4: Historical validation endpoints
     explanations,
     health,
     live,
+    live_mode,
     methodology,
     metrics_circuit,
     metrics_prometheus,
     multi_source,
-    partner_risk,
+    # partner_risk removed - deprecated, all endpoints return 410
     partner_signals,
     realtime,
     signals,
@@ -46,16 +65,22 @@ from omen.infrastructure.middleware.request_tracking import (
 )
 from omen.infrastructure.middleware.trace_context import trace_context_middleware
 from omen.infrastructure.middleware.http_metrics import http_metrics_middleware
+from omen.infrastructure.observability.tracing import (
+    setup_tracing,
+    setup_all_instrumentations,
+    is_tracing_enabled,
+)
+from omen.infrastructure.middleware.live_gate_middleware import LiveGateMiddleware
+from omen.infrastructure.middleware.response_wrapper import ResponseWrapperMiddleware
 from omen.infrastructure.observability.logging import setup_logging
-from omen.infrastructure.security.auth import verify_api_key
 from omen.infrastructure.security.config import get_security_config
 from omen.infrastructure.security.middleware import (
-    AuthenticationMiddleware,
     HTTPSRedirectMiddleware,
     AuditLoggingMiddleware,
 )
 from omen.infrastructure.security.rate_limit import rate_limit_middleware
-from omen.infrastructure.security.rbac import Scopes, require_scopes
+# NOTE: Authentication is handled by unified_auth module via route dependencies
+# ScopeChecker/require_scopes are DEPRECATED - use unified auth instead
 from omen.api.security import (
     READ_SIGNALS,
     WRITE_SIGNALS,
@@ -68,6 +93,8 @@ from omen.api.security import (
     READ_STORAGE,
     DEBUG_ONLY,
 )
+from omen.jobs import JobScheduler
+from omen.domain.services import get_trust_manager
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +105,7 @@ IS_PRODUCTION = OMEN_ENV == "production"
 # Global state for cleanup on shutdown (register via register_writer / register_emitter)
 _active_writers: list[Any] = []
 _active_emitters: list[Any] = []
+_job_scheduler: Any = None  # JobScheduler instance
 
 
 def register_writer(writer: Any) -> None:
@@ -141,7 +169,7 @@ def _on_signal(sig: int) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> Any:
+async def lifespan(app: FastAPI):  # type: ignore[arg-type]
     """
     Application lifespan: startup and graceful shutdown.
 
@@ -179,6 +207,230 @@ async def lifespan(app: FastAPI) -> Any:
 
     logger.info("OMEN starting up (env=%s)...", OMEN_ENV)
 
+    # === SETUP DISTRIBUTED TRACING (OpenTelemetry) ===
+    try:
+        tracer = setup_tracing(
+            service_name="omen",
+            sample_rate=0.1 if IS_PRODUCTION else 1.0,  # Sample 10% in prod
+        )
+        if is_tracing_enabled():
+            logger.info("OpenTelemetry distributed tracing enabled")
+        else:
+            logger.info("OpenTelemetry tracing not configured (OTLP_ENDPOINT not set)")
+    except Exception as e:
+        logger.warning("Failed to setup distributed tracing: %s", e)
+
+    # === REGISTER HEALTH CHECKS FOR ALL DATA SOURCES ===
+    from omen.infrastructure.health.source_health_registration import (
+        register_all_health_sources,
+    )
+    
+    register_all_health_sources()
+    # Note: Initial health check skipped for faster startup - will run on first /health/sources request
+    logger.info("Health checks registered (initial check will run on first request)")
+
+    # === PRODUCTION GATE: Validate data sources ===
+    from omen.infrastructure.data_integrity import get_source_registry, validate_live_mode
+    
+    registry = get_source_registry()
+    registry.initialize()
+    
+    can_go_live, blockers = validate_live_mode()
+    
+    if IS_PRODUCTION:
+        # In production, log warnings about mock sources
+        if not can_go_live:
+            logger.warning(
+                "PRODUCTION DATA WARNING: %d mock sources detected. LIVE mode will be blocked.",
+                len(blockers)
+            )
+            for blocker in blockers:
+                logger.warning("  - %s", blocker)
+    else:
+        # In development, just log status
+        if can_go_live:
+            logger.info("LIVE mode ALLOWED - all data sources are real")
+        else:
+            logger.info("LIVE mode BLOCKED - %d mock sources: %s", len(blockers), blockers[:3])
+
+    # Seed demo signals in development mode
+    if not IS_PRODUCTION:
+        try:
+            from omen.application.container import get_container
+            from data.demo_signals import DEMO_SIGNALS
+            from omen.domain.models.omen_signal import OmenSignal, ConfidenceLevel, SignalCategory
+            from datetime import datetime, timezone
+            
+            container = get_container()
+            repo = container.repository
+            
+            # Category mapping
+            cat_map = {
+                "GEOPOLITICAL": SignalCategory.GEOPOLITICAL,
+                "INFRASTRUCTURE": SignalCategory.INFRASTRUCTURE,
+                "CLIMATE": SignalCategory.WEATHER,
+                "COMPLIANCE": SignalCategory.REGULATORY,
+                "OPERATIONAL": SignalCategory.OTHER,
+                "FINANCIAL": SignalCategory.ECONOMIC,
+            }
+            
+            seeded = 0
+            now = datetime.now(timezone.utc)
+            from datetime import timedelta
+            import random
+            
+            for i, raw in enumerate(DEMO_SIGNALS):
+                cat_str = raw.get("category", "OTHER")
+                category = cat_map.get(cat_str, SignalCategory.OTHER)
+                conf_str = raw.get("confidence_level", "MEDIUM")
+                confidence_level = (
+                    ConfidenceLevel.HIGH if conf_str == "HIGH"
+                    else ConfidenceLevel.LOW if conf_str == "LOW"
+                    else ConfidenceLevel.MEDIUM
+                )
+                
+                # Vary timestamps to look realistic (within last few hours)
+                time_offset = timedelta(minutes=random.randint(5, 180))
+                signal_time = now - time_offset
+                
+                # Ensure demo signals have DEMO prefix
+                signal_id = raw["id"]
+                if not signal_id.startswith("OMEN-DEMO"):
+                    signal_id = f"OMEN-DEMO{signal_id.replace('OMEN-', '')}"
+                
+                signal = OmenSignal(
+                    signal_id=signal_id,
+                    source_event_id=f"demo-{raw['id']}",
+                    title=raw["title"],
+                    description=raw.get("description", ""),
+                    probability=float(raw["probability"]),
+                    confidence_score=float(raw["confidence_score"]),
+                    confidence_level=confidence_level,
+                    category=category,
+                    ruleset_version="1.0.0",
+                    trace_id=f"trace-{raw['id'][:12]}",
+                    observed_at=signal_time,
+                    generated_at=signal_time + timedelta(seconds=random.randint(1, 30)),
+                )
+                repo.save(signal)
+                seeded += 1
+            
+            # Update rejection tracker with demo stats
+            from omen.infrastructure.debug.rejection_tracker import get_rejection_tracker
+            tracker = get_rejection_tracker()
+            for raw in DEMO_SIGNALS:
+                tracker.record_passed(
+                    signal_id=raw["id"],
+                    event_id=f"demo-{raw['id']}",
+                    title=raw["title"],
+                    probability=float(raw["probability"]),
+                    confidence=float(raw["confidence_score"]),
+                    confidence_level=raw.get("confidence_level", "MEDIUM"),
+                )
+            
+            # Update metrics collector for UI stats
+            from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
+            metrics = get_metrics_collector()
+            metrics.complete_batch(
+                events_received=len(DEMO_SIGNALS),
+                events_validated=len(DEMO_SIGNALS),
+                events_translated=len(DEMO_SIGNALS),
+                signals_generated=len(DEMO_SIGNALS),
+                events_rejected=0,
+                avg_confidence=sum(float(s["confidence_score"]) for s in DEMO_SIGNALS) / len(DEMO_SIGNALS),
+            )
+            
+            logger.info("Seeded %d demo signals for development", seeded)
+        except Exception as e:
+            logger.warning("Could not seed demo signals: %s", e)
+    
+    # === RUN POSTGRESQL MIGRATIONS (if DATABASE_URL is set) ===
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        try:
+            from omen.infrastructure.database.postgres_migrations import PostgresMigrationRunner
+            import asyncpg  # type: ignore[import-not-found]
+            
+            pool = await asyncpg.create_pool(database_url, min_size=1, max_size=2)
+            try:
+                runner = PostgresMigrationRunner(pool)
+                applied = await runner.run()
+                if applied:
+                    logger.info("Applied %d PostgreSQL migrations: %s", len(applied), applied)
+                else:
+                    logger.info("PostgreSQL schema is up to date")
+            finally:
+                await pool.close()
+        except ImportError:
+            logger.debug("asyncpg not installed, skipping PostgreSQL migrations")
+        except Exception as e:
+            logger.warning("PostgreSQL migrations failed (non-fatal): %s", e)
+    
+    # === INITIALIZE SOURCE TRUST MANAGER ===
+    try:
+        trust_manager = get_trust_manager()
+        logger.info("Source trust manager initialized with %d sources", len(trust_manager.DEFAULT_TRUST_SCORES))
+    except Exception as e:
+        logger.warning("Failed to initialize trust manager: %s", e)
+
+    # === EAGERLY INITIALIZE MULTI-SOURCE AGGREGATOR ===
+    # This ensures all adapters are initialized at startup, not on first request
+    try:
+        from omen.adapters.inbound.multi_source import get_multi_source_aggregator
+        aggregator = get_multi_source_aggregator()
+        source_list = aggregator.list_sources()
+        logger.info(
+            "Multi-source aggregator initialized with %d sources: %s",
+            len(source_list),
+            [s["name"] for s in source_list],
+        )
+    except Exception as e:
+        logger.warning("Failed to initialize multi-source aggregator: %s", e)
+    
+    # === START JOB SCHEDULER ===
+    global _job_scheduler
+    if database_url:
+        # Use PostgreSQL-backed scheduler when DATABASE_URL is available
+        try:
+            import asyncpg  # type: ignore[import-not-found]
+            
+            pool = await asyncpg.create_pool(database_url, min_size=2, max_size=5)
+            _job_scheduler = JobScheduler(pool)
+            await _job_scheduler.start()
+            logger.info("Job scheduler started with %d cleanup jobs (PostgreSQL mode)", len(_job_scheduler.list_jobs()))
+        except ImportError:
+            logger.debug("asyncpg not installed, job scheduler disabled")
+        except Exception as e:
+            logger.warning("Failed to start job scheduler: %s", e)
+    else:
+        # P1-5: Use InMemoryJobScheduler when DATABASE_URL is not set
+        try:
+            from omen.jobs.in_memory_scheduler import start_in_memory_scheduler
+            _job_scheduler = await start_in_memory_scheduler()
+            logger.info("InMemoryJobScheduler started with %d cleanup jobs (no DATABASE_URL)", len(_job_scheduler.list_jobs()))
+        except Exception as e:
+            logger.warning("Failed to start in-memory job scheduler: %s", e)
+    
+    # === BACKGROUND SIGNAL GENERATOR ===
+    # Start immediately rather than lazy start for better data freshness
+    try:
+        from omen.infrastructure.background.signal_generator import start_background_generator
+        start_background_generator()
+        logger.info("Background signal generator started")
+    except Exception as e:
+        logger.warning("Failed to start background signal generator: %s", e)
+
+    # Initialize Redis state manager (for caching, distributed locks, etc.)
+    from omen.infrastructure.redis import initialize_redis, shutdown_redis
+    try:
+        redis_connected = await initialize_redis()
+        if redis_connected:
+            logger.info("Redis state manager initialized (distributed mode)")
+        else:
+            logger.info("Redis state manager initialized (in-memory fallback)")
+    except Exception as e:
+        logger.warning("Failed to initialize Redis state manager: %s", e)
+
     # Initialize distributed WebSocket manager
     try:
         await initialize_connection_manager()
@@ -186,15 +438,20 @@ async def lifespan(app: FastAPI) -> Any:
     except Exception as e:
         logger.warning("Failed to initialize distributed connection manager: %s", e)
 
+    # Register signal handlers (Unix only - Windows doesn't support add_signal_handler)
     try:
         loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(
-                sig,
-                lambda s=sig: _on_signal(s),  # type: ignore[misc]
-            )
+        # SIGTERM and SIGINT are Unix signals - not available on Windows
+        sigterm = getattr(signal, "SIGTERM", None)
+        sigint = getattr(signal, "SIGINT", None)
+        for sig in (sigterm, sigint):
+            if sig is not None:
+                loop.add_signal_handler(
+                    sig,
+                    lambda s=sig: _on_signal(s),  # type: ignore[misc]
+                )
     except NotImplementedError:
-        # Windows: add_signal_handler not available for SIGTERM
+        # Windows: add_signal_handler not available
         pass
     except Exception as e:
         logger.debug("Could not add signal handlers: %s", e)
@@ -202,6 +459,26 @@ async def lifespan(app: FastAPI) -> Any:
     yield
 
     logger.info("OMEN shutting down gracefully...")
+    
+    # Stop background signal generator if it was started
+    try:
+        from omen.infrastructure.background.signal_generator import get_background_generator
+        generator = get_background_generator()
+        if generator.is_running:
+            generator.stop()
+            logger.info("Background signal generator stopped")
+    except Exception as e:
+        logger.warning("Error stopping background signal generator: %s", e)
+    
+    # Stop job scheduler if running
+    if _job_scheduler is not None:
+        try:
+            await _job_scheduler.stop()
+            logger.info("Job scheduler stopped")
+        except Exception as e:
+            logger.warning("Error stopping job scheduler: %s", e)
+        _job_scheduler = None
+    
     await graceful_shutdown(timeout_seconds=30)
 
     # Shutdown distributed components
@@ -210,6 +487,14 @@ async def lifespan(app: FastAPI) -> Any:
         logger.info("Distributed connection manager shutdown")
     except Exception as e:
         logger.error("Error shutting down connection manager: %s", e)
+
+    # Shutdown Redis state manager
+    try:
+        from omen.infrastructure.redis import shutdown_redis
+        await shutdown_redis()
+        logger.info("Redis state manager shutdown")
+    except Exception as e:
+        logger.error("Error shutting down Redis: %s", e)
 
     logger.info("OMEN shutdown complete.")
 
@@ -259,6 +544,14 @@ Impact assessment is the responsibility of downstream systems.
 
     # === ERROR HANDLERS (register early) ===
     register_error_handlers(app)
+
+    # === OPENTELEMETRY INSTRUMENTATION ===
+    if is_tracing_enabled():
+        try:
+            setup_all_instrumentations(app)
+            logger.info("OpenTelemetry instrumentation enabled for FastAPI, HTTPX, AsyncPG, Redis")
+        except Exception as e:
+            logger.warning("Failed to setup OpenTelemetry instrumentation: %s", e)
 
     # === REQUEST BODY SIZE LIMIT ===
     @app.middleware("http")
@@ -316,23 +609,44 @@ Impact assessment is the responsibility of downstream systems.
     # HTTP metrics (p50, p95, p99 latency tracking)
     app.middleware("http")(http_metrics_middleware)
 
+    # Trace context injection (trace_id, request_id for observability)
+    app.middleware("http")(trace_context_middleware)
+    logger.info("Trace context middleware enabled (request tracing)")
+
     # Rate limiting
     if config.rate_limit_enabled:
         app.middleware("http")(rate_limit_middleware)
 
-    # Security headers
+    # Live Gate Middleware - Enforces LIVE/DEMO mode at request level
+    app.add_middleware(
+        LiveGateMiddleware,
+        strict_mode=False,  # Downgrade to DEMO instead of 403
+        excluded_paths=["/health", "/ready", "/metrics", "/docs", "/openapi.json", "/redoc"],
+    )
+    logger.info("LiveGateMiddleware enabled (graceful mode - downgrades to DEMO)")
+
+    # Response Wrapper Middleware - Adds metadata envelope to JSON responses
+    app.add_middleware(
+        ResponseWrapperMiddleware,
+        excluded_paths=["/health", "/ready", "/metrics", "/docs", "/openapi.json", "/redoc", "/ws"],
+        include_sources=True,
+    )
+    logger.info("ResponseWrapperMiddleware enabled (JSON responses wrapped with metadata)")
+
+    # ✅ Security Headers Middleware (ACTIVATED)
+    # Uses proper middleware class instead of inline function
+    from omen.infrastructure.middleware.security_headers import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware, enable_hsts=IS_PRODUCTION)
+    logger.info("✅ SecurityHeadersMiddleware ACTIVATED (OWASP compliant)")
+    
+    # OMEN-specific headers and CORS handling
     @app.middleware("http")
-    async def add_security_headers(
+    async def add_omen_headers(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self'"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # OMEN contract headers
         response.headers["X-OMEN-Contract-Version"] = "2.0.0"
         response.headers["X-OMEN-Contract-Type"] = "signal-only"
         # Ensure CORS headers are present for cross-origin requests
@@ -413,6 +727,14 @@ Impact assessment is the responsibility of downstream systems.
         dependencies=READ_STATS,  # 🔒 RBAC: read:stats
     )
 
+    # Calibration API (P1-4: Historical validation)
+    app.include_router(
+        calibration.router,
+        prefix="/api/v1",
+        tags=["Calibration"],
+        dependencies=READ_STATS,  # 🔒 RBAC: read:stats
+    )
+
     # Activity API
     app.include_router(
         activity.router,
@@ -456,19 +778,41 @@ Impact assessment is the responsibility of downstream systems.
         dependencies=READ_PARTNERS,  # 🔒 RBAC: read:partners
     )
 
-    # Partner Risk Engine - DEPRECATED
-    app.include_router(
-        partner_risk.router,
-        prefix="/api/v1/partner-risk",
-        tags=["Partner Risk (DEPRECATED)"],
-        dependencies=READ_PARTNERS,  # 🔒 RBAC: read:partners
-    )
+    # Partner Risk Engine - REMOVED (was deprecated, all endpoints returned 410)
+    # Use partner_signals.router instead for Vietnamese logistics monitoring
 
     # UI API (for demo frontend) - uses read:signals scope
+    # NOTE: Mounted at /api/v1/ui to match frontend OMEN_API_BASE expectation
+    app.include_router(
+        ui.router,
+        prefix="/api/v1/ui",
+        tags=["UI"],
+        dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
+    )
+    
+    # Also mount at /api/ui for backwards compatibility
     app.include_router(
         ui.router,
         prefix="/api/ui",
-        tags=["UI"],
+        tags=["UI (Legacy)"],
+        dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
+        include_in_schema=False,  # Hide from OpenAPI docs
+    )
+
+    # LIVE Mode Status API - Backend-authoritative LIVE/DEMO validation
+    app.include_router(
+        live_mode.router,
+        prefix="/api/v1",
+        tags=["Live Mode"],
+        dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
+    )
+
+    # LIVE Data API - Real-time data from all sources
+    from omen.api.routes import live_data
+    app.include_router(
+        live_data.router,
+        prefix="/api/v1/live-data",
+        tags=["Live Data"],
         dependencies=READ_SIGNALS,  # 🔒 RBAC: read:signals
     )
 

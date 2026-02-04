@@ -15,6 +15,7 @@ import zlib
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from omen.application.ports.time_provider import utc_now
 from .omen_signal import OmenSignal
 
 SCHEMA_VERSION = "1.0.0"
@@ -117,7 +118,7 @@ class SignalEvent(BaseModel):
             source_event_id=signal.source_event_id,
             ruleset_version=signal.ruleset_version,
             observed_at=observed_at,
-            emitted_at=datetime.now(timezone.utc),
+            emitted_at=utc_now(),
             signal=signal,
         )
 
@@ -135,7 +136,7 @@ class SignalEvent(BaseModel):
             update={
                 "ledger_partition": partition,
                 "ledger_sequence": sequence,
-                "ledger_written_at": datetime.now(timezone.utc),
+                "ledger_written_at": utc_now(),
             }
         )
 

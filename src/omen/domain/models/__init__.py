@@ -35,6 +35,14 @@ from omen.domain.models.signal_event import (
     SCHEMA_VERSION,
     generate_input_event_hash,
 )
+from omen.domain.models.attestation import (
+    SourceType,
+    VerificationMethod,
+    AttestationStatus,
+    SignalAttestation,
+    AttestationVerification,
+    AttestationError,
+)
 
 __all__ = [
     "RawSignalEvent",
@@ -72,4 +80,11 @@ __all__ = [
     "LedgerRecord",
     "SCHEMA_VERSION",
     "generate_input_event_hash",
+    # Source attestation
+    "SourceType",
+    "VerificationMethod",
+    "AttestationStatus",
+    "SignalAttestation",
+    "AttestationVerification",
+    "AttestationError",
 ]

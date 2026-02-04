@@ -68,16 +68,46 @@ class SecurityConfig(BaseSettings):
     # CORS - OMEN_SECURITY_CORS_ORIGINS env var (comma-separated)
     cors_enabled: bool = True
     cors_origins: str = Field(
-        default="*",
+        default="",
         description="CORS origins (comma-separated in env)",
     )
     cors_allow_credentials: bool = False
 
     def get_cors_origins(self) -> list[str]:
-        """Parse comma-separated CORS origins from env."""
-        if not self.cors_origins:
-            return ["*"]
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        """
+        Get CORS origins based on environment.
+        
+        Development: Allows localhost variants
+        Production: Only explicitly configured origins
+        """
+        # If explicitly configured, use those
+        if self.cors_origins and self.cors_origins != "*":
+            return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        
+        # Development defaults
+        if not IS_PRODUCTION:
+            return [
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:5175",
+                "http://localhost:5176",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:5174",
+                "http://127.0.0.1:3000",
+            ]
+        
+        # Production with wildcard = error (should be explicit)
+        if self.cors_origins == "*":
+            import logging
+            logging.getLogger(__name__).warning(
+                "CORS configured with '*' in production - this is insecure! "
+                "Set OMEN_SECURITY_CORS_ORIGINS to specific origins."
+            )
+            return ["*"]  # Allow but warn
+        
+        # Production with no config = no CORS
+        return []
 
     # Webhook Security
     webhook_secret: SecretStr | None = None

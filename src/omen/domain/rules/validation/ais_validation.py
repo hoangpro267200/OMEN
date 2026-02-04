@@ -3,16 +3,61 @@ AIS validation rules.
 
 Validates AIS signals (port congestion, chokepoint delays) before
 they become OMEN signals.
+
+✅ Updated: Now compatible with Rule interface (apply, explain methods).
 """
 
 from typing import Any
 from datetime import datetime, timezone
 
+from omen.application.ports.time_provider import utc_now
 from omen.domain.rules.base import Rule
 from omen.domain.models.raw_signal import RawSignalEvent
+from omen.domain.models.validated_signal import ValidationResult
+from omen.domain.models.common import ValidationStatus
+from omen.domain.models.explanation import ExplanationStep
 
 
-class PortCongestionValidationRule(Rule):
+class AISValidationRuleMixin:
+    """Mixin providing apply and explain methods for AIS rules."""
+    
+    def apply(self, input_data: RawSignalEvent) -> ValidationResult:
+        """Apply the rule to input data."""
+        result = self.evaluate(input_data)
+        
+        if result.get("passed", True):
+            status = ValidationStatus.PASSED
+        else:
+            status = ValidationStatus.REJECTED_RULE
+        
+        return ValidationResult(
+            rule_name=self.name,
+            rule_version=self.version,
+            status=status,
+            score=result.get("score", 0.0),
+            reason=result.get("reason") or f"{self.name} validation passed",
+        )
+    
+    def explain(
+        self,
+        input_data: RawSignalEvent,
+        output_data: ValidationResult,
+        processing_time: datetime | None = None,
+    ) -> ExplanationStep:
+        """Generate explanation for this rule."""
+        return ExplanationStep(
+            step_id=1,
+            rule_name=self.name,
+            rule_version=self.version,
+            input_summary={"source": input_data.market.source, "event_id": input_data.event_id},
+            output_summary={"status": output_data.status.value, "score": output_data.score},
+            reasoning=output_data.reason or self.description,
+            confidence_contribution=output_data.score,
+            timestamp=processing_time or utc_now(),
+        )
+
+
+class PortCongestionValidationRule(AISValidationRuleMixin, Rule):
     """
     Validate port congestion signals.
 
@@ -20,14 +65,20 @@ class PortCongestionValidationRule(Rule):
     """
 
     rule_type = "validation"
-    name = "port_congestion_validation"
-    version = "1.0.0"
     description = "Validates port congestion signals meet minimum threshold"
     category = "ais"
     applicable_signal_types = ["disruption"]
 
     def __init__(self, min_congestion_ratio: float = 1.5):
         self.min_congestion_ratio = min_congestion_ratio
+    
+    @property
+    def name(self) -> str:
+        return "port_congestion_validation"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
 
     def evaluate(self, event: RawSignalEvent) -> dict[str, Any]:
         """
@@ -79,7 +130,7 @@ class PortCongestionValidationRule(Rule):
         }
 
 
-class ChokePointDelayValidationRule(Rule):
+class ChokePointDelayValidationRule(AISValidationRuleMixin, Rule):
     """
     Validate chokepoint delay signals.
 
@@ -87,14 +138,20 @@ class ChokePointDelayValidationRule(Rule):
     """
 
     rule_type = "validation"
-    name = "chokepoint_delay_validation"
-    version = "1.0.0"
     description = "Validates chokepoint delay signals meet minimum threshold"
     category = "ais"
     applicable_signal_types = ["disruption"]
 
     def __init__(self, min_delay_ratio: float = 1.5):
         self.min_delay_ratio = min_delay_ratio
+    
+    @property
+    def name(self) -> str:
+        return "chokepoint_delay_validation"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
 
     def evaluate(self, event: RawSignalEvent) -> dict[str, Any]:
         """Evaluate chokepoint delay signal."""
@@ -150,7 +207,7 @@ class ChokePointDelayValidationRule(Rule):
         }
 
 
-class AISDataFreshnessRule(Rule):
+class AISDataFreshnessRule(AISValidationRuleMixin, Rule):
     """
     Validate AIS data freshness.
 
@@ -158,14 +215,20 @@ class AISDataFreshnessRule(Rule):
     """
 
     rule_type = "validation"
-    name = "ais_data_freshness"
-    version = "1.0.0"
     description = "Ensures AIS data is fresh (not stale)"
     category = "ais"
     applicable_signal_types = ["disruption"]
 
     def __init__(self, max_age_hours: float = 1.0):
         self.max_age_hours = max_age_hours
+    
+    @property
+    def name(self) -> str:
+        return "ais_data_freshness"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
 
     def evaluate(self, event: RawSignalEvent) -> dict[str, Any]:
         """Evaluate data freshness."""
@@ -173,7 +236,9 @@ class AISDataFreshnessRule(Rule):
             return self._skip_result()
 
         # Check data timestamp
-        last_update = event.market.last_trade_at
+        # FIX: Use market_last_updated (on RawSignalEvent) or market.created_at
+        # Note: MarketMetadata does NOT have last_trade_at field
+        last_update = event.market_last_updated or event.market.created_at
         if not last_update:
             return {
                 "passed": False,
@@ -182,7 +247,7 @@ class AISDataFreshnessRule(Rule):
                 "metadata": {"age_hours": None},
             }
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
 
         # Ensure timezone-aware comparison
         if last_update.tzinfo is None:
@@ -218,7 +283,7 @@ class AISDataFreshnessRule(Rule):
         }
 
 
-class AISDataQualityRule(Rule):
+class AISDataQualityRule(AISValidationRuleMixin, Rule):
     """
     Validate AIS data quality score.
 
@@ -226,14 +291,20 @@ class AISDataQualityRule(Rule):
     """
 
     rule_type = "validation"
-    name = "ais_data_quality"
-    version = "1.0.0"
     description = "Validates AIS data quality meets minimum threshold"
     category = "ais"
     applicable_signal_types = ["disruption"]
 
     def __init__(self, min_quality: float = 0.7):
         self.min_quality = min_quality
+    
+    @property
+    def name(self) -> str:
+        return "ais_data_quality"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
 
     def evaluate(self, event: RawSignalEvent) -> dict[str, Any]:
         """Evaluate data quality."""

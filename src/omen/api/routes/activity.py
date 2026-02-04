@@ -4,13 +4,14 @@ Activity feed endpoint — real events from pipeline execution.
 No pre-populated demo data. Activity is empty until the pipeline or sources run.
 """
 
-from typing import Annotated, Literal, Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from omen.api.route_dependencies import require_activity_read
 from omen.infrastructure.activity.activity_logger import get_activity_logger
-from omen.infrastructure.security.auth import verify_api_key
+from omen.infrastructure.security.unified_auth import AuthContext
 
 router = APIRouter(prefix="/activity", tags=["Activity"])
 
@@ -29,7 +30,7 @@ class ActivityItemResponse(BaseModel):
 
 @router.get("", response_model=list[ActivityItemResponse])
 async def get_activity(
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_activity_read),  # RBAC: read:activity
     limit: int = Query(default=50, le=200, description="Maximum items to return"),
     type_filter: Optional[str] = Query(
         default=None,
@@ -69,7 +70,7 @@ async def get_activity(
 
 @router.get("/types")
 async def get_activity_types(
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_activity_read),  # RBAC: read:activity
 ) -> dict[str, str]:
     """Return available activity types and short descriptions."""
     return {

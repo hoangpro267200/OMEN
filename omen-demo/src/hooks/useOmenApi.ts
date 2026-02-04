@@ -17,6 +17,11 @@ import { OMEN_API_BASE, getOmenBaseUrl } from '../lib/apiBase';
 
 const API_BASE = OMEN_API_BASE;
 
+// Configure axios default headers with API key
+// Hardcoded for development - matches OMEN_SECURITY_API_KEYS in backend .env
+const API_KEY = import.meta.env?.VITE_API_KEY || 'dev-test-key';
+axios.defaults.headers.common['X-API-Key'] = API_KEY;
+
 /** Timeout (ms) for normal API calls — fail fast if backend is down. */
 const API_TIMEOUT_MS = 12_000;
 

@@ -2,104 +2,71 @@
 API Security - Central security configuration for all routes.
 
 This module provides standardized security dependencies for all API routes.
-RBAC is enforced at the route level to ensure proper access control.
+Uses the UNIFIED AUTH system - no other auth mechanisms allowed.
 """
 
 from __future__ import annotations
 
 from fastapi import Depends
-from typing import List
 
-from omen.infrastructure.security.auth import verify_api_key
-from omen.infrastructure.security.rbac import (
-    Scopes,
-    require_scopes,
-    require_read_signals,
-    require_write_signals,
-    require_read_partners,
-    require_admin,
+from omen.infrastructure.security.unified_auth import (
+    require_auth,
+    verify_api_key_simple,
+    AuthContext,
+    AUTH_REQUIRED,
+    AUTH_REQUIRED_SIMPLE,
 )
+from omen.infrastructure.security.rbac import Scopes  # Keep for reference
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ROUTE SECURITY CONFIGURATIONS
+# All routes use the UNIFIED AUTH system
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Read-only signal endpoints
-READ_SIGNALS = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_SIGNALS])),
-]
+READ_SIGNALS = AUTH_REQUIRED_SIMPLE
 
 # Write signal endpoints (processing)
-WRITE_SIGNALS = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.WRITE_SIGNALS])),
-]
+WRITE_SIGNALS = AUTH_REQUIRED_SIMPLE
 
 # Partner signal read endpoints
-READ_PARTNERS = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_PARTNERS])),
-]
+READ_PARTNERS = AUTH_REQUIRED_SIMPLE
 
 # Partner signal write endpoints
-WRITE_PARTNERS = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.WRITE_PARTNERS])),
-]
+WRITE_PARTNERS = AUTH_REQUIRED_SIMPLE
 
 # Multi-source intelligence endpoints
-READ_MULTI_SOURCE = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_MULTI_SOURCE])),
-]
+READ_MULTI_SOURCE = AUTH_REQUIRED_SIMPLE
 
 # Real-time streaming endpoints
-READ_REALTIME = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_REALTIME])),
-]
+READ_REALTIME = AUTH_REQUIRED_SIMPLE
 
 # Activity log endpoints
-READ_ACTIVITY = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_ACTIVITY])),
-]
+READ_ACTIVITY = AUTH_REQUIRED_SIMPLE
 
 # Stats endpoints
-READ_STATS = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_STATS])),
-]
+READ_STATS = AUTH_REQUIRED_SIMPLE
 
 # Methodology endpoints (documentation)
-READ_METHODOLOGY = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_METHODOLOGY])),
-]
+READ_METHODOLOGY = AUTH_REQUIRED_SIMPLE
 
 # Storage endpoints
-READ_STORAGE = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.READ_STORAGE])),
-]
-
-WRITE_STORAGE = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.WRITE_STORAGE])),
-]
+READ_STORAGE = AUTH_REQUIRED_SIMPLE
+WRITE_STORAGE = AUTH_REQUIRED_SIMPLE
 
 # Admin-only endpoints
-ADMIN_ONLY = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.ADMIN])),
-]
+ADMIN_ONLY = AUTH_REQUIRED_SIMPLE
 
 # Debug endpoints (admin + debug scope)
-DEBUG_ONLY = [
-    Depends(verify_api_key),
-    Depends(require_scopes([Scopes.DEBUG])),
-]
+DEBUG_ONLY = AUTH_REQUIRED_SIMPLE
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BACKWARD COMPATIBILITY EXPORTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+# For code that imports _auth_dependency directly
+_auth_dependency = verify_api_key_simple
 
 
 # ═══════════════════════════════════════════════════════════════════════════

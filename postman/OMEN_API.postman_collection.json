@@ -1,0 +1,340 @@
+{
+    "info": {
+        "name": "OMEN Signal Intelligence API",
+        "description": "Complete collection for OMEN API endpoints.\n\nOMEN is a Signal Intelligence Engine that provides market signals to downstream systems like RiskCast.\n\n**Important:** OMEN provides SIGNALS, not decisions. Risk decisions should be made by consuming systems.",
+        "_postman_id": "omen-api-collection-v2",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "auth": {
+        "type": "apikey",
+        "apikey": [
+            {
+                "key": "key",
+                "value": "X-API-Key",
+                "type": "string"
+            },
+            {
+                "key": "value",
+                "value": "{{api_key}}",
+                "type": "string"
+            },
+            {
+                "key": "in",
+                "value": "header",
+                "type": "string"
+            }
+        ]
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "api_key",
+            "value": "your-api-key-here",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Health",
+            "description": "Health check endpoints (no authentication required)",
+            "item": [
+                {
+                    "name": "Ready Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/health/ready",
+                            "host": ["{{base_url}}"],
+                            "path": ["health", "ready"]
+                        },
+                        "description": "Check if OMEN is ready to receive requests"
+                    }
+                },
+                {
+                    "name": "Live Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/health/live",
+                            "host": ["{{base_url}}"],
+                            "path": ["health", "live"]
+                        },
+                        "description": "Check if OMEN is alive"
+                    }
+                },
+                {
+                    "name": "Source Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/health/sources",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "health", "sources"]
+                        },
+                        "description": "Get health status of all data sources"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Signals",
+            "description": "Signal endpoints - the core of OMEN",
+            "item": [
+                {
+                    "name": "Get All Signals",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/signals?limit=50",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "signals"],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "50",
+                                    "description": "Maximum signals to return (1-500)"
+                                }
+                            ]
+                        },
+                        "description": "Get all active signals"
+                    }
+                },
+                {
+                    "name": "Get Signals by Category",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/signals?category=geopolitical&limit=20",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "signals"],
+                            "query": [
+                                {
+                                    "key": "category",
+                                    "value": "geopolitical",
+                                    "description": "Filter by category"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Get signals filtered by category"
+                    }
+                },
+                {
+                    "name": "Get High Confidence Signals",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/signals?min_confidence=0.7&limit=20",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "signals"],
+                            "query": [
+                                {
+                                    "key": "min_confidence",
+                                    "value": "0.7",
+                                    "description": "Minimum confidence score (0.0-1.0)"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Get signals with confidence >= 70%"
+                    }
+                },
+                {
+                    "name": "Get Signal by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/signals/:signal_id",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "signals", ":signal_id"],
+                            "variable": [
+                                {
+                                    "key": "signal_id",
+                                    "value": "OMEN-DEMO001ABCD",
+                                    "description": "Signal ID"
+                                }
+                            ]
+                        },
+                        "description": "Get a specific signal by its ID"
+                    }
+                },
+                {
+                    "name": "Get Pipeline Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/signals/stats",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "signals", "stats"]
+                        },
+                        "description": "Get signal pipeline processing statistics"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Explanations",
+            "description": "Signal explanation endpoints",
+            "item": [
+                {
+                    "name": "Get Signal Explanation",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/explanations/:signal_id",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "explanations", ":signal_id"],
+                            "variable": [
+                                {
+                                    "key": "signal_id",
+                                    "value": "OMEN-DEMO001ABCD"
+                                }
+                            ]
+                        },
+                        "description": "Get detailed explanation for how a signal was generated"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Methodology",
+            "description": "OMEN methodology documentation",
+            "item": [
+                {
+                    "name": "Get Methodology Summary",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/methodology",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "methodology"]
+                        },
+                        "description": "Get OMEN methodology summary including signal engine principles"
+                    }
+                },
+                {
+                    "name": "Get Validation Rules",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/methodology/rules",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "methodology", "rules"]
+                        },
+                        "description": "Get list of validation rules applied to signals"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Partner Signals",
+            "description": "Partner-specific signal endpoints",
+            "item": [
+                {
+                    "name": "Get Partner Signals",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/partner-signals",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "partner-signals"]
+                        },
+                        "description": "Get signals for all monitored partners"
+                    }
+                },
+                {
+                    "name": "Get Partner Signal by Symbol",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/partner-signals/:symbol",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "partner-signals", ":symbol"],
+                            "variable": [
+                                {
+                                    "key": "symbol",
+                                    "value": "GMD"
+                                }
+                            ]
+                        },
+                        "description": "Get signals for a specific partner symbol"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Multi-Source",
+            "description": "Multi-source data endpoints",
+            "item": [
+                {
+                    "name": "Get Multi-Source Data",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/multi-source",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "multi-source"]
+                        },
+                        "description": "Get data from all configured sources"
+                    }
+                },
+                {
+                    "name": "Get Source Health Summary",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/multi-source/health",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "multi-source", "health"]
+                        },
+                        "description": "Get health status of all data sources"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Live Mode",
+            "description": "Live mode control endpoints",
+            "item": [
+                {
+                    "name": "Get Live Mode Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/live-mode/status",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "live-mode", "status"]
+                        },
+                        "description": "Check if live mode is enabled and source coverage"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -65,3 +65,54 @@ export type { LoadingSpinnerProps } from './LoadingSpinner';
 export { LanguageSwitcher } from './LanguageSwitcher';
 export { OptimizedImage } from './OptimizedImage';
 export type { OptimizedImageProps } from './OptimizedImage';
+
+// Data Mode Switcher (New unified mode system)
+export {
+  DataModeSwitcherCompact,
+  DataModeSwitcherFull,
+  DataModeTransitionOverlay,
+  DataModeStatusBadge,
+  ConnectionBanner,
+} from './DataModeSwitcher';
+export type {
+  DataModeSwitcherCompactProps,
+  DataModeSwitcherFullProps,
+  DataModeStatusBadgeProps,
+  ConnectionBannerProps,
+} from './DataModeSwitcher';
+
+// Explain Popover (Data traceability system)
+export { ExplainPopover } from './ExplainPopover';
+export type { ExplainPopoverProps, ExplainContext } from './ExplainPopover';
+
+// Error State
+export { ErrorState } from './ErrorState';
+export type { ErrorStateProps } from './ErrorState';
+
+// Data State Wrapper (for consistent loading/error/empty handling)
+export { DataStateWrapper, DataSourceBadge } from './DataStateWrapper';
+export type { DataStateWrapperProps } from './DataStateWrapper';
+
+// Skeleton Loaders
+export {
+  Skeleton,
+  SkeletonText,
+  SkeletonCard,
+  SkeletonTable,
+  SkeletonSignalRow,
+  SkeletonStatsGrid,
+  SkeletonChart,
+  SkeletonSidebar,
+  SkeletonPage,
+} from './Skeleton';
+export type {
+  SkeletonProps,
+  SkeletonTextProps,
+  SkeletonCardProps,
+  SkeletonTableProps,
+  SkeletonSignalRowProps,
+  SkeletonStatsGridProps,
+  SkeletonChartProps,
+  SkeletonSidebarProps,
+  SkeletonPageProps,
+} from './Skeleton';

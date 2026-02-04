@@ -101,6 +101,41 @@ def redact_for_webhook(signal: OmenSignal) -> dict[str, Any]:
     )
 
 
+def _compute_provenance(signal: OmenSignal) -> dict[str, Any]:
+    """Compute data provenance for a signal."""
+    from datetime import datetime, timezone
+    
+    now = datetime.now(timezone.utc)
+    generated_at = signal.generated_at
+    
+    if hasattr(generated_at, 'timestamp'):
+        freshness = (now - generated_at).total_seconds() if generated_at.tzinfo else 0
+    else:
+        freshness = 0
+    
+    # Determine provider type based on signal ID pattern
+    # DEMO signals have "DEMO" in their ID
+    is_demo = "DEMO" in signal.signal_id
+    provider_type = "demo" if is_demo else "real"
+    
+    # Verification status
+    if provider_type == "demo":
+        verification_status = "demo_data"
+    elif freshness > 300:  # 5 min threshold
+        verification_status = "stale"
+    else:
+        verification_status = "verified"
+    
+    return {
+        "source_id": signal.source_event_id,
+        "provider_name": signal.probability_source,
+        "provider_type": provider_type,
+        "fetched_at": generated_at.isoformat() if hasattr(generated_at, 'isoformat') else str(generated_at),
+        "freshness_seconds": round(freshness, 2),
+        "verification_status": verification_status,
+    }
+
+
 def redact_for_api(
     signal: OmenSignal,
     detail_level: str = "standard",
@@ -112,6 +147,9 @@ def redact_for_api(
         signal: The signal
         detail_level: One of "minimal", "standard", "full"
     """
+    # Always include provenance for LIVE mode enforcement
+    provenance = _compute_provenance(signal)
+    
     if detail_level == "minimal":
         return {
             "signal_id": signal.signal_id,
@@ -121,10 +159,12 @@ def redact_for_api(
             "confidence_level": signal.confidence_level.value,
             "trace_id": signal.trace_id,
             "generated_at": signal.generated_at.isoformat(),
+            "data_provenance": provenance,
         }
-    if detail_level == "full":
-        return redact_signal_for_external(
-            signal,
-            include_confidence_breakdown=True,
-        )
-    return redact_signal_for_external(signal)
+    
+    data = redact_signal_for_external(
+        signal,
+        include_confidence_breakdown=(detail_level == "full"),
+    )
+    data["data_provenance"] = provenance
+    return data

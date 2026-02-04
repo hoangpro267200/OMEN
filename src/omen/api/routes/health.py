@@ -93,6 +93,37 @@ async def liveness_check():
     return {"status": "alive"}
 
 
+@router.get("/auth")
+async def auth_health():
+    """
+    Authentication system health check.
+    
+    Returns:
+    - Auth configuration status
+    - Rate limiter statistics
+    - Any configuration issues (especially for production)
+    """
+    from omen.infrastructure.security.unified_auth import get_auth_health
+    return get_auth_health()
+
+
+@router.get("/redis")
+async def redis_health():
+    """
+    Redis state manager health check.
+    
+    Returns:
+    - Connection status
+    - Latency
+    - Memory usage
+    - Fallback mode indicator
+    """
+    from omen.infrastructure.redis import get_redis_state_manager
+    
+    manager = get_redis_state_manager()
+    return await manager.health_check()
+
+
 async def _check_ledger_writable() -> tuple[bool, str]:
     """
     Check if ledger directory is writable.
@@ -236,3 +267,177 @@ async def list_registered_sources() -> dict:
         "sources": aggregator.registered_sources,
         "count": len(aggregator.registered_sources),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CIRCUIT BREAKER ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get(
+    "/circuit-breakers",
+    summary="Get all circuit breaker states",
+    description="Returns status of all registered circuit breakers.",
+)
+async def get_circuit_breakers() -> dict:
+    """
+    Get status of all circuit breakers.
+    
+    Returns:
+    - State (CLOSED/OPEN/HALF_OPEN)
+    - Failure counts
+    - Last failure time
+    - Statistics
+    """
+    from omen.infrastructure.resilience.circuit_breaker import _circuit_breakers
+    
+    breakers = {}
+    for name, cb in _circuit_breakers.items():
+        stats = cb.stats
+        breakers[name] = {
+            "state": stats.state.value,
+            "failure_count": stats.consecutive_failures,
+            "success_count": stats.consecutive_successes,
+            "total_calls": stats.total_calls,
+            "total_failures": stats.total_failures,
+            "total_successes": stats.total_successes,
+            "total_rejected": stats.total_rejected,
+            "last_failure": stats.last_failure_time.isoformat() if stats.last_failure_time else None,
+            "last_success": stats.last_success_time.isoformat() if stats.last_success_time else None,
+            "last_state_change": stats.last_state_change.isoformat() if stats.last_state_change else None,
+        }
+    
+    # Summary
+    open_count = sum(1 for b in breakers.values() if b["state"] == "open")
+    half_open_count = sum(1 for b in breakers.values() if b["state"] == "half_open")
+    
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "summary": {
+            "total": len(breakers),
+            "closed": len(breakers) - open_count - half_open_count,
+            "open": open_count,
+            "half_open": half_open_count,
+            "healthy": open_count == 0,
+        },
+        "breakers": breakers,
+    }
+
+
+@router.post(
+    "/circuit-breakers/{name}/reset",
+    summary="Reset a circuit breaker",
+    description="Manually reset a circuit breaker to CLOSED state.",
+)
+async def reset_circuit_breaker(name: str) -> dict:
+    """
+    Manually reset a circuit breaker.
+    
+    Use this to force recovery after confirming a service is healthy.
+    """
+    from omen.infrastructure.resilience.circuit_breaker import get_circuit_breaker, _circuit_breakers
+    
+    cb = get_circuit_breaker(name)
+    if cb is None:
+        return {
+            "success": False,
+            "error": f"Circuit breaker '{name}' not found",
+            "available": list(_circuit_breakers.keys()),
+        }
+    
+    await cb.reset()
+    return {
+        "success": True,
+        "name": name,
+        "new_state": cb.state.value,
+        "message": f"Circuit breaker '{name}' has been reset to CLOSED",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPREHENSIVE SYSTEM HEALTH
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get(
+    "/system",
+    summary="Comprehensive system health",
+    description="Returns complete health status of all system components.",
+)
+async def system_health(response: Response) -> dict:
+    """
+    Comprehensive system health check.
+    
+    Aggregates:
+    - Basic health status
+    - Data sources
+    - Circuit breakers
+    - Authentication
+    - Active requests
+    """
+    from omen.infrastructure.resilience.circuit_breaker import _circuit_breakers
+    from omen.infrastructure.security.unified_auth import get_auth_health
+    
+    health_data = {
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "status": "healthy",
+        "components": {},
+    }
+    
+    issues = []
+    
+    # 1. Basic health
+    if is_shutting_down():
+        health_data["status"] = "shutting_down"
+        issues.append("Service is shutting down")
+    
+    health_data["components"]["requests"] = {
+        "active": get_active_request_count(),
+        "shutting_down": is_shutting_down(),
+    }
+    
+    # 2. Authentication
+    auth_health = get_auth_health()
+    health_data["components"]["auth"] = {
+        "status": auth_health.get("status", "unknown"),
+        "api_keys_configured": auth_health.get("api_keys_configured", 0),
+        "issues": auth_health.get("production_issues", []),
+    }
+    if auth_health.get("production_issues"):
+        issues.extend(auth_health["production_issues"])
+    
+    # 3. Circuit breakers
+    open_breakers = [name for name, cb in _circuit_breakers.items() if cb.state.value == "open"]
+    health_data["components"]["circuit_breakers"] = {
+        "total": len(_circuit_breakers),
+        "open": len(open_breakers),
+        "open_names": open_breakers,
+    }
+    if open_breakers:
+        issues.append(f"Circuit breakers open: {', '.join(open_breakers)}")
+    
+    # 4. Data sources
+    try:
+        aggregator = get_health_aggregator()
+        source_health = await aggregator.check_all(force=False)
+        health_data["components"]["data_sources"] = {
+            "status": source_health.status,
+            "healthy_count": source_health.healthy_count,
+            "unhealthy_count": source_health.unhealthy_count,
+        }
+        if source_health.status != "healthy":
+            issues.append(f"Data sources unhealthy: {source_health.unhealthy_count}")
+    except Exception as e:
+        health_data["components"]["data_sources"] = {
+            "status": "error",
+            "error": str(e),
+        }
+        issues.append(f"Data source check failed: {e}")
+    
+    # Overall status
+    if issues:
+        health_data["status"] = "degraded" if health_data["status"] == "healthy" else health_data["status"]
+        health_data["issues"] = issues
+        response.status_code = 503 if "shutting_down" in health_data["status"] else 200
+    
+    return health_data

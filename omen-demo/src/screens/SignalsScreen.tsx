@@ -4,6 +4,7 @@ import { SignalsSearch } from '../components/signals/SignalsSearch';
 import { SignalsFilterBar } from '../components/signals/SignalsFilterBar';
 import { SignalsTable } from '../components/signals/SignalsTable';
 import { SignalDrawer } from '../components/signals/SignalDrawer';
+import { DataStateWrapper } from '../components/ui/DataStateWrapper';
 import {
   defaultSignalsBrowserFilters,
   type SignalBrowserRecord,
@@ -14,6 +15,7 @@ export interface SignalsScreenProps {
   signals?: SignalBrowserRecord[];
   isLoading?: boolean;
   errorMessage?: string | null;
+  onRetry?: () => void;
 }
 
 const PAGE_SIZE = 10;
@@ -37,6 +39,8 @@ function filterByFilters(
   filters: SignalsBrowserFilters
 ): SignalBrowserRecord[] {
   return records.filter((r) => {
+    // Defensive: skip records without valid signal data
+    if (!r.signal || typeof r.signal !== 'object') return false;
     if (filters.partition && r.ledger_partition !== filters.partition) return false;
     if (filters.category && (r.signal.category as string) !== filters.category) return false;
     if (filters.confidence && (r.signal.confidence_level as string) !== filters.confidence) return false;
@@ -53,11 +57,13 @@ const pageTransition = { duration: 0.15, ease: 'easeOut' as const };
 
 /**
  * Signals Browser screen: header + search, filters, table, drawer. Empty state when no results.
+ * Enhanced with DataStateWrapper for better loading/error states.
  */
 export function SignalsScreen({
   signals = [],
   isLoading = false,
   errorMessage = null,
+  onRetry,
 }: SignalsScreenProps = {}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<SignalsBrowserFilters>(defaultSignalsBrowserFilters);
@@ -73,7 +79,8 @@ export function SignalsScreen({
     return filterByFilters(bySearch, filters);
   }, [sourceList, searchQuery, filters]);
 
-  const isEmpty = filtered.length === 0;
+  const isEmpty = filtered.length === 0 && !isLoading;
+  const hasError = !!errorMessage;
 
   return (
     <motion.div
@@ -84,14 +91,6 @@ export function SignalsScreen({
       transition={pageTransition}
       className="min-h-full p-4 md:p-6"
     >
-      {errorMessage && (
-        <div className="mb-4 rounded-[var(--radius-card)] border border-[var(--accent-red)]/50 bg-[var(--accent-red)]/10 px-4 py-3 text-sm text-[var(--accent-red)]">
-          {errorMessage}
-        </div>
-      )}
-      {isLoading && (
-        <div className="mb-4 h-12 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--bg-secondary)] skeleton" />
-      )}
       {/* Header + Search */}
       <header className="mb-6">
         <h1 className="font-display text-xl font-medium text-[var(--text-primary)]">
@@ -151,15 +150,24 @@ export function SignalsScreen({
         </div>
       </header>
 
-      {/* Table or empty state */}
+      {/* Table with DataStateWrapper for loading/error/empty states */}
       <section className="mb-6">
-        {isEmpty ? (
-          <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-12 text-center">
-            <p className="text-[var(--text-secondary)]">
-              No signals found. Try adjusting your search or filters.
-            </p>
-          </div>
-        ) : (
+        <DataStateWrapper
+          isLoading={isLoading}
+          isError={hasError}
+          error={errorMessage ? new Error(errorMessage) : null}
+          isEmpty={isEmpty && !hasError}
+          onRetry={onRetry}
+          emptyMessage="No signals found. Try adjusting your search or filters."
+          showDataSourceBadge={false}
+          loadingComponent={
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-16 rounded-lg bg-[var(--bg-tertiary)] animate-pulse" />
+              ))}
+            </div>
+          }
+        >
           <SignalsTable
             records={filtered}
             selectedRecord={selectedRecord}
@@ -170,7 +178,7 @@ export function SignalsScreen({
             searchQuery={searchQuery}
             pageSize={PAGE_SIZE}
           />
-        )}
+        </DataStateWrapper>
       </section>
 
       {/* Drawer */}

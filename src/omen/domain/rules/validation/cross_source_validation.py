@@ -65,6 +65,53 @@ class CrossSourceValidationRule(Rule):
         self.keyword_overlap_bonus = keyword_overlap_bonus
         self.max_boost = max_boost
 
+    @property
+    def name(self) -> str:
+        return "cross_source_validation"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+
+    def apply(self, input_data: RawSignalEvent) -> "ValidationResult":
+        """
+        Apply cross-source validation to single event.
+        
+        For batch validation with multiple events, use evaluate_batch.
+        """
+        from omen.domain.models.validated_signal import ValidationResult
+        from omen.domain.models.common import ValidationStatus
+        
+        result = self.evaluate(input_data)
+        return ValidationResult(
+            rule_name=self.name,
+            rule_version=self.version,
+            status=ValidationStatus.PASSED,
+            score=result.get("score", 0.0),
+            reason=result.get("reason", "Single event - no cross-validation"),
+        )
+    
+    def explain(
+        self,
+        input_data: RawSignalEvent,
+        output_data: "ValidationResult",
+        processing_time=None,
+    ) -> "ExplanationStep":
+        """Generate explanation for this rule."""
+        from omen.domain.models.explanation import ExplanationStep
+        from omen.application.ports.time_provider import utc_now
+        
+        return ExplanationStep(
+            step_id=1,
+            rule_name=self.name,
+            rule_version=self.version,
+            input_summary={"source": input_data.market.source},
+            output_summary={"status": output_data.status.value, "score": output_data.score},
+            reasoning=output_data.reason or "Cross-source validation",
+            confidence_contribution=output_data.score,
+            timestamp=processing_time or utc_now(),
+        )
+
     def evaluate(
         self, event: RawSignalEvent, context: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -259,8 +306,6 @@ class SourceDiversityRule(Rule):
     """
 
     rule_type = "validation"
-    name = "source_diversity"
-    version = "1.0.0"
     description = "Rewards signals confirmed by diverse data source types"
     category = "multi_source"
 
@@ -274,6 +319,52 @@ class SourceDiversityRule(Rule):
         "commodity": "economic",
         "news": "media",
     }
+
+    @property
+    def name(self) -> str:
+        return "source_diversity"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+
+    def apply(self, input_data: RawSignalEvent) -> "ValidationResult":
+        """Apply source diversity check to single event."""
+        from omen.domain.models.validated_signal import ValidationResult
+        from omen.domain.models.common import ValidationStatus
+        
+        result = self.evaluate(input_data)
+        return ValidationResult(
+            rule_name=self.name,
+            rule_version=self.version,
+            status=ValidationStatus.PASSED,
+            score=result.get("score", 0.0),
+            reason=result.get("reason", "Single source - no diversity"),
+        )
+    
+    def explain(
+        self,
+        input_data: RawSignalEvent,
+        output_data: "ValidationResult",
+        processing_time=None,
+    ) -> "ExplanationStep":
+        """Generate explanation for this rule."""
+        from omen.domain.models.explanation import ExplanationStep
+        from omen.application.ports.time_provider import utc_now
+        
+        source = input_data.market.source
+        source_type = self.SOURCE_TYPES.get(source, "unknown")
+        
+        return ExplanationStep(
+            step_id=1,
+            rule_name=self.name,
+            rule_version=self.version,
+            input_summary={"source": source, "source_type": source_type},
+            output_summary={"status": output_data.status.value, "score": output_data.score},
+            reasoning=output_data.reason or f"Source type: {source_type}",
+            confidence_contribution=output_data.score,
+            timestamp=processing_time or utc_now(),
+        )
 
     def evaluate(
         self, event: RawSignalEvent, context: dict[str, Any] | None = None

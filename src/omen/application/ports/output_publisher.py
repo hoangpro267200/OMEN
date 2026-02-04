@@ -3,9 +3,13 @@
 Defines interface for emitting OMEN signals to downstream systems.
 """
 
-from abc import ABC, abstractmethod
+from __future__ import annotations
 
-from ...domain.models.omen_signal import OmenSignal
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ...domain.models.omen_signal import OmenSignal
 
 
 class OutputPublisher(ABC):
@@ -17,7 +21,7 @@ class OutputPublisher(ABC):
     """
 
     @abstractmethod
-    def publish(self, signal: OmenSignal) -> bool:
+    def publish(self, signal: "OmenSignal") -> bool:
         """
         Publish a signal to downstream consumers.
 
@@ -27,6 +31,6 @@ class OutputPublisher(ABC):
         ...
 
     @abstractmethod
-    async def publish_async(self, signal: OmenSignal) -> bool:
+    async def publish_async(self, signal: "OmenSignal") -> bool:
         """Async version of publish."""
         ...

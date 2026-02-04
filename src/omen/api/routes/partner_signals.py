@@ -27,7 +27,8 @@ from omen.adapters.inbound.partner_risk import (
     PartnerSignalsListResponse,
     LOGISTICS_COMPANIES,
 )
-from omen.infrastructure.security.auth import verify_api_key
+from omen.api.route_dependencies import require_partners_read, require_partners_write
+from omen.infrastructure.security.unified_auth import AuthContext
 
 router = APIRouter(
     prefix="/partner-signals",
@@ -108,7 +109,7 @@ async def get_all_partner_signals(
     include_market_context: bool = Query(
         default=False, description="Include market context (VNINDEX, sector)"
     ),
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_partners_read),  # RBAC: read:partners
 ) -> PartnerSignalsListResponse:
     """
     Get signals for all monitored partners.
@@ -176,7 +177,7 @@ async def get_all_partner_signals(
     description="Returns metadata about each partner company.",
 )
 async def list_partners(
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_partners_read),  # RBAC: read:partners
 ) -> dict:
     """List all monitored logistics partners."""
     return {
@@ -204,7 +205,7 @@ async def list_partners(
 async def get_partner_signal(
     symbol: str,
     include_evidence: bool = Query(default=True, description="Include signal evidence"),
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_partners_read),  # RBAC: read:partners
 ) -> PartnerSignalResponse:
     """
     Get detailed signals for one partner.
@@ -260,7 +261,7 @@ async def get_partner_signal(
 )
 async def get_partner_price(
     symbol: str,
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_partners_read),  # RBAC: read:partners
 ) -> dict:
     """Get raw price data for a logistics partner."""
     symbol = symbol.upper()
@@ -281,7 +282,7 @@ async def get_partner_price(
 )
 async def get_partner_fundamentals(
     symbol: str,
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_partners_read),  # RBAC: read:partners
 ) -> dict:
     """Get fundamental health indicators for a logistics partner."""
     symbol = symbol.upper()

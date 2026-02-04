@@ -16,7 +16,8 @@ export interface PipelineMonitorProps {
 }
 
 export function PipelineMonitor({ className }: PipelineMonitorProps) {
-  const [selectedSignal, setSelectedSignal] = useState<string | null>('OMEN-9C4860E23B54');
+  // Start with null - signal should be selected from pipeline visualization
+  const [selectedSignal, setSelectedSignal] = useState<string | null>(null);
 
   return (
     <div className={cn('p-6 space-y-6', className)}>

@@ -5,21 +5,20 @@ Overview uses real pipeline metrics and activity; other routes are stubs until l
 Security: Requires appropriate scopes for each endpoint.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 
 from omen.infrastructure.activity.activity_logger import get_activity_logger
 from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
-from omen.infrastructure.security.auth import verify_api_key
-from omen.infrastructure.security.rbac import Scopes, require_scopes
+from omen.api.route_dependencies import (
+    require_signals_read,
+    require_stats_read,
+    require_storage_read,
+    require_storage_write,
+)
+from omen.infrastructure.security.unified_auth import AuthContext
 
 router = APIRouter()
-
-# Security dependencies
-_read_stats = [Depends(verify_api_key), Depends(require_scopes([Scopes.READ_STATS]))]
-_read_storage = [Depends(verify_api_key), Depends(require_scopes([Scopes.READ_STORAGE]))]
-_write_storage = [Depends(verify_api_key), Depends(require_scopes([Scopes.WRITE_STORAGE]))]
-_read_signals = [Depends(verify_api_key), Depends(require_scopes([Scopes.READ_SIGNALS]))]
 
 
 def _format_time_short(iso_ts: str) -> str:
@@ -31,8 +30,10 @@ def _format_time_short(iso_ts: str) -> str:
         return iso_ts[:19] if len(iso_ts) >= 19 else iso_ts
 
 
-@router.get("/overview", dependencies=_read_stats)
-async def get_overview():
+@router.get("/overview")
+async def get_overview(
+    auth: AuthContext = Depends(require_stats_read),  # RBAC: read:stats
+):
     """
     Overview stats for dashboard KPIs.
     Uses real pipeline metrics and activity; partitions/reconcile are 0 until ledger/riskcast integrated.
@@ -77,27 +78,49 @@ async def get_overview():
     }
 
 
-@router.get("/partitions", dependencies=_read_storage)
+@router.get("/partitions")
 async def list_partitions(
     date_from: str | None = Query(None, alias="date_from"),
     date_to: str | None = Query(None, alias="date_to"),
     status: str | None = None,
     includeLate: bool | None = Query(None, alias="includeLate"),
     needsReconcile: bool | None = Query(None, alias="needsReconcile"),
+    auth: AuthContext = Depends(require_storage_read),  # RBAC: read:storage
 ):
-    """List ledger partitions (stub: empty list)."""
+    """List ledger partitions.
+    
+    NOT IMPLEMENTED: Requires ledger storage integration.
+    Returns empty list as stub for frontend compatibility.
+    """
+    # TODO: Implement with real ledger integration
     return []
 
 
-@router.get("/partitions/{partition_date}", dependencies=_read_storage)
-async def get_partition_detail(partition_date: str):
-    """Partition detail (stub: null)."""
+@router.get("/partitions/{partition_date}")
+async def get_partition_detail(
+    partition_date: str,
+    auth: AuthContext = Depends(require_storage_read),  # RBAC: read:storage
+):
+    """Partition detail.
+    
+    NOT IMPLEMENTED: Requires ledger storage integration.
+    Returns null as stub for frontend compatibility.
+    """
+    # TODO: Implement with real ledger integration
     return None
 
 
-@router.get("/partitions/{partition_date}/diff", dependencies=_read_storage)
-async def get_partition_diff(partition_date: str):
-    """Partition diff (stub: empty)."""
+@router.get("/partitions/{partition_date}/diff")
+async def get_partition_diff(
+    partition_date: str,
+    auth: AuthContext = Depends(require_storage_read),  # RBAC: read:storage
+):
+    """Partition diff.
+    
+    NOT IMPLEMENTED: Requires ledger storage integration.
+    Returns empty diff as stub for frontend compatibility.
+    """
+    # TODO: Implement with real ledger integration
     return {
         "ledger_ids": [],
         "processed_ids": [],
@@ -105,9 +128,17 @@ async def get_partition_diff(partition_date: str):
     }
 
 
-@router.post("/partitions/{partition_date}/reconcile", dependencies=_write_storage)
-async def run_reconcile(partition_date: str):
-    """Run reconcile (stub)."""
+@router.post("/partitions/{partition_date}/reconcile")
+async def run_reconcile(
+    partition_date: str,
+    auth: AuthContext = Depends(require_storage_write),  # RBAC: write:storage
+):
+    """Run reconcile.
+    
+    NOT IMPLEMENTED: Requires ledger storage and RiskCast integration.
+    Returns SKIPPED status as stub for frontend compatibility.
+    """
+    # TODO: Implement with real ledger + RiskCast integration
     return {
         "status": "SKIPPED",
         "partition_date": partition_date,
@@ -121,20 +152,24 @@ async def run_reconcile(partition_date: str):
     }
 
 
-@router.get("/signals", dependencies=_read_signals)
+@router.get("/signals")
 async def list_signals(
     partition: str | None = None,
     category: str | None = None,
     confidence: str | None = None,
     search: str | None = None,
     limit: int | None = Query(None),
+    auth: AuthContext = Depends(require_signals_read),  # RBAC: read:signals
 ):
     """List signals (stub: empty list)."""
     return []
 
 
-@router.get("/ledger/{partition_date}/segments", dependencies=_read_storage)
-async def list_ledger_segments(partition_date: str):
+@router.get("/ledger/{partition_date}/segments")
+async def list_ledger_segments(
+    partition_date: str,
+    auth: AuthContext = Depends(require_storage_read),  # RBAC: read:storage
+):
     """List ledger segments (stub: empty)."""
     return {
         "partition_date": partition_date,
@@ -144,9 +179,13 @@ async def list_ledger_segments(partition_date: str):
 
 @router.get(
     "/ledger/{partition_date}/segments/{segment_file}/frames/{frame_index:int}",
-    dependencies=_read_storage,
 )
-async def read_ledger_frame(partition_date: str, segment_file: str, frame_index: int):
+async def read_ledger_frame(
+    partition_date: str,
+    segment_file: str,
+    frame_index: int,
+    auth: AuthContext = Depends(require_storage_read),  # RBAC: read:storage
+):
     """Read one ledger frame (stub)."""
     return {
         "partition_date": partition_date,
@@ -162,9 +201,13 @@ async def read_ledger_frame(partition_date: str, segment_file: str, frame_index:
 
 @router.post(
     "/ledger/{partition_date}/segments/{segment_file}/simulate-crash-tail",
-    dependencies=_write_storage,
 )
-async def simulate_crash_tail(partition_date: str, segment_file: str, body: dict | None = None):
+async def simulate_crash_tail(
+    partition_date: str,
+    segment_file: str,
+    body: dict | None = None,
+    auth: AuthContext = Depends(require_storage_write),  # RBAC: write:storage
+):
     """Crash-tail simulation (stub: not supported)."""
     return {
         "supported": False,

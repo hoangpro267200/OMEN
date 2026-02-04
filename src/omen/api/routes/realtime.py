@@ -4,14 +4,14 @@ Real-time price streaming via Server-Sent Events.
 
 import json
 import logging
-from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from omen.api.route_dependencies import require_realtime_read
 from omen.infrastructure.realtime.price_streamer import get_price_streamer
-from omen.infrastructure.security.auth import verify_api_key
+from omen.infrastructure.security.unified_auth import AuthContext
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["Real-time"])
@@ -54,7 +54,7 @@ async def get_streamer():
 @router.post("/subscribe", response_model=SubscribeResponse)
 async def subscribe_signals(
     request: SubscribeRequest,
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_realtime_read),  # RBAC: read:realtime
 ) -> SubscribeResponse:
     """
     Subscribe to real-time price updates for signals.
@@ -89,7 +89,7 @@ async def subscribe_signals(
 
 @router.get("/prices")
 async def stream_prices(
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_realtime_read),  # RBAC: read:realtime
 ) -> StreamingResponse:
     """
     Server-Sent Events stream of real-time price updates.
@@ -162,7 +162,7 @@ async def stream_prices(
 
 @router.get("/status", response_model=RealtimeStatus)
 async def get_realtime_status(
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_realtime_read),  # RBAC: read:realtime
 ) -> RealtimeStatus:
     """Get current status of real-time streaming."""
     streamer = get_price_streamer()
@@ -178,7 +178,7 @@ async def get_realtime_status(
 @router.post("/unsubscribe")
 async def unsubscribe_signals(
     request: SubscribeRequest,
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_realtime_read),  # RBAC: read:realtime
 ) -> dict[str, list[str]]:
     """Unsubscribe from signals."""
     streamer = get_price_streamer()

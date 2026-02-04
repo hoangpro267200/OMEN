@@ -5,6 +5,7 @@
  * Shows connection status indicator when using useWebSocketContext().
  * 
  * NOTE: Only connects in LIVE mode. In DEMO mode, WebSocket is disabled.
+ * Uses DataModeContext for consistent mode state across the app.
  */
 
 import { createContext, useContext, type ReactNode } from 'react'
@@ -13,7 +14,7 @@ import {
   type UseWebSocketReturn,
   type WebSocketMessage,
 } from './useWebSocket'
-import { useDataSourceMode } from '../mode/store'
+import { useDataModeSafe } from '../../context/DataModeContext'
 
 const WebSocketContext = createContext<UseWebSocketReturn | null>(null)
 
@@ -32,12 +33,12 @@ interface WebSocketProviderProps {
 }
 
 export function WebSocketProvider({ children, onMessage }: WebSocketProviderProps) {
-  const [mode] = useDataSourceMode()
-  const isLive = mode === 'live'
+  // Use safe version to handle edge cases during error recovery
+  const { isLive, canUseLiveData } = useDataModeSafe()
   
-  // Only connect WebSocket in live mode
+  // Only connect WebSocket in live mode AND when API is available
   const ws = useWebSocket({
-    autoConnect: isLive, // Only auto-connect in live mode
+    autoConnect: isLive && canUseLiveData,
     onMessage,
   })
 

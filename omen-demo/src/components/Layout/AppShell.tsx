@@ -1,6 +1,6 @@
 /**
  * AppShell - Neural Command Center main layout
- * Features: Fixed header, icon navigation rail, main content area, status bar
+ * Features: Fixed header, icon navigation rail, main content area, status bar, command palette, demo tour
  */
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
@@ -13,6 +13,8 @@ import { FallbackMode } from './FallbackMode';
 import { OfflineBanner } from '../ui/OfflineBanner';
 import { SkipLink } from '../a11y/SkipLink';
 import { AnimatedPage } from '../animations/AnimatedPage';
+import { CommandPalette, useCommandPalette } from '../command-palette';
+import { DemoTour, useDemoTour } from '../tour';
 import { useDemoModeContext } from '../../context/DemoModeContext';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { getSceneIndexForPath } from '../../lib/demoScenes';
@@ -38,8 +40,22 @@ export function AppShell({
   const location = useLocation();
   const { isDemoMode, setCurrentScene } = useDemoModeContext();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Command Palette (Cmd+K)
+  const { isOpen: commandPaletteOpen, setIsOpen: setCommandPaletteOpen } = useCommandPalette();
+  
+  // Demo Tour
+  const { isActive: tourActive, closeTour, completeTour, startTour, hasSeenTour } = useDemoTour();
 
   useKeyboardShortcuts();
+  
+  // Auto-start tour disabled for now - users can click "Tour" button manually
+  // useEffect(() => {
+  //   if (!hasSeenTour && location.pathname === '/') {
+  //     const timer = setTimeout(() => startTour(), 1500);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [hasSeenTour, location.pathname, startTour]);
 
   // Sync demo scene index when route changes (e.g. sidebar navigation)
   useEffect(() => {
@@ -51,6 +67,19 @@ export function AppShell({
     <div className={cn('flex h-full min-h-screen flex-col bg-bg-primary', className)}>
       <SkipLink />
       <OfflineBanner />
+      
+      {/* Command Palette (Cmd+K) */}
+      <CommandPalette 
+        isOpen={commandPaletteOpen} 
+        onClose={() => setCommandPaletteOpen(false)} 
+      />
+      
+      {/* Demo Tour (for investor presentations) */}
+      <DemoTour
+        isActive={tourActive}
+        onClose={closeTour}
+        onComplete={completeTour}
+      />
       
       {/* Fixed Header */}
       <ShellHeader 

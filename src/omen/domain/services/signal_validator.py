@@ -28,6 +28,18 @@ from omen.domain.rules.validation.semantic_relevance_rule import (
 from omen.domain.rules.validation.anomaly_detection_rule import (
     AnomalyDetectionRule,
 )
+from omen.domain.rules.validation.cross_source_validation import (
+    CrossSourceValidationRule,
+    SourceDiversityRule,
+)
+from omen.domain.rules.validation.news_quality_rule import NewsQualityGateRule
+from omen.domain.rules.validation.commodity_context_rule import CommodityContextRule
+from omen.domain.rules.validation.ais_validation import (
+    PortCongestionValidationRule,
+    ChokePointDelayValidationRule,
+    AISDataFreshnessRule,
+    AISDataQualityRule,
+)
 
 
 @dataclass(frozen=True)
@@ -81,6 +93,96 @@ class SignalValidator:
                 AnomalyDetectionRule(),
                 SemanticRelevanceRule(),
                 GeographicRelevanceRule(),
+                # Cross-source validation (boosts confidence when multiple sources agree)
+                CrossSourceValidationRule(
+                    min_sources_for_boost=2,
+                    base_boost_2_sources=0.15,
+                    base_boost_3_sources=0.25,
+                    max_boost=0.35,
+                ),
+                SourceDiversityRule(),
+            ],
+            fail_on_rule_error=False,
+        )
+    
+    @classmethod
+    def create_full(cls) -> "SignalValidator":
+        """
+        ✅ Create validator with ALL validation rules activated.
+        
+        Includes:
+        - Core validation rules (6)
+        - News quality gate (1)
+        - Commodity context (1)
+        - AIS/Maritime validation (4)
+        
+        Total: 12 rules for comprehensive signal validation.
+        """
+        return cls(
+            rules=[
+                # === Core Validation Rules ===
+                LiquidityValidationRule(min_liquidity_usd=1000.0),
+                AnomalyDetectionRule(),
+                SemanticRelevanceRule(),
+                GeographicRelevanceRule(),
+                
+                # === Cross-Source Validation ===
+                CrossSourceValidationRule(
+                    min_sources_for_boost=2,
+                    base_boost_2_sources=0.15,
+                    base_boost_3_sources=0.25,
+                    max_boost=0.35,
+                ),
+                SourceDiversityRule(),
+                
+                # === NEWS Quality Gate (NEW) ===
+                NewsQualityGateRule(
+                    min_credibility=0.3,
+                    min_recency=0.1,
+                    min_combined_score=0.2,
+                    max_confidence_boost=0.10,
+                ),
+                
+                # === COMMODITY Context Validation (NEW) ===
+                CommodityContextRule(),
+                
+                # === AIS/MARITIME Validation Rules (NEW - 4 rules) ===
+                PortCongestionValidationRule(min_congestion_ratio=1.5),
+                ChokePointDelayValidationRule(min_delay_ratio=1.5),
+                AISDataFreshnessRule(max_age_hours=1.0),
+                AISDataQualityRule(min_quality=0.7),
+            ],
+            fail_on_rule_error=False,
+        )
+    
+    @classmethod
+    def create_minimal(cls) -> "SignalValidator":
+        """Create validator with minimal rules (for fast processing)."""
+        return cls(
+            rules=[
+                LiquidityValidationRule(min_liquidity_usd=500.0),
+                SemanticRelevanceRule(),
+            ],
+            fail_on_rule_error=False,
+        )
+    
+    @classmethod
+    def create_with_cross_source(cls) -> "SignalValidator":
+        """Create validator optimized for multi-source correlation."""
+        return cls(
+            rules=[
+                LiquidityValidationRule(min_liquidity_usd=500.0),
+                AnomalyDetectionRule(),
+                SemanticRelevanceRule(),
+                GeographicRelevanceRule(),
+                CrossSourceValidationRule(
+                    min_sources_for_boost=2,
+                    base_boost_2_sources=0.2,
+                    base_boost_3_sources=0.3,
+                    keyword_overlap_bonus=0.1,
+                    max_boost=0.4,
+                ),
+                SourceDiversityRule(),
             ],
             fail_on_rule_error=False,
         )

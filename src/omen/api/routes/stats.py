@@ -4,13 +4,15 @@ System statistics — signal-quality metrics only.
 No impact metrics (no high-confidence counts as alerts, risk quantification, severity, or time-horizon labels).
 """
 
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from omen.api.route_dependencies import require_stats_read
 from omen.infrastructure.metrics.pipeline_metrics import get_metrics_collector
-from omen.infrastructure.security.auth import verify_api_key
+from omen.infrastructure.security.unified_auth import AuthContext
+from omen.domain.services import get_quality_metrics, get_historical_validator
 
 try:
     import psutil
@@ -75,7 +77,7 @@ class SystemStatsResponse(BaseModel):
 
 @router.get("", response_model=SystemStatsResponse)
 async def get_system_stats(
-    api_key_id: Annotated[str, Depends(verify_api_key)],
+    auth: AuthContext = Depends(require_stats_read),  # RBAC: read:stats
 ) -> SystemStatsResponse:
     """
     Get current system statistics (signal-quality only).
@@ -121,4 +123,90 @@ async def get_system_stats(
         cpu_percent=cpu_pct,
         polymarket_status=polymarket_status,
         polymarket_events_per_min=polymarket_events_per_min,
+    )
+
+
+class QualityMetricsResponse(BaseModel):
+    """Quality metrics for signal validation calibration."""
+
+    total_received: int = Field(description="Total events received")
+    total_validated: int = Field(description="Events that passed validation")
+    total_rejected: int = Field(description="Events that failed validation")
+    rejection_rate: str = Field(description="Rejection rate as percentage")
+    validation_rate: str = Field(description="Validation rate as percentage")
+    avg_validation_score: str = Field(description="Average validation score")
+    rejections_by_rule: dict[str, int] = Field(
+        default_factory=dict,
+        description="Rejection count by rule name",
+    )
+    rejections_by_status: dict[str, int] = Field(
+        default_factory=dict,
+        description="Rejection count by status",
+    )
+    confidence_distribution: dict[str, int] = Field(
+        default_factory=dict,
+        description="Signal count by confidence level",
+    )
+
+
+@router.get("/quality", response_model=QualityMetricsResponse)
+async def get_quality_stats(
+    auth: AuthContext = Depends(require_stats_read),  # RBAC: read:stats
+) -> QualityMetricsResponse:
+    """
+    Get quality metrics for signal validation.
+    
+    Tracks validation outcomes for confidence calibration and quality monitoring.
+    """
+    quality = get_quality_metrics()
+    data = quality.to_dict()
+    
+    return QualityMetricsResponse(
+        total_received=data.get("total_received", 0),
+        total_validated=data.get("total_validated", 0),
+        total_rejected=data.get("total_rejected", 0),
+        rejection_rate=data.get("rejection_rate", "0.0%"),
+        validation_rate=data.get("validation_rate", "0.0%"),
+        avg_validation_score=data.get("avg_validation_score", "0.00"),
+        rejections_by_rule=data.get("rejections_by_rule", {}),
+        rejections_by_status=data.get("rejections_by_status", {}),
+        confidence_distribution=data.get("confidence_distribution", {}),
+    )
+
+
+class CalibrationResponse(BaseModel):
+    """Calibration report for historical validation."""
+    
+    total_predictions: int = Field(description="Total predictions tracked")
+    predictions_within_bounds: int = Field(description="Predictions within uncertainty bounds")
+    coverage_rate: float = Field(description="Coverage rate (0-1)")
+    mean_absolute_error: float = Field(description="Mean absolute error")
+    mean_absolute_percent_error: float = Field(description="Mean absolute percent error")
+    is_well_calibrated: bool = Field(description="Whether model is well-calibrated")
+    errors_by_metric: dict[str, list[float]] = Field(
+        default_factory=dict,
+        description="Errors grouped by metric name",
+    )
+
+
+@router.get("/calibration", response_model=CalibrationResponse)
+async def get_calibration_report(
+    auth: AuthContext = Depends(require_stats_read),  # RBAC: read:stats
+) -> CalibrationResponse:
+    """
+    Get calibration report comparing predictions vs actual outcomes.
+    
+    Use this to assess how well-calibrated OMEN's probability estimates are.
+    """
+    validator = get_historical_validator()
+    results, report = validator.validate()
+    
+    return CalibrationResponse(
+        total_predictions=report.total_predictions,
+        predictions_within_bounds=report.predictions_within_bounds,
+        coverage_rate=report.coverage_rate,
+        mean_absolute_error=report.mean_absolute_error,
+        mean_absolute_percent_error=report.mean_absolute_percent_error,
+        is_well_calibrated=report.is_well_calibrated(),
+        errors_by_metric=dict(report.errors_by_metric),
     )

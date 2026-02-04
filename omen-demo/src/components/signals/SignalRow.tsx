@@ -56,11 +56,23 @@ export const SignalRow = memo(function SignalRow({
     navigator.clipboard.writeText(record.signal_id);
   }, [record.signal_id]);
 
+  // Defensive: handle missing or malformed signal data
   const s = record.signal;
+  if (!s || typeof s !== 'object') {
+    // Return a placeholder row for invalid data
+    return (
+      <tr className="border-b border-[var(--border-subtle)] text-[var(--text-muted)]">
+        <td colSpan={10} className="px-4 py-3 text-center text-sm italic">
+          Invalid signal data: {record.signal_id}
+        </td>
+      </tr>
+    );
+  }
+  
   const emittedAt = formatEmittedAt(record.emitted_at);
   const signalIdDisplay = truncate(record.signal_id, SIGNAL_ID_MAX);
-  const titleDisplay = truncate(s.title, TITLE_MAX);
-  const probDisplay = typeof s.probability === 'number' ? (s.probability * 100).toFixed(0) + '%' : String(s.probability);
+  const titleDisplay = truncate(s.title || 'Unknown', TITLE_MAX);
+  const probDisplay = typeof s.probability === 'number' ? (s.probability * 100).toFixed(0) + '%' : String(s.probability ?? '—');
   const confidenceLevel = (s.confidence_level as string) || 'MEDIUM';
 
   return (

@@ -15,11 +15,13 @@ export function IngestDemoPage() {
 
   const payloadOptions: IngestPayloadOption[] = useMemo(
     () =>
-      signals.map((s) => ({
-        id: s.signal_id,
-        label: s.signal.title,
-        payloadJson: JSON.stringify(s),
-      })),
+      signals
+        .filter((s) => s.signal && typeof s.signal === 'object') // Filter out invalid signals
+        .map((s) => ({
+          id: s.signal_id,
+          label: s.signal?.title || 'Unknown Signal',
+          payloadJson: JSON.stringify(s),
+        })),
     [signals]
   );
 

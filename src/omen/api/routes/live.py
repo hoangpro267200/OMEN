@@ -6,7 +6,7 @@ All data in responses is traceable to pipeline or storage — no synthetic fabri
 
 Signal-only contract: endpoints return SignalResponse only. No impact-shaped types.
 
-Security: Requires WRITE_SIGNALS scope for processing operations.
+Security: Requires READ_SIGNALS scope via RBAC enforcement.
 """
 
 from typing import Any
@@ -18,13 +18,10 @@ from omen.domain.errors import SourceUnavailableError
 from omen.adapters.inbound.polymarket.source import PolymarketSignalSource
 from omen.api.models.responses import SignalResponse
 from omen.api.errors import not_found, service_unavailable, internal_error
-from omen.infrastructure.security.auth import verify_api_key
-from omen.infrastructure.security.rbac import Scopes, require_scopes
+from omen.api.route_dependencies import require_signals_read
+from omen.infrastructure.security.unified_auth import AuthContext
 
 router = APIRouter(prefix="/live", tags=["Live Data"])
-
-# Security dependencies for live processing routes
-_write_deps = [Depends(verify_api_key), Depends(require_scopes([Scopes.WRITE_SIGNALS]))]
 
 
 # =============================================================================
@@ -50,11 +47,11 @@ _write_deps = [Depends(verify_api_key), Depends(require_scopes([Scopes.WRITE_SIG
     - High-confidence or relevance assessment
     - Risk quantification
     
-    **Requires scope:** `write:signals`
+    **Requires scope:** `read:signals`
     """,
-    dependencies=_write_deps,
 )
 async def process_live_events(
+    auth: AuthContext = Depends(require_signals_read),  # RBAC: read:signals
     limit: int = Query(default=500, le=2000),
     min_liquidity: float = Query(default=1000),
 ) -> list[SignalResponse]:
@@ -78,14 +75,15 @@ async def process_live_events(
         raise internal_error(str(e), include_trace=True)
 
 
-@router.post("/signals/{event_id}", dependencies=_write_deps)
+@router.post("/signals/{event_id}")
 async def process_single_event(
     event_id: str,
+    auth: AuthContext = Depends(require_signals_read),  # RBAC: read:signals
 ) -> dict[str, Any]:
     """
     Process a single event by ID. Returns pure signal or rejection reason.
 
-    **Requires scope:** `write:signals`
+    **Requires scope:** `read:signals`
     """
     try:
         source = PolymarketSignalSource(logistics_only=False)

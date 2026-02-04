@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from omen.application.ports.time_provider import utc_now
 from omen.domain.models.raw_signal import RawSignalEvent
 from omen.domain.models.validated_signal import ValidationResult
 from omen.domain.models.common import ValidationStatus
@@ -172,7 +173,7 @@ class NewsQualityGateRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this rule application."""
-        _ = processing_time or datetime.now(timezone.utc)  # Use for timestamp if needed
+        _ = processing_time or utc_now()  # Use for timestamp if needed
         source_metrics = getattr(input_data, "source_metrics", None) or {}
 
         return ExplanationStep(

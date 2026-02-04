@@ -21,6 +21,7 @@ export interface MetricCardProps {
   delay?: number;
   className?: string;
   sparkline?: number[];
+  loading?: boolean;
 }
 
 // Simple CountUp hook
@@ -76,8 +77,9 @@ export function MetricCard({
   delay = 0,
   className,
   sparkline,
+  loading = false,
 }: MetricCardProps) {
-  const animatedValue = useCountUp(value, 1500, delay);
+  const animatedValue = useCountUp(loading ? 0 : value, 1500, delay);
 
   // Calculate trend
   const trend = previousValue !== undefined
@@ -137,25 +139,29 @@ export function MetricCard({
 
       {/* Value */}
       <div className="flex items-end gap-2">
-        <motion.span
-          className={cn(
-            'number-display font-bold leading-none',
-            valueSize,
-            colorClasses[color]
-          )}
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: delay + 0.2, duration: 0.3, type: 'spring' }}
-        >
-          {formatValue(animatedValue)}
-        </motion.span>
-        {unit && (
+        {loading ? (
+          <div className={cn('animate-pulse bg-bg-tertiary/50 rounded h-8 w-24', valueSize)} />
+        ) : (
+          <motion.span
+            className={cn(
+              'number-display font-bold leading-none',
+              valueSize,
+              colorClasses[color]
+            )}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: delay + 0.2, duration: 0.3, type: 'spring' }}
+          >
+            {formatValue(animatedValue)}
+          </motion.span>
+        )}
+        {unit && !loading && (
           <span className="text-text-muted text-sm mb-1 font-mono">{unit}</span>
         )}
       </div>
 
       {/* Trend indicator */}
-      {trend && (
+      {trend && !loading && (
         <motion.div
           className={cn(
             'flex items-center gap-1 mt-2 text-sm font-mono',
@@ -175,7 +181,7 @@ export function MetricCard({
       )}
 
       {/* Sparkline (mini chart) */}
-      {sparkline && sparkline.length > 0 && (
+      {sparkline && sparkline.length > 0 && !loading && (
         <div className="mt-3 h-8">
           <MiniSparkline data={sparkline} color={color} />
         </div>

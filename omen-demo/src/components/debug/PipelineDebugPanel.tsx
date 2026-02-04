@@ -9,6 +9,14 @@ import { ChevronDown, ChevronUp, Filter, Check, X } from 'lucide-react';
 import { OMEN_API_BASE } from '../../lib/apiBase';
 
 const API_BASE = OMEN_API_BASE;
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// Helper to create headers with API key
+const getHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (API_KEY) headers['X-API-Key'] = API_KEY;
+  return headers;
+};
 
 interface RejectionRecord {
   event_id: string;
@@ -331,7 +339,7 @@ export function PipelineDebugPanel() {
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '100' });
       if (selectedStage) params.set('stage', selectedStage);
-      const res = await fetch(`${API_BASE}/debug/rejections?${params}`);
+      const res = await fetch(`${API_BASE}/debug/rejections?${params}`, { headers: getHeaders() });
       return res.json();
     },
     refetchInterval: 10000,
@@ -340,7 +348,7 @@ export function PipelineDebugPanel() {
   const { data: passedData } = useQuery({
     queryKey: ['debug-passed'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/debug/passed?limit=100`);
+      const res = await fetch(`${API_BASE}/debug/passed?limit=100`, { headers: getHeaders() });
       return res.json();
     },
     refetchInterval: 10000,

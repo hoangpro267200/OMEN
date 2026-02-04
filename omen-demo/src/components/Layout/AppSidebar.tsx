@@ -11,6 +11,7 @@ import {
   Database,
   FileText,
   Settings,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -26,6 +27,7 @@ const NAV_ITEMS: { id: RouteId; path: string; label: string; Icon: LucideIcon }[
   { id: 'signals', path: ROUTES.signals, label: 'Signal Monitor', Icon: Radar },
   { id: 'pipeline', path: ROUTES.pipeline, label: 'Pipeline', Icon: GitBranch },
   { id: 'sources', path: ROUTES.sources, label: 'Data Sources', Icon: Database },
+  { id: 'operations', path: ROUTES.operations, label: 'Operations', Icon: Shield },
   { id: 'ledgerProof', path: ROUTES.ledgerProof, label: 'Ledger', Icon: FileText },
 ];
 
@@ -66,6 +68,7 @@ export function AppSidebar({ mobileOpen = false, onMobileClose }: AppSidebarProp
               end={path === ROUTES.overview}
               onMouseEnter={() => preloadRoutes[id]?.()}
               onFocus={() => preloadRoutes[id]?.()}
+              data-tour={id === 'pipeline' ? 'pipeline' : undefined}
               className={({ isActive }) =>
                 cn(
                   'relative w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200 group',

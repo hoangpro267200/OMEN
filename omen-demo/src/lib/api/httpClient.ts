@@ -16,19 +16,24 @@ import type {
   LedgerFrameResponse,
   CrashTailSimResult,
 } from './contracts';
-import type { ApiClient } from './client';
+import type { ApiClient, SourceInfo, QualityMetrics, CalibrationReport } from './client';
 import { NotImplementedError } from './contracts';
 import type { ApiError } from './contracts';
-
-const STORAGE_KEY_BASE = 'omen.apiBase';
-const DEFAULT_BASE = '';
+import { getOmenBaseUrl } from '../apiBase';
 
 function getBaseUrl(): string {
-  if (typeof window === 'undefined') return DEFAULT_BASE;
+  // Use centralized base URL from apiBase.ts (defaults to http://localhost:8000)
+  return getOmenBaseUrl();
+}
+
+function getApiKey(): string {
+  // Hardcoded for development - matches OMEN_SECURITY_API_KEYS in backend .env
+  const DEV_API_KEY = 'dev-test-key';
+  if (typeof window === 'undefined') return DEV_API_KEY;
   try {
-    return (window as unknown as { __OMEN_API_BASE?: string }).__OMEN_API_BASE ?? localStorage.getItem(STORAGE_KEY_BASE) ?? import.meta.env?.VITE_API_BASE ?? DEFAULT_BASE;
+    return (window as unknown as { __OMEN_API_KEY?: string }).__OMEN_API_KEY ?? localStorage.getItem('omen.apiKey') ?? import.meta.env?.VITE_API_KEY ?? DEV_API_KEY;
   } catch {
-    return DEFAULT_BASE;
+    return DEV_API_KEY;
   }
 }
 
@@ -50,9 +55,14 @@ async function request<T>(
       if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
     });
   }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const apiKey = getApiKey();
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
   const init: RequestInit = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
   };
   if (body !== undefined) init.body = JSON.stringify(body);
   const res = await fetch(url.toString(), init);
@@ -133,13 +143,18 @@ export function createHttpApiClient(): ApiClient {
     },
 
     async listSignals(q?: SignalsQuery): Promise<SignalEvent[]> {
-      return request<SignalEvent[]>('GET', '/api/ui/signals', undefined, {
+      // Use the main signals API with mode=live to get real signals only
+      const response = await request<{ signals: SignalEvent[]; total: number }>('GET', '/api/v1/signals/', undefined, {
+        mode: 'live', // Always request live signals in live mode
         partition: q?.partition,
         category: q?.category,
         confidence: q?.confidence,
         search: q?.search,
-        limit: q?.limit,
+        limit: q?.limit ?? 50,
       } as Record<string, string | number | undefined>);
+      
+      // The API returns { signals: [...], total: N }, extract just the signals array
+      return response.signals || [];
     },
 
     async ingestSignal(event: SignalEvent): Promise<IngestResponse> {
@@ -189,6 +204,44 @@ export function createHttpApiClient(): ApiClient {
             proof: { ok: false, summary: 'Not available in live mode' },
           };
         }
+        throw e;
+      }
+    },
+
+    // Multi-source intelligence
+    async getMultiSourceSignals(sources?: string[]): Promise<SignalEvent[]> {
+      const params: Record<string, string | undefined> = {};
+      if (sources?.length) {
+        params.sources = sources.join(',');
+      }
+      const response = await request<{ signals: SignalEvent[] }>('GET', '/api/v1/multi-source/signals', undefined, params);
+      return response.signals || [];
+    },
+
+    async getMultiSourceHealth(): Promise<Record<string, { status: string; enabled: boolean }>> {
+      return request<Record<string, { status: string; enabled: boolean }>>('GET', '/api/v1/multi-source/sources');
+    },
+
+    async getSourcesList(): Promise<SourceInfo[]> {
+      const response = await request<{ sources: SourceInfo[] }>('GET', '/api/v1/multi-source/sources');
+      return response.sources || [];
+    },
+
+    // Quality metrics
+    async getQualityMetrics(): Promise<QualityMetrics | null> {
+      try {
+        return await request<QualityMetrics>('GET', '/api/v1/stats/quality');
+      } catch (e) {
+        if (e instanceof NotImplementedError) return null;
+        throw e;
+      }
+    },
+
+    async getCalibrationReport(): Promise<CalibrationReport | null> {
+      try {
+        return await request<CalibrationReport>('GET', '/api/v1/stats/calibration');
+      } catch (e) {
+        if (e instanceof NotImplementedError) return null;
         throw e;
       }
     },

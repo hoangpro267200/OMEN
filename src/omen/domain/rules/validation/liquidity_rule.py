@@ -5,6 +5,7 @@ OMEN assumes: If there is no liquidity, there is no information.
 
 from datetime import datetime, timezone
 
+from omen.application.ports.time_provider import utc_now
 from ...models.explanation import ExplanationStep, ParameterReference
 from ...models.raw_signal import RawSignalEvent
 from ...models.validated_signal import ValidationResult
@@ -67,7 +68,7 @@ class LiquidityValidationRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this validation."""
-        ts = processing_time or datetime.now(timezone.utc)
+        ts = processing_time or utc_now()
         parameters_used: list[ParameterReference] = []
         try:
             cfg = get_rule_registry().get_config("liquidity_validation")

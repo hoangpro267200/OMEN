@@ -9,6 +9,7 @@ export const ROUTES = {
   sources: '/sources',
   partitions: '/partitions',
   signals: '/signals',
+  operations: '/operations',
   ingestDemo: '/ingest-demo',
   ledgerProof: '/ledger-proof',
 } as const;
@@ -21,6 +22,7 @@ export const ROUTE_LABELS: Record<RouteId, string> = {
   sources: 'Data Sources',
   partitions: 'Partitions',
   signals: 'Signal Monitor',
+  operations: 'Operations',
   ingestDemo: 'Ingest Demo',
   ledgerProof: 'Ledger',
 };

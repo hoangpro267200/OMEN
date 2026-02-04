@@ -9,6 +9,10 @@ Broadcasts events:
 - reconcile_started: Reconcile job started
 - reconcile_completed: Reconcile job completed
 - partition_sealed: Partition sealed
+
+Authentication:
+- WebSocket connections require API key via query parameter: ?api_key=YOUR_KEY
+- RBAC scope required: read:realtime
 """
 
 from __future__ import annotations
@@ -19,12 +23,14 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
+from omen.api.route_dependencies import Scopes
 from omen.infrastructure.realtime.distributed_connection_manager import (
     DistributedConnectionManager,
     get_connection_manager,
 )
+from omen.infrastructure.security.unified_auth import AuthContext, authenticate
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +107,55 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def _authenticate_websocket(websocket: WebSocket) -> AuthContext | None:
+    """
+    Authenticate WebSocket connection using API key from query parameters.
+
+    Returns AuthContext if authenticated, None if authentication failed.
+    WebSocket authentication requires ?api_key= query parameter since
+    browsers cannot set custom headers on WebSocket connections.
+    """
+    # Extract API key from query parameters
+    api_key = websocket.query_params.get("api_key")
+
+    if not api_key:
+        logger.warning("WebSocket connection rejected: No API key provided")
+        return None
+
+    try:
+        # Authenticate using unified auth
+        # For WebSocket, we pass the key directly (no header support in WS)
+        auth = await authenticate(
+            request=websocket,  # WebSocket is request-like for our purposes
+            api_key_header=None,
+            api_key_query=api_key,
+        )
+
+        # Check for realtime scope
+        if Scopes.REALTIME_READ not in auth.scopes and "*" not in auth.scopes and Scopes.ADMIN not in auth.scopes:
+            logger.warning(
+                "WebSocket connection rejected: User %s lacks %s scope",
+                auth.user_id,
+                Scopes.REALTIME_READ,
+            )
+            return None
+
+        logger.info("WebSocket authenticated: user=%s", auth.user_id)
+        return auth
+
+    except Exception as e:
+        logger.warning("WebSocket authentication failed: %s", e)
+        return None
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """
     WebSocket endpoint for real-time updates.
+
+    Authentication:
+    - Requires API key via query parameter: ws://host/ws?api_key=YOUR_KEY
+    - Required scope: read:realtime
 
     Client can send:
     - {"type": "subscribe", "channels": ["signals", "reconcile"]}
@@ -113,10 +164,27 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     Server sends:
     - {"type": "signal_emitted", "data": {...}, "timestamp": "..."}
     - {"type": "pong"}
+    - {"type": "error", "message": "..."} on auth failure
     """
+    # Authenticate before accepting connection
+    auth = await _authenticate_websocket(websocket)
+
+    if auth is None:
+        # Reject connection with 4001 (custom code for auth failure)
+        # Standard codes: 4000-4999 are reserved for application use
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     await manager.connect(websocket)
 
     try:
+        # Send welcome message with auth info
+        await manager.send_personal(
+            websocket,
+            "connected",
+            {"user_id": auth.user_id, "scopes": auth.scopes},
+        )
+
         while True:
             try:
                 data = await asyncio.wait_for(
@@ -130,7 +198,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
                 elif message.get("type") == "subscribe":
                     channels = message.get("channels", [])
-                    logger.info("Client subscribed to: %s", channels)
+                    logger.info("Client %s subscribed to: %s", auth.user_id, channels)
 
             except asyncio.TimeoutError:
                 try:
@@ -148,7 +216,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.error("WebSocket error: %s", e)
+        logger.error("WebSocket error for user %s: %s", auth.user_id, e)
     finally:
         await manager.disconnect(websocket)
 

@@ -1,10 +1,13 @@
 /**
  * AnimatedPipeline - Neural Command Center signal processing pipeline visualization
  * Features: Animated particles flowing through stages, real-time counters, rejection bin
+ * 
+ * Uses real pipeline stats from API when available.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
+import { usePipelineStats } from '../../hooks/useSignalData';
 
 interface PipelineStage {
   id: string;
@@ -14,13 +17,31 @@ interface PipelineStage {
   passRate: number;
 }
 
-const STAGES: PipelineStage[] = [
-  { id: 'ingest', name: 'INGEST', icon: '📥', eventsPerHour: 1250, passRate: 100 },
-  { id: 'validate', name: 'VALIDATE', icon: '✓', eventsPerHour: 520, passRate: 41.6 },
-  { id: 'enrich', name: 'ENRICH', icon: '🔬', eventsPerHour: 480, passRate: 92.3 },
-  { id: 'classify', name: 'CLASSIFY', icon: '🏷️', eventsPerHour: 480, passRate: 100 },
-  { id: 'emit', name: 'EMIT', icon: '📡', eventsPerHour: 47, passRate: 9.8 },
-];
+// Default stages - will be updated with real API data
+function buildStages(stats: any | null): PipelineStage[] {
+  if (!stats) {
+    return [
+      { id: 'ingest', name: 'INGEST', icon: '📥', eventsPerHour: 0, passRate: 100 },
+      { id: 'validate', name: 'VALIDATE', icon: '✓', eventsPerHour: 0, passRate: 0 },
+      { id: 'enrich', name: 'ENRICH', icon: '🔬', eventsPerHour: 0, passRate: 0 },
+      { id: 'classify', name: 'CLASSIFY', icon: '🏷️', eventsPerHour: 0, passRate: 0 },
+      { id: 'emit', name: 'EMIT', icon: '📡', eventsPerHour: 0, passRate: 0 },
+    ];
+  }
+  
+  const eventsReceived = stats.events_received ?? stats.total_processed ?? 0;
+  const eventsValidated = stats.events_validated ?? stats.total_passed ?? 0;
+  const signalsGenerated = stats.signals_generated ?? eventsValidated;
+  const validationRate = stats.validation_rate ?? stats.pass_rate ?? 0;
+  
+  return [
+    { id: 'ingest', name: 'INGEST', icon: '📥', eventsPerHour: eventsReceived, passRate: 100 },
+    { id: 'validate', name: 'VALIDATE', icon: '✓', eventsPerHour: eventsValidated, passRate: validationRate },
+    { id: 'enrich', name: 'ENRICH', icon: '🔬', eventsPerHour: eventsValidated, passRate: eventsValidated > 0 ? 100 : 0 },
+    { id: 'classify', name: 'CLASSIFY', icon: '🏷️', eventsPerHour: signalsGenerated, passRate: 100 },
+    { id: 'emit', name: 'EMIT', icon: '📡', eventsPerHour: signalsGenerated, passRate: eventsValidated > 0 ? (signalsGenerated / eventsValidated) * 100 : 0 },
+  ];
+}
 
 interface Particle {
   id: number;
@@ -36,6 +57,12 @@ export interface AnimatedPipelineProps {
 export function AnimatedPipeline({ onSelectSignal: _onSelectSignal, className }: AnimatedPipelineProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [nextId, setNextId] = useState(0);
+  
+  // Fetch real pipeline stats from API
+  const { data: pipelineStats } = usePipelineStats();
+  
+  // Build stages from real data
+  const STAGES = useMemo(() => buildStages(pipelineStats), [pipelineStats]);
 
   // Generate new particles
   const spawnParticle = useCallback(() => {

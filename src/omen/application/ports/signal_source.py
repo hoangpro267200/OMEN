@@ -4,10 +4,13 @@ Defines the interface for ingesting raw market data.
 Adapters implement this to connect to specific markets (Polymarket, Kalshi, etc.)
 """
 
-from abc import ABC, abstractmethod
-from typing import AsyncIterator, Iterator
+from __future__ import annotations
 
-from ...domain.models.raw_signal import RawSignalEvent
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, AsyncIterator, Iterator
+
+if TYPE_CHECKING:
+    from ...domain.models.raw_signal import RawSignalEvent
 
 
 class SignalSource(ABC):

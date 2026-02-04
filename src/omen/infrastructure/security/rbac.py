@@ -1,17 +1,39 @@
 """
 Role-Based Access Control with Scopes.
 
+⚠️ DEPRECATED: This module is deprecated and will be removed in a future version.
+Use `omen.infrastructure.security.unified_auth` with `require_scopes()` instead.
+
+Migration:
+    # Old (deprecated):
+    from omen.infrastructure.security.rbac import ScopeChecker, Scopes
+    
+    # New (recommended):
+    from omen.api.security import READ_SIGNALS, WRITE_SIGNALS
+    # Or use route_dependencies.py patterns
+
 Implements fine-grained access control based on API key scopes.
 Each API key can have multiple scopes that grant specific permissions.
 """
-
 from __future__ import annotations
+
+import warnings
+warnings.warn(
+    "omen.infrastructure.security.rbac is deprecated. "
+    "Use omen.infrastructure.security.unified_auth with route_dependencies.py instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import logging
 from functools import wraps
-from typing import Callable, List, Optional
+from typing import Annotated, Callable, List, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader
+
+# API Key header scheme for ScopeChecker
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 from omen.infrastructure.security.api_key_manager import (
     ApiKeyManager,
@@ -122,10 +144,13 @@ class ScopeChecker:
 
     async def __call__(
         self,
-        api_key: str = None,
+        api_key: Annotated[str | None, Security(api_key_header)] = None,
     ) -> ApiKeyRecord:
         """Check if the API key has required scopes."""
         from fastapi import Request
+        
+        # DEBUG: Log when ScopeChecker is called
+        logger.info("ScopeChecker called with api_key=%r, required_scopes=%s", api_key, self.required_scopes)
 
         # Get API key from header
         if not api_key:

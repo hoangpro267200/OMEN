@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import atan2, cos, radians, sin, sqrt
 
+from omen.application.ports.time_provider import utc_now
 from ...models.raw_signal import RawSignalEvent
 from ...models.validated_signal import ValidationResult
 from ...models.common import ValidationStatus, GeoLocation
@@ -149,7 +150,7 @@ class GeographicRelevanceRule(Rule[RawSignalEvent, ValidationResult]):
         processing_time: datetime | None = None,
     ) -> ExplanationStep:
         """Generate explanation for this validation."""
-        ts = processing_time or datetime.now(timezone.utc)
+        ts = processing_time or utc_now()
         return ExplanationStep(
             step_id=1,
             rule_name=self.name,

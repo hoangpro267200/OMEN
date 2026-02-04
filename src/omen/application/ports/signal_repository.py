@@ -3,26 +3,29 @@
 Defines interface for persisting and retrieving OMEN outputs.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from ...domain.models.omen_signal import OmenSignal
+if TYPE_CHECKING:
+    from ...domain.models.omen_signal import OmenSignal
 
 
 @runtime_checkable
 class AsyncSignalRepository(Protocol):
     """Async interface for signal persistence (high-throughput / async pipeline)."""
 
-    async def save_async(self, signal: OmenSignal) -> None:
+    async def save_async(self, signal: "OmenSignal") -> None:
         """Persist an OMEN signal asynchronously."""
         ...
 
-    async def find_by_id_async(self, signal_id: str) -> OmenSignal | None:
+    async def find_by_id_async(self, signal_id: str) -> "OmenSignal | None":
         """Find signal by its OMEN ID."""
         ...
 
-    async def find_by_hash_async(self, input_event_hash: str) -> OmenSignal | None:
+    async def find_by_hash_async(self, input_event_hash: str) -> "OmenSignal | None":
         """
         Find signal by input event hash (idempotency).
         """
@@ -32,7 +35,7 @@ class AsyncSignalRepository(Protocol):
         self,
         limit: int = 100,
         since: datetime | None = None,
-    ) -> list[OmenSignal]:
+    ) -> "list[OmenSignal]":
         """Find recent signals."""
         ...
 
@@ -45,17 +48,17 @@ class SignalRepository(ABC):
     """
 
     @abstractmethod
-    def save(self, signal: OmenSignal) -> None:
+    def save(self, signal: "OmenSignal") -> None:
         """Persist an OMEN signal."""
         ...
 
     @abstractmethod
-    def find_by_id(self, signal_id: str) -> OmenSignal | None:
+    def find_by_id(self, signal_id: str) -> "OmenSignal | None":
         """Find signal by its OMEN ID."""
         ...
 
     @abstractmethod
-    def find_by_hash(self, input_event_hash: str) -> OmenSignal | None:
+    def find_by_hash(self, input_event_hash: str) -> "OmenSignal | None":
         """
         Find signal by input event hash.
 
@@ -65,7 +68,7 @@ class SignalRepository(ABC):
         ...
 
     @abstractmethod
-    def find_by_event_id(self, event_id: str) -> list[OmenSignal]:
+    def find_by_event_id(self, event_id: str) -> "list[OmenSignal]":
         """Find all signals generated from a source event."""
         ...
 
@@ -75,7 +78,7 @@ class SignalRepository(ABC):
         limit: int = 100,
         offset: int = 0,
         since: datetime | None = None,
-    ) -> list[OmenSignal]:
+    ) -> "list[OmenSignal]":
         """
         Find recent signals with pagination.
 

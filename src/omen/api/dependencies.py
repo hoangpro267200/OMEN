@@ -17,8 +17,19 @@ def get_repository() -> SignalRepository:
 
 @lru_cache(maxsize=1)
 def get_signal_only_pipeline() -> SignalOnlyPipeline:
-    """Return the signal-only pipeline (validate → enrich → OmenSignal)."""
-    validator = SignalValidator.create_default()
+    """Return the signal-only pipeline (validate → enrich → OmenSignal).
+    
+    AUDIT FIX (2026-02-03): Changed from create_default() to create_full()
+    to enable all 12 validation rules instead of just 6.
+    
+    Rules now active:
+    - Core: liquidity, anomaly, semantic, geographic (4)
+    - Cross-source: CrossSourceValidationRule, SourceDiversityRule (2)
+    - News: NewsQualityGateRule (1)
+    - Commodity: CommodityContextRule (1)
+    - AIS/Maritime: PortCongestion, ChokePointDelay, Freshness, Quality (4)
+    """
+    validator = SignalValidator.create_full()
     enricher = SignalEnricher()
     return SignalOnlyPipeline(
         validator=validator,

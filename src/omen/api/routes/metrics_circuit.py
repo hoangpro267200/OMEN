@@ -1,10 +1,12 @@
 """Circuit breaker metrics endpoint for monitoring."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from omen.api.route_dependencies import require_stats_read
 from omen.infrastructure.emitter.signal_emitter import CIRCUIT_NAME_RISKCAST
 from omen.infrastructure.resilience.circuit_breaker import get_circuit_breaker
+from omen.infrastructure.security.unified_auth import AuthContext
 
 router = APIRouter(tags=["metrics"])
 
@@ -16,7 +18,9 @@ class CircuitBreakerUpdateRequest(BaseModel):
 
 
 @router.get("/metrics/circuit-breakers")
-async def get_circuit_breaker_stats():
+async def get_circuit_breaker_stats(
+    auth: AuthContext = Depends(require_stats_read),  # RBAC: read:stats
+):
     """
     Get circuit breaker statistics for monitoring.
 
@@ -58,7 +62,11 @@ async def get_circuit_breaker_stats():
 
 
 @router.patch("/metrics/circuit-breakers/{name}")
-async def update_circuit_breaker(name: str, request: CircuitBreakerUpdateRequest):
+async def update_circuit_breaker(
+    name: str,
+    request: CircuitBreakerUpdateRequest,
+    auth: AuthContext = Depends(require_stats_read),  # RBAC: read:stats
+):
     """
     Update circuit breaker state.
 

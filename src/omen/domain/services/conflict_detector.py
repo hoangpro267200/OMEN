@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from omen.application.ports.time_provider import utc_now
 from omen.domain.models.raw_signal import RawSignalEvent
 
 
@@ -46,7 +47,7 @@ class ConflictResult(BaseModel):
     )
     details: dict[str, Any] = Field(default_factory=dict)
     detected_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: utc_now(),
         description="When the conflict was detected (timezone-aware UTC)",
     )
 

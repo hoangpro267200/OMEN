@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from pydantic import BaseModel, Field, field_validator, computed_field
 
+from omen.application.ports.time_provider import utc_now
 from .common import EventId, MarketId, GeoLocation, ProbabilityMovement, generate_deterministic_hash
 
 
@@ -71,7 +72,7 @@ class RawSignalEvent(BaseModel):
 
     # Timestamps
     observed_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: utc_now(),
         description="When OMEN observed this data (timezone-aware UTC)",
     )
     market_last_updated: datetime | None = None

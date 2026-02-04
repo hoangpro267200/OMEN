@@ -10,6 +10,8 @@ import type { ProcessedSignal } from '../types/omen';
 import { OMEN_API_BASE } from '../lib/apiBase';
 
 const API_BASE = OMEN_API_BASE;
+// Hardcoded for development - matches OMEN_SECURITY_API_KEYS in backend .env
+const API_KEY = import.meta.env?.VITE_API_KEY || 'dev-test-key';
 
 interface PriceUpdate {
   signal_id: string;
@@ -42,9 +44,11 @@ export function useRealtimePrices(signalIds: string[]): RealtimeStatus {
   const subscribeToSignals = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (API_KEY) headers['X-API-Key'] = API_KEY;
       const res = await fetch(`${API_BASE}/realtime/subscribe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ signal_ids: ids }),
       });
       if (!res.ok) throw new Error(`Subscribe failed: ${res.status}`);
@@ -70,7 +74,8 @@ export function useRealtimePrices(signalIds: string[]): RealtimeStatus {
       eventSourceRef.current = null;
     }
 
-    const eventSource = new EventSource(`${API_BASE}/realtime/prices`);
+    const sseUrl = API_KEY ? `${API_BASE}/realtime/prices?api_key=${encodeURIComponent(API_KEY)}` : `${API_BASE}/realtime/prices`;
+    const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
@@ -188,7 +193,9 @@ export function useRealtimeStatus(options?: { enabled?: boolean }): {
     const fetchStatus = async () => {
       if (cancelled) return;
       try {
-        const res = await fetch(`${API_BASE}/realtime/status`);
+        const headers: Record<string, string> = {};
+        if (API_KEY) headers['X-API-Key'] = API_KEY;
+        const res = await fetch(`${API_BASE}/realtime/status`, { headers });
         if (cancelled) return;
         if (res.ok) {
           const json = await res.json();

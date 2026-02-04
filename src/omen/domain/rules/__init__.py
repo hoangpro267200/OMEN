@@ -1,4 +1,4 @@
-"""Domain rules for validation. Translation/impact rules live in omen_impact."""
+"""Domain rules for validation. Impact assessment is handled by downstream consumers."""
 
 from omen.domain.rules.base import Rule
 

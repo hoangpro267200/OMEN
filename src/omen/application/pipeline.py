@@ -7,7 +7,7 @@ No impact translation in the default path. Impact assessment belongs
 in downstream consumers (e.g. RiskCast).
 
 Impact assessment is performed by downstream consumers (e.g. RiskCast).
-Legacy path: use omen_impact.LegacyPipeline and omen_impact.LegacyOmenSignal.
+Impact assessment is handled by downstream consumers (e.g., RiskCast service).
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from ..domain.models.omen_signal import OmenSignal
 
 from ..domain.services.signal_validator import SignalValidator, ValidationOutcome
 from ..domain.services.signal_enricher import SignalEnricher
+from ..domain.services import get_trust_manager, get_quality_metrics, get_historical_validator
 from ..domain.errors import OmenError, PersistenceError, PublishError
 
 from ..infrastructure.dead_letter import DeadLetterQueue
@@ -64,9 +65,11 @@ class OmenPipeline:
     """
     The main OMEN intelligence pipeline (signal-only).
 
-    Stages: Validate → Enrich → OmenSignal (pure contract).
+    Stages: Validate → Correlate → Enrich → OmenSignal (pure contract).
     Produces structured signals with probability, confidence, and context.
     No impact calculations — those belong in downstream consumers.
+    
+    NEW: Cross-source correlation for intelligent signal boosting/reduction.
     """
 
     def __init__(
@@ -77,6 +80,7 @@ class OmenPipeline:
         publisher: OutputPublisher | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
         config: PipelineConfig | None = None,
+        enable_correlation: bool = True,
     ):
         self._validator = validator
         self._enricher = enricher
@@ -84,10 +88,23 @@ class OmenPipeline:
         self._publisher = publisher
         self._dlq = dead_letter_queue if dead_letter_queue is not None else DeadLetterQueue()
         self._config = config or PipelineConfig.default()
+        self._enable_correlation = enable_correlation
+        self._trust_manager = get_trust_manager()
+        
+        # Initialize cross-source orchestrator for correlation
+        self._orchestrator = None
+        if enable_correlation:
+            try:
+                from .services.cross_source_orchestrator import CrossSourceOrchestrator
+                self._orchestrator = CrossSourceOrchestrator(enable_parallel_fetch=True)
+                logger.info("Cross-source correlation enabled")
+            except Exception as e:
+                logger.warning("Cross-source correlation disabled: %s", e)
 
         logger.info(
-            "Pipeline initialized (signal-only) with ruleset %s",
+            "Pipeline initialized (signal-only) with ruleset %s, correlation=%s",
             self._config.ruleset_version,
+            self._enable_correlation and self._orchestrator is not None,
         )
 
     def _record_metrics(self, result: PipelineResult) -> None:
@@ -139,7 +156,38 @@ class OmenPipeline:
         ctx: ProcessingContext,
     ) -> PipelineResult:
         started_at = ctx.processing_time
-        # === IDEMPOTENCY CHECK ===
+        
+        # === REDIS CACHE CHECK (fast path) ===
+        try:
+            from ..infrastructure.redis import get_redis_state_manager
+            redis_manager = get_redis_state_manager()
+            cache_key = f"signal:{event.input_event_hash}"
+            
+            if redis_manager.is_connected:
+                import asyncio
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    cached = asyncio.run(redis_manager.cache_get(cache_key))
+                    if cached:
+                        logger.debug("Signal cache hit for %s", event.event_id)
+                        stats.events_deduplicated = 1
+                        stats.processing_time_ms = (
+                            datetime.now(timezone.utc) - started_at
+                        ).total_seconds() * 1000
+                        # Reconstruct signal from cache
+                        from ..domain.models.omen_signal import OmenSignal
+                        signal = OmenSignal.model_validate(cached)
+                        return PipelineResult(
+                            success=True,
+                            signals=[signal],
+                            stats=stats,
+                            cached=True,
+                        )
+        except Exception as e:
+            logger.debug("Redis cache check failed (non-fatal): %s", e)
+        
+        # === IDEMPOTENCY CHECK (database fallback) ===
         if self._repository:
             existing = self._repository.find_by_hash(event.input_event_hash)
             if existing:
@@ -185,6 +233,13 @@ class OmenPipeline:
                 outcome.rejection_reason or "unknown",
             )
             stats.events_rejected_validation = 1
+            
+            # Record quality metrics for rejected validation
+            try:
+                quality_metrics = get_quality_metrics()
+                quality_metrics.record_validation(passed=False, results=outcome.results or [])
+            except Exception as e:
+                logger.debug("Failed to record quality metrics: %s", e)
             stats.processing_time_ms = (
                 datetime.now(timezone.utc) - started_at
             ).total_seconds() * 1000
@@ -211,6 +266,14 @@ class OmenPipeline:
         validated_signal = outcome.signal
         assert validated_signal is not None
         stats.events_validated = 1
+        
+        # Record quality metrics for passed validation
+        try:
+            quality_metrics = get_quality_metrics()
+            quality_metrics.record_validation(passed=True, results=outcome.results or [])
+        except Exception as e:
+            logger.debug("Failed to record quality metrics: %s", e)
+        
         try:
             activity = get_activity_logger()
             rule_name = outcome.results[-1].rule_name if outcome.results else "validation"
@@ -223,6 +286,67 @@ class OmenPipeline:
         except Exception as e:
             logger.warning("Failed to log validation activity: %s", e)
 
+        # === LAYER 2.5: CROSS-SOURCE CORRELATION (optional) ===
+        correlation_adjustment = 0.0
+        correlation_summary = ""
+        
+        if self._orchestrator is not None:
+            try:
+                import asyncio
+                import concurrent.futures
+                
+                # ✅ FIX: Properly handle async correlation in both sync and async contexts
+                correlation_result = None
+                
+                try:
+                    loop = asyncio.get_running_loop()
+                    # Already in async context (e.g., FastAPI)
+                    # Use run_coroutine_threadsafe to properly await in the event loop
+                    future = asyncio.run_coroutine_threadsafe(
+                        self._orchestrator.process_signal(event),
+                        loop
+                    )
+                    try:
+                        # Wait for result with timeout
+                        correlation_result = future.result(timeout=10.0)
+                    except concurrent.futures.TimeoutError:
+                        logger.warning("Cross-source correlation timed out for %s", event.event_id)
+                    except Exception as e:
+                        logger.debug("Cross-source correlation in async context failed: %s", e)
+                except RuntimeError:
+                    # No running loop - create one (sync context)
+                    correlation_result = asyncio.run(
+                        self._orchestrator.process_signal(event)
+                    )
+                
+                if correlation_result is not None:
+                    correlation_adjustment = correlation_result.confidence_adjustment
+                    correlation_summary = correlation_result.correlation_summary
+                    
+                    if abs(correlation_adjustment) > 0.01:
+                        logger.info(
+                            "✅ Cross-source correlation for %s: adjustment=%.2f, summary=%s",
+                            event.event_id,
+                            correlation_adjustment,
+                            correlation_summary[:100] if correlation_summary else "N/A",
+                        )
+                    else:
+                        logger.debug(
+                            "Cross-source correlation for %s: no significant adjustment (%.4f)",
+                            event.event_id,
+                            correlation_adjustment,
+                        )
+            except Exception as e:
+                logger.warning("Cross-source correlation failed (non-fatal): %s", e)
+        
+        # === GET SOURCE TRUST WEIGHT ===
+        source_trust = 0.85  # Default
+        try:
+            source_name = getattr(event, 'source_name', None) or 'polymarket'
+            source_trust = self._trust_manager.get_trust_weight(source_name)
+        except Exception as e:
+            logger.debug("Failed to get trust weight: %s", e)
+        
         # === LAYER 3: ENRICHMENT (no impact translation) ===
         validation_context: dict = {
             "confidence_factors": {
@@ -235,9 +359,11 @@ class OmenPipeline:
                     ),
                     0.5,
                 ),
-                "source_reliability": 0.85,
+                "source_reliability": source_trust,
+                "correlation_adjustment": correlation_adjustment,
             },
             "validation_results": validated_signal.validation_results,
+            "correlation_summary": correlation_summary,
         }
         enrichment = self._enricher.enrich(event, validation_context)
 
@@ -345,6 +471,56 @@ class OmenPipeline:
             signal.signal_id,
             signal.confidence_level.value,
         )
+        
+        # Record confidence distribution for quality tracking
+        try:
+            quality_metrics = get_quality_metrics()
+            quality_metrics.record_confidence(signal.confidence_level)
+        except Exception as e:
+            logger.debug("Failed to record confidence distribution: %s", e)
+        
+        # Record historical prediction for future calibration
+        try:
+            from ..domain.services import PredictionRecord
+            historical = get_historical_validator()
+            historical.record_prediction(PredictionRecord(
+                signal_id=signal.signal_id,
+                metric_name="probability",
+                predicted_value=signal.probability,
+                predicted_lower=signal.probability - (1 - signal.confidence_score) * 0.2,
+                predicted_upper=signal.probability + (1 - signal.confidence_score) * 0.2,
+                prediction_date=signal.generated_at,
+                event_probability=signal.probability,
+            ))
+        except Exception as e:
+            logger.debug("Failed to record historical prediction: %s", e)
+        
+        # Update trust manager with successful signal generation
+        try:
+            source_name = getattr(event, 'source_name', None) or 'polymarket'
+            self._trust_manager.record_signal_accuracy(source_name, True)
+        except Exception as e:
+            logger.debug("Failed to record signal accuracy: %s", e)
+        
+        # Cache signal in Redis for fast lookup
+        try:
+            from ..infrastructure.redis import get_redis_state_manager
+            redis_manager = get_redis_state_manager()
+            cache_key = f"signal:{event.input_event_hash}"
+            
+            if redis_manager.is_connected:
+                import asyncio
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    asyncio.run(redis_manager.cache_set(
+                        cache_key,
+                        signal.model_dump(mode='json'),
+                        ttl=3600,  # 1 hour TTL
+                    ))
+                    logger.debug("Cached signal %s in Redis", signal.signal_id)
+        except Exception as e:
+            logger.debug("Failed to cache signal in Redis: %s", e)
 
         # === PERSIST & PUBLISH (with error handling) ===
         if not self._config.enable_dry_run:
@@ -476,3 +652,257 @@ class OmenPipeline:
                     )
                 )
         return results
+
+    # =========================================================================
+    # ASYNC METHODS - For proper FastAPI integration
+    # =========================================================================
+
+    async def process_single_async(
+        self,
+        event: RawSignalEvent,
+        context: ProcessingContext | None = None,
+    ) -> PipelineResult:
+        """
+        Async version of process_single for FastAPI integration.
+        
+        ✅ FIX: This properly awaits cross-source correlation in async context.
+        Use this method when calling from FastAPI routes.
+        """
+        ctx = context or ProcessingContext.create(self._config.ruleset_version)
+        stats = PipelineStats()
+        stats.events_received = 1
+        logger.info("Processing event (async): %s", event.event_id)
+
+        try:
+            return await self._process_single_async_inner(event, stats, ctx)
+        except OmenError as e:
+            return self._handle_omen_error(event, e, stats, ctx)
+        except Exception as e:
+            return self._handle_unexpected_error(event, e, stats, ctx)
+
+    async def _process_single_async_inner(
+        self,
+        event: RawSignalEvent,
+        stats: PipelineStats,
+        ctx: ProcessingContext,
+    ) -> PipelineResult:
+        """Async inner processing with proper await for correlation."""
+        started_at = ctx.processing_time
+        
+        # === REDIS CACHE CHECK (fast path) ===
+        try:
+            from ..infrastructure.redis import get_redis_state_manager
+            redis_manager = get_redis_state_manager()
+            cache_key = f"signal:{event.input_event_hash}"
+            
+            if redis_manager.is_connected:
+                cached = await redis_manager.cache_get(cache_key)
+                if cached:
+                    logger.debug("Signal cache hit for %s", event.event_id)
+                    stats.events_deduplicated = 1
+                    stats.processing_time_ms = (
+                        datetime.now(timezone.utc) - started_at
+                    ).total_seconds() * 1000
+                    signal = OmenSignal.model_validate(cached)
+                    return PipelineResult(
+                        success=True,
+                        signals=[signal],
+                        stats=stats,
+                        cached=True,
+                    )
+        except Exception as e:
+            logger.debug("Redis cache check failed (non-fatal): %s", e)
+        
+        # === IDEMPOTENCY CHECK ===
+        if self._repository:
+            existing = self._repository.find_by_hash(event.input_event_hash)
+            if existing:
+                logger.info("Event %s already processed", event.event_id)
+                stats.events_deduplicated = 1
+                stats.processing_time_ms = (
+                    datetime.now(timezone.utc) - started_at
+                ).total_seconds() * 1000
+                result = PipelineResult(
+                    success=True,
+                    signals=[existing],
+                    stats=stats,
+                    cached=True,
+                )
+                self._record_metrics(result)
+                return result
+
+        # === LAYER 2: VALIDATION ===
+        outcome = self._validator.validate(event, context=ctx)
+        if not outcome.passed:
+            try:
+                tracker = get_rejection_tracker()
+                first_result = outcome.results[0] if outcome.results else None
+                tracker.record_rejection(
+                    event_id=str(event.event_id),
+                    stage="validation",
+                    reason=outcome.rejection_reason or "unknown",
+                    title=event.title,
+                    probability=event.probability,
+                    liquidity=event.market.current_liquidity_usd,
+                    keywords_found=list(event.keywords) if event.keywords else [],
+                    rule_name=first_result.rule_name if first_result else None,
+                    rule_version=first_result.rule_version if first_result else None,
+                )
+            except Exception as e:
+                logger.warning("Failed to record rejection: %s", e)
+            
+            stats.events_rejected_validation = 1
+            stats.processing_time_ms = (
+                datetime.now(timezone.utc) - started_at
+            ).total_seconds() * 1000
+            result = PipelineResult(
+                success=True,
+                signals=[],
+                validation_failures=outcome.results or [],
+                stats=stats,
+            )
+            self._record_metrics(result)
+            return result
+        
+        validated_signal = outcome.signal
+        assert validated_signal is not None
+        stats.events_validated = 1
+
+        # === LAYER 2.5: CROSS-SOURCE CORRELATION (async) ===
+        correlation_adjustment = 0.0
+        correlation_summary = ""
+        
+        if self._orchestrator is not None:
+            try:
+                # ✅ FIX: Properly await in async context
+                correlation_result = await self._orchestrator.process_signal(event)
+                
+                if correlation_result is not None:
+                    correlation_adjustment = correlation_result.confidence_adjustment
+                    correlation_summary = correlation_result.correlation_summary
+                    
+                    if abs(correlation_adjustment) > 0.01:
+                        logger.info(
+                            "✅ Cross-source correlation (async) for %s: adjustment=%.2f",
+                            event.event_id,
+                            correlation_adjustment,
+                        )
+            except Exception as e:
+                logger.warning("Cross-source correlation failed: %s", e)
+
+        # === GET SOURCE TRUST WEIGHT ===
+        source_trust = 0.85
+        try:
+            source_name = getattr(event, 'source_name', None) or 'polymarket'
+            source_trust = self._trust_manager.get_trust_weight(source_name)
+        except Exception as e:
+            logger.debug("Failed to get trust weight: %s", e)
+
+        # === LAYER 3: ENRICHMENT ===
+        validation_context: dict = {
+            "confidence_factors": {
+                "liquidity": validated_signal.liquidity_score,
+                "geographic": next(
+                    (r.score for r in validated_signal.validation_results
+                     if r.rule_name == "geographic_relevance"),
+                    0.5,
+                ),
+                "source_reliability": source_trust,
+                "correlation_adjustment": correlation_adjustment,
+            },
+            "validation_results": validated_signal.validation_results,
+            "correlation_summary": correlation_summary,
+        }
+        enrichment = self._enricher.enrich(event, validation_context)
+
+        # === LAYER 4: PURE OMEN SIGNAL ===
+        try:
+            signal = OmenSignal.from_validated_event(validated_signal, enrichment)
+        except Exception as e:
+            logger.warning("Failed to build OmenSignal: %s", e)
+            stats.processing_time_ms = (
+                datetime.now(timezone.utc) - started_at
+            ).total_seconds() * 1000
+            return PipelineResult(success=True, signals=[], stats=stats)
+
+        if signal.confidence_score < self._config.min_confidence_for_output:
+            stats.processing_time_ms = (
+                datetime.now(timezone.utc) - started_at
+            ).total_seconds() * 1000
+            return PipelineResult(success=True, signals=[], stats=stats)
+
+        signals: list[OmenSignal] = [signal]
+        stats.signals_generated = 1
+
+        # Record metrics
+        try:
+            get_signal_history_store().record(
+                signal_id=signal.signal_id,
+                probability=signal.probability,
+                source="polymarket_gamma",
+                market_id=str(event.market.market_id),
+            )
+        except Exception as e:
+            logger.warning("Failed to record signal history: %s", e)
+
+        # Cache in Redis
+        try:
+            from ..infrastructure.redis import get_redis_state_manager
+            redis_manager = get_redis_state_manager()
+            cache_key = f"signal:{event.input_event_hash}"
+            
+            if redis_manager.is_connected:
+                await redis_manager.cache_set(
+                    cache_key,
+                    signal.model_dump(mode='json'),
+                    ttl=3600,
+                )
+        except Exception as e:
+            logger.debug("Failed to cache signal: %s", e)
+
+        # === PERSIST & PUBLISH ===
+        if not self._config.enable_dry_run:
+            for sig in signals:
+                if self._repository:
+                    try:
+                        self._repository.save(sig)
+                    except Exception as e:
+                        logger.error("Failed to persist signal: %s", e)
+                if self._publisher:
+                    try:
+                        self._publisher.publish(sig)
+                    except Exception as e:
+                        logger.error("Failed to publish signal: %s", e)
+
+        stats.processing_time_ms = (
+            datetime.now(timezone.utc) - started_at
+        ).total_seconds() * 1000
+        result = PipelineResult(success=True, signals=signals, stats=stats)
+        self._record_metrics(result)
+        return result
+
+    async def process_batch_async(
+        self,
+        events: Sequence[RawSignalEvent],
+    ) -> list[PipelineResult]:
+        """Async batch processing with parallel execution."""
+        import asyncio
+        
+        tasks = [self.process_single_async(event) for event in events]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error("Failed to process event %s: %s", events[i].event_id, result)
+                processed_results.append(
+                    PipelineResult(
+                        success=False,
+                        error=str(result),
+                        stats=PipelineStats(events_received=1, events_failed=1),
+                    )
+                )
+            else:
+                processed_results.append(result)
+        
+        return processed_results

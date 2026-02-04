@@ -1,25 +1,29 @@
 /**
  * SourcesObservatory - Neural Command Center data sources monitoring
  * Features: Constellation view, source cards, live data preview
+ * 
+ * Uses useDataSources hook for real-time data from backend.
  */
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Radio, Grid } from 'lucide-react';
+import { Radio, Grid, RefreshCw } from 'lucide-react';
 import { GlassCard, GlassCardTitle } from '../components/ui/GlassCard';
 import { SourceConstellation, type DataSource } from '../components/sources/SourceConstellation';
 import { SourceCard } from '../components/sources/SourceCard';
 import { DataPreview } from '../components/sources/DataPreview';
+import { useDataModeSafe } from '../context/DataModeContext';
 import { cn } from '../lib/utils';
+import { OMEN_API_BASE } from '../lib/apiBase';
 
+// Fallback sources when API is not available
 const DEFAULT_SOURCES: DataSource[] = [
   { id: 'polymarket', name: 'Polymarket', status: 'healthy', latency: 120, type: 'real' },
   { id: 'ais', name: 'AIS Marine', status: 'healthy', latency: 450, type: 'real' },
   { id: 'commodity', name: 'Commodity', status: 'healthy', latency: 200, type: 'real' },
-  { id: 'weather', name: 'Weather', status: 'warning', latency: 800, type: 'real' },
+  { id: 'weather', name: 'Weather', status: 'healthy', latency: 300, type: 'real' },
   { id: 'news', name: 'News', status: 'healthy', latency: 150, type: 'real' },
   { id: 'stock', name: 'Stock', status: 'healthy', latency: 180, type: 'real' },
-  { id: 'freight', name: 'Freight', status: 'mock', latency: 0, type: 'mock' },
-  { id: 'partner', name: 'Partner Risk', status: 'healthy', latency: 220, type: 'real' },
+  { id: 'freight', name: 'Freight', status: 'healthy', latency: 250, type: 'real' },
 ];
 
 export interface SourcesObservatoryProps {
@@ -28,7 +32,103 @@ export interface SourcesObservatoryProps {
 
 export function SourcesObservatory({ className }: SourcesObservatoryProps) {
   const [selectedSource, setSelectedSource] = useState<string | null>('polymarket');
-  const [sources] = useState<DataSource[]>(DEFAULT_SOURCES);
+  const [apiSources, setApiSources] = useState<DataSource[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { isLive, isDemo, canUseLiveData } = useDataModeSafe();
+  
+  // Use ref for error count to avoid re-triggering effect
+  const errorCountRef = useRef(0);
+
+  // Fetch sources from backend health endpoint
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function fetchSources() {
+      // Use mock data when in demo mode OR when backend is not available
+      if (isDemo || !canUseLiveData) {
+        if (isMounted) {
+          setApiSources(DEFAULT_SOURCES.map(s => ({ 
+            ...s, 
+            status: isDemo ? 'healthy' as const : 'mock' as const,
+            type: isDemo ? 'real' as const : 'mock' as const 
+          })));
+          setIsLoading(false);
+          errorCountRef.current = 0;
+        }
+        return;
+      }
+
+      try {
+        // Use /health/sources endpoint for real source health status
+        const baseUrl = OMEN_API_BASE.replace(/\/api\/v1\/?$/, '');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(`${baseUrl}/health/sources`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        
+        if (!isMounted) return;
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Transform health check response to DataSource format
+          const transformed: DataSource[] = Object.entries(data.sources || {}).map(([name, info]: [string, any]) => ({
+            id: name.toLowerCase().replace(/\s+/g, '-'),
+            name: name,
+            status: info.status === 'healthy' ? 'healthy' : 
+                    info.status === 'degraded' ? 'warning' : 
+                    info.status === 'unhealthy' ? 'error' : 'mock',
+            latency: info.latency_ms ?? 0,
+            type: info.status === 'healthy' || info.status === 'degraded' ? 'real' : 'mock',
+            lastCheck: info.last_check,
+            error: info.error,
+          }));
+          
+          if (transformed.length > 0) {
+            setApiSources(transformed);
+          } else {
+            // If no sources registered, show defaults with 'mock' status
+            setApiSources(DEFAULT_SOURCES.map(s => ({ ...s, status: 'mock' as const, type: 'mock' as const })));
+          }
+          errorCountRef.current = 0;
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        
+        // Only log first few errors to avoid console spam
+        errorCountRef.current += 1;
+        if (errorCountRef.current <= 3) {
+          console.warn('[SourcesObservatory] Failed to fetch sources:', (error as Error).message);
+        }
+        
+        // Fall back to default sources on first error
+        setApiSources(prev => prev ?? DEFAULT_SOURCES.map(s => ({ ...s, status: 'mock' as const, type: 'mock' as const })));
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchSources();
+    
+    // Only poll if in live mode and can use live data
+    const interval = (isLive && canUseLiveData) 
+      ? setInterval(fetchSources, 10000) 
+      : null;
+    
+    return () => {
+      isMounted = false;
+      if (interval) clearInterval(interval);
+    };
+  }, [isLive, isDemo, canUseLiveData]);
+
+  const sources = apiSources || DEFAULT_SOURCES;
 
   // Calculate summary stats
   const healthySources = sources.filter((s) => s.status === 'healthy').length;

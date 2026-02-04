@@ -1,4 +1,24 @@
-"""Polymarket legacy API client (configurable URL + optional API key)."""
+"""Polymarket legacy API client (configurable URL + optional API key).
+
+⚠️ DEPRECATED: This module is deprecated. Use the following instead:
+- `omen.adapters.inbound.polymarket.live_client` - For live Polymarket data
+- `omen.adapters.inbound.polymarket.clob_client` - For CLOB API access
+- `omen.adapters.inbound.polymarket.enhanced_source` - For combined sources
+
+Migration:
+    # Old (deprecated):
+    from omen.adapters.inbound.polymarket.client import PolymarketClient
+    
+    # New (recommended):
+    from omen.adapters.inbound.polymarket.live_client import PolymarketLiveClient
+"""
+import warnings
+warnings.warn(
+    "omen.adapters.inbound.polymarket.client is deprecated. "
+    "Use omen.adapters.inbound.polymarket.live_client instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import logging
 from typing import Any, AsyncIterator

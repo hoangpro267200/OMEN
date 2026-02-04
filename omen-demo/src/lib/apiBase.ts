@@ -1,5 +1,6 @@
 /**
  * Base URL for OMEN API. Normalizes invalid URLs (e.g. http://:8000 -> localhost).
+ * Default port is 8000 to match backend configuration (uvicorn default).
  */
 function normalizeOmenApiBase(): string {
   const raw = (import.meta.env.VITE_OMEN_API_URL as string) || 'http://localhost:8000/api/v1';

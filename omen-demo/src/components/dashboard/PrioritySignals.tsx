@@ -1,12 +1,18 @@
 /**
  * PrioritySignals - Neural Command Center high priority signals table
- * Features: Status badges, probability/confidence display, row interactions
+ * 
+ * IMPORTANT: Uses useSignals hook which respects DataMode:
+ * - LIVE mode: Fetches from real API. Shows error if API unavailable. NO fake data.
+ * - DEMO mode: Uses mock data clearly labeled.
  */
-import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { StatusIndicator } from '../ui/StatusIndicator';
 import { MiniGauge } from '../ui/Gauge';
+import { useSignals, type Signal } from '../../hooks/useSignalData';
+import { useDataModeSafe } from '../../context/DataModeContext';
+import { Skeleton } from '../ui/Skeleton';
+import { formatDistanceToNow } from 'date-fns';
 
 export interface PrioritySignal {
   id: string;
@@ -36,72 +42,154 @@ const STATUS_CONFIG = {
   },
 };
 
-// Sample data - in production this would come from the API
-const SAMPLE_SIGNALS: PrioritySignal[] = [
-  {
-    id: 'OMEN-ABC123',
-    title: 'Suez Canal Disruption Risk',
-    status: 'active',
-    probability: 0.68,
-    confidence: 0.78,
-    category: 'SHIPPING',
-    timeAgo: '2m ago',
-  },
-  {
-    id: 'OMEN-9C4860',
-    title: 'China x India Military Clash',
-    status: 'monitoring',
-    probability: 0.175,
-    confidence: 0.57,
-    category: 'GEOPOLITICAL',
-    timeAgo: '5m ago',
-  },
-  {
-    id: 'OMEN-DEF456',
-    title: 'Panama Canal Water Levels',
-    status: 'monitoring',
-    probability: 0.42,
-    confidence: 0.65,
-    category: 'INFRASTRUCTURE',
-    timeAgo: '8m ago',
-  },
-  {
-    id: 'OMEN-GHI789',
-    title: 'Red Sea Shipping Disruption',
-    status: 'active',
-    probability: 0.55,
-    confidence: 0.72,
-    category: 'SHIPPING',
-    timeAgo: '12m ago',
-  },
-  {
-    id: 'OMEN-JKL012',
-    title: 'Taiwan Strait Tension',
-    status: 'candidate',
-    probability: 0.15,
-    confidence: 0.45,
-    category: 'GEOPOLITICAL',
-    timeAgo: '18m ago',
-  },
-];
+// Transform API Signal to PrioritySignal format
+function transformSignal(signal: Signal): PrioritySignal {
+  const statusMap: Record<string, 'active' | 'monitoring' | 'candidate'> = {
+    ACTIVE: 'active',
+    MONITORING: 'monitoring',
+    CANDIDATE: 'candidate',
+    ARCHIVED: 'candidate',
+  };
+  
+  // Handle null/undefined observed_at - use generated_at as fallback, then "recently"
+  let timeAgo = 'recently';
+  const timestamp = signal.observed_at || signal.generated_at;
+  if (timestamp) {
+    try {
+      const date = new Date(timestamp);
+      // Check if valid date (not epoch or invalid)
+      if (!isNaN(date.getTime()) && date.getFullYear() > 2000) {
+        timeAgo = formatDistanceToNow(date, { addSuffix: true });
+      }
+    } catch {
+      // Keep default "recently"
+    }
+  }
+  
+  return {
+    id: signal.signal_id,
+    title: signal.title,
+    status: statusMap[signal.status] || 'candidate',
+    probability: signal.probability,
+    confidence: signal.confidence_score,
+    category: signal.category,
+    timeAgo,
+  };
+}
 
 export interface PrioritySignalsProps {
-  signals?: PrioritySignal[];
   onSignalClick?: (signal: PrioritySignal) => void;
   maxItems?: number;
   className?: string;
 }
 
 export function PrioritySignals({
-  signals = SAMPLE_SIGNALS,
   onSignalClick,
   maxItems = 5,
   className,
 }: PrioritySignalsProps) {
-  const displaySignals = signals.slice(0, maxItems);
+  const { isLive, isDemo, setMode, state } = useDataModeSafe();
+  
+  // Use the unified data hook - respects DataMode
+  const { data, isLoading, isError, error, refetch, dataSource } = useSignals({
+    limit: maxItems,
+    status: 'ACTIVE,MONITORING',
+  });
 
+  // Transform API signals to display format
+  const displaySignals = data?.signals.slice(0, maxItems).map(transformSignal) || [];
+
+  // -------------------------------------------------------------------------
+  // Loading State
+  // -------------------------------------------------------------------------
+  if (isLoading) {
+    return (
+      <div className={cn('space-y-3', className)}>
+        {Array.from({ length: maxItems }).map((_, i) => (
+          <div key={`signal-skeleton-${i}`} className="flex gap-4 py-3 border-b border-border-subtle/50">
+            <Skeleton className="w-16 h-6" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="w-12 h-6" />
+            <Skeleton className="w-10 h-6" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Error State - CRITICAL: Shows error in Live mode, NO fake data
+  // -------------------------------------------------------------------------
+  if (isError) {
+    return (
+      <div className={cn('py-8 text-center', className)}>
+        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-2xl bg-red-500/10 border border-red-500/20">
+          <AlertTriangle className="w-6 h-6 text-red-400" />
+        </div>
+        <h3 className="text-base font-bold text-text-primary mb-2">
+          {isLive ? 'Lỗi Tải Dữ Liệu' : 'Không thể tải signals'}
+        </h3>
+        <p className="text-sm text-text-muted mb-4 max-w-sm mx-auto">
+          {error?.message || state.errorMessage || 'Không thể kết nối server'}
+        </p>
+        {isLive && (
+          <p className="text-xs text-red-400/70 mb-4 flex items-center justify-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            Chế độ LIVE - không hiện dữ liệu giả
+          </p>
+        )}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent-cyan text-black hover:bg-accent-cyan/90 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Thử lại
+          </button>
+          {isLive && (
+            <button
+              onClick={() => setMode('demo')}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-colors"
+            >
+              ⚗ Xem Demo
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Empty State
+  // -------------------------------------------------------------------------
+  if (displaySignals.length === 0) {
+    return (
+      <div className={cn('py-8 text-center text-text-muted', className)}>
+        <p className="text-sm">Không có signals ưu tiên</p>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Success State - Data Table
+  // -------------------------------------------------------------------------
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    <div className={cn('relative overflow-x-auto', className)} data-tour="signal-feed">
+      {/* Data Source Badge - Use text only to avoid icon rendering issues */}
+      <div className="absolute top-0 right-0 z-10">
+        <span className={cn(
+          'px-2 py-0.5 rounded-full border text-[9px] font-mono font-bold',
+          dataSource === 'mock' 
+            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+        )}>
+          {dataSource === 'mock' ? '⚗ DEMO' : '● LIVE'}
+        </span>
+      </div>
+
       <table className="w-full">
         <thead>
           <tr className="text-left text-xs text-text-muted border-b border-border-subtle">
@@ -118,13 +206,11 @@ export function PrioritySignals({
           {displaySignals.map((signal, index) => {
             const status = STATUS_CONFIG[signal.status];
             return (
-              <motion.tr
-                key={signal.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.2 }}
+              <tr
+                key={`signal-row-${signal.id}-${index}`}
                 onClick={() => onSignalClick?.(signal)}
-                className="border-b border-border-subtle/50 hover:bg-bg-tertiary/30 transition-colors cursor-pointer group"
+                className="border-b border-border-subtle/50 hover:bg-bg-tertiary/30 transition-colors cursor-pointer group animate-fade-in"
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 {/* Status */}
                 <td className="py-3 pr-4">
@@ -199,7 +285,7 @@ export function PrioritySignals({
                 <td className="py-3">
                   <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-accent-cyan transition-colors" />
                 </td>
-              </motion.tr>
+              </tr>
             );
           })}
         </tbody>

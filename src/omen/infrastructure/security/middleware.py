@@ -168,6 +168,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             # Verify API key
             config = get_security_config()
             valid_keys = config.get_api_keys()
+            
+            # DEBUG: Temporary logging to diagnose auth issue
+            logger.info("Auth debug: api_keys_in_config=%d, received_key_len=%d", len(valid_keys), len(api_key))
+            for i, vk in enumerate(valid_keys):
+                logger.info("Auth debug: valid_key[%d] len=%d, matches=%s", i, len(vk), api_key == vk)
 
             is_valid = False
             for valid_key in valid_keys:

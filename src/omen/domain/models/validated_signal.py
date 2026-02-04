@@ -7,6 +7,7 @@ Contains validation metadata for auditability.
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, computed_field
 
+from omen.application.ports.time_provider import utc_now
 from .common import (
     EventId,
     SignalCategory,
@@ -70,7 +71,7 @@ class ValidatedSignal(BaseModel):
     # Versioning for reproducibility
     ruleset_version: RulesetVersion
     validated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: utc_now(),
         description="When this signal was validated (timezone-aware UTC)",
     )
 

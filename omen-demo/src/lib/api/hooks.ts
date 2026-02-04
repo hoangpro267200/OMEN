@@ -2,22 +2,43 @@
  * React Query hooks — the ONLY way screens access data.
  * Screens may import only from this file (and types from contracts).
  * Do NOT import mockClient, demoData, or demoState in screens.
+ * 
+ * NOTE: Uses DataModeContext for consistent mode state across the app.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { createApiClient } from './client';
 import type { PartitionsQuery, SignalsQuery } from './contracts';
-import { useDataSourceMode } from '../mode/store';
+import { useDataModeSafe, type DataMode } from '../../context/DataModeContext';
 import { queryKeys } from './queryKeys';
 
-// Re-create client when mode changes (hooks use getDataSourceMode() so they get fresh client per render when mode toggled)
+// Re-create client when mode changes
+// IMPORTANT: In LIVE mode, ALWAYS use live client. If not connected, return errors, NOT demo data.
 function useApiClient() {
-  const [mode] = useDataSourceMode();
+  const { state } = useDataModeSafe();
+  const mode = state.mode;
+  // STRICT: Use live client when in live mode, regardless of connection status.
+  // Errors will show in UI if not connected, but NEVER fake data.
   return useMemo(() => createApiClient(mode), [mode]);
 }
 
-export { useDataSourceMode, useApiClient };
+// Compatibility wrapper: returns [mode, setMode] like the old useDataSourceMode
+function useDataSourceMode(): [DataMode, (mode: DataMode) => void] {
+  const { state, setMode } = useDataModeSafe();
+  const setModeWrapper = useCallback((mode: DataMode) => {
+    setMode(mode);
+  }, [setMode]);
+  return [state.mode, setModeWrapper];
+}
+
+// Hook to check if API is actually available
+function useCanFetchLive(): boolean {
+  const { canUseLiveData, isLive } = useDataModeSafe();
+  return isLive && canUseLiveData;
+}
+
+export { useDataSourceMode, useApiClient, useCanFetchLive };
 
 // Overview
 export function useOverviewStats() {
@@ -137,5 +158,67 @@ export function useResetDemoState() {
       qc.invalidateQueries({ queryKey: queryKeys.partitions({}) });
       qc.invalidateQueries({ queryKey: queryKeys.signals({}) });
     },
+  });
+}
+
+// Multi-Source Intelligence
+export function useMultiSourceSignals(sources?: string[]) {
+  const client = useApiClient();
+  const [mode] = useDataSourceMode();
+  return useQuery({
+    queryKey: ['multi-source', 'signals', sources, mode],
+    queryFn: () => client.getMultiSourceSignals?.(sources) ?? Promise.resolve([]),
+    staleTime: 10_000,
+    retry: mode === 'live' ? 0 : 1,
+    enabled: !!client.getMultiSourceSignals,
+  });
+}
+
+export function useMultiSourceHealth() {
+  const client = useApiClient();
+  const [mode] = useDataSourceMode();
+  return useQuery({
+    queryKey: ['multi-source', 'health', mode],
+    queryFn: () => client.getMultiSourceHealth?.() ?? Promise.resolve({}),
+    staleTime: 30_000,
+    retry: mode === 'live' ? 0 : 1,
+    enabled: !!client.getMultiSourceHealth,
+  });
+}
+
+export function useSourcesList() {
+  const client = useApiClient();
+  const [mode] = useDataSourceMode();
+  return useQuery({
+    queryKey: ['multi-source', 'sources', mode],
+    queryFn: () => client.getSourcesList?.() ?? Promise.resolve([]),
+    staleTime: 60_000,
+    retry: mode === 'live' ? 0 : 1,
+    enabled: !!client.getSourcesList,
+  });
+}
+
+// Quality Metrics
+export function useQualityMetrics() {
+  const client = useApiClient();
+  const [mode] = useDataSourceMode();
+  return useQuery({
+    queryKey: ['stats', 'quality', mode],
+    queryFn: () => client.getQualityMetrics?.() ?? Promise.resolve(null),
+    staleTime: 30_000,
+    retry: mode === 'live' ? 0 : 1,
+    enabled: !!client.getQualityMetrics,
+  });
+}
+
+export function useCalibrationReport() {
+  const client = useApiClient();
+  const [mode] = useDataSourceMode();
+  return useQuery({
+    queryKey: ['stats', 'calibration', mode],
+    queryFn: () => client.getCalibrationReport?.() ?? Promise.resolve(null),
+    staleTime: 60_000,
+    retry: mode === 'live' ? 0 : 1,
+    enabled: !!client.getCalibrationReport,
   });
 }

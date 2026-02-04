@@ -11,7 +11,17 @@ export interface SignalPayloadTabProps {
  */
 export function SignalPayloadTab({ record }: SignalPayloadTabProps) {
   const s = record.signal;
-  const probPct = typeof s.probability === 'number' ? `${(s.probability * 100).toFixed(0)}%` : String(s.probability);
+  
+  // Defensive: handle missing signal data
+  if (!s || typeof s !== 'object') {
+    return (
+      <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--bg-tertiary)] p-4 text-center">
+        <p className="text-sm text-[var(--text-muted)]">Signal payload data not available</p>
+      </div>
+    );
+  }
+  
+  const probPct = typeof s.probability === 'number' ? `${(s.probability * 100).toFixed(0)}%` : String(s.probability ?? '—');
 
   return (
     <div className="space-y-1">

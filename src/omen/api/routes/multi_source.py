@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 from omen.api.errors import not_found, bad_request
-from omen.infrastructure.security.auth import verify_api_key
+from omen.api.route_dependencies import require_multi_source_read
+from omen.infrastructure.security.unified_auth import AuthContext
 from omen.adapters.inbound.multi_source import get_multi_source_aggregator
 
 router = APIRouter()
@@ -104,7 +105,7 @@ async def get_multi_source_signals(
         default=None,
         description="Comma-separated source names (e.g., 'ais,weather,freight')",
     ),
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_multi_source_read),  # RBAC: read:multi-source
 ) -> MultiSourceResponse:
     """
     Get signals from multiple sources.
@@ -176,7 +177,7 @@ class SourceUpdateRequest(BaseModel):
 async def update_source(
     source_name: str,
     request: SourceUpdateRequest,
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_multi_source_read),  # RBAC: read:multi-source
 ) -> dict[str, str]:
     """
     Update a signal source configuration.
@@ -201,7 +202,7 @@ async def update_source(
 async def get_single_source_signals(
     source_name: str,
     limit: int = Query(default=50, le=200),
-    _api_key: str = Depends(verify_api_key),
+    auth: AuthContext = Depends(require_multi_source_read),  # RBAC: read:multi-source
 ) -> MultiSourceResponse:
     """Get signals from a specific source."""
     import time

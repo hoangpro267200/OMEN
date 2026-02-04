@@ -49,10 +49,89 @@ class HealthCheckable(Protocol):
         ...
 
 
+class DataFreshness:
+    """
+    Track data freshness for any adapter.
+    
+    Used to determine if cached data is stale and needs refresh.
+    """
+    
+    def __init__(self, cache_ttl_seconds: int = 300):
+        self.last_fetch: datetime | None = None
+        self.last_success: datetime | None = None
+        self.fetch_count: int = 0
+        self.error_count: int = 0
+        self.cache_ttl_seconds: int = cache_ttl_seconds
+    
+    def record_fetch(self) -> None:
+        """Record a fetch attempt."""
+        self.last_fetch = datetime.now(timezone.utc)
+        self.fetch_count += 1
+    
+    def record_success(self) -> None:
+        """Record a successful fetch."""
+        self.last_success = datetime.now(timezone.utc)
+    
+    def record_error(self) -> None:
+        """Record a fetch error."""
+        self.error_count += 1
+    
+    @property
+    def is_stale(self) -> bool:
+        """Check if data is stale based on TTL."""
+        if self.last_success is None:
+            return True
+        age = datetime.now(timezone.utc) - self.last_success
+        return age.total_seconds() > self.cache_ttl_seconds
+    
+    @property
+    def freshness_score(self) -> float:
+        """
+        Calculate freshness score (0-1).
+        
+        1.0 = just fetched
+        0.0 = stale (age >= TTL)
+        """
+        if self.last_success is None:
+            return 0.0
+        age = (datetime.now(timezone.utc) - self.last_success).total_seconds()
+        # Score decreases linearly as data ages
+        return max(0.0, 1.0 - (age / self.cache_ttl_seconds))
+    
+    @property
+    def reliability_score(self) -> float:
+        """Calculate reliability based on error rate."""
+        total = self.fetch_count
+        if total == 0:
+            return 1.0
+        return 1.0 - (self.error_count / total)
+    
+    @property
+    def age_seconds(self) -> float:
+        """Get data age in seconds."""
+        if self.last_success is None:
+            return float('inf')
+        return (datetime.now(timezone.utc) - self.last_success).total_seconds()
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            "last_fetch": self.last_fetch.isoformat() if self.last_fetch else None,
+            "last_success": self.last_success.isoformat() if self.last_success else None,
+            "fetch_count": self.fetch_count,
+            "error_count": self.error_count,
+            "cache_ttl_seconds": self.cache_ttl_seconds,
+            "is_stale": self.is_stale,
+            "freshness_score": round(self.freshness_score, 4),
+            "reliability_score": round(self.reliability_score, 4),
+            "age_seconds": round(self.age_seconds, 2) if self.age_seconds != float('inf') else None,
+        }
+
+
 class SourceHealth:
     """Track health status of a data source."""
 
-    def __init__(self, source_name: str):
+    def __init__(self, source_name: str, cache_ttl_seconds: int = 300):
         self.source_name = source_name
         self.healthy = True
         self.last_success: datetime | None = None
@@ -62,6 +141,8 @@ class SourceHealth:
         self.total_requests = 0
         self.total_failures = 0
         self.total_latency_ms = 0.0
+        # Add data freshness tracking
+        self.freshness = DataFreshness(cache_ttl_seconds=cache_ttl_seconds)
 
     def record_success(self, latency_ms: float) -> None:
         """Record a successful request."""
@@ -111,6 +192,8 @@ class SourceHealth:
             "total_failures": self.total_failures,
             "failure_rate_pct": round(self.failure_rate, 2),
             "avg_latency_ms": round(self.avg_latency_ms, 2),
+            # Include freshness data
+            "freshness": self.freshness.to_dict(),
         }
 
 

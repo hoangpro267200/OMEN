@@ -1,20 +1,4 @@
-"""
-AIS (Automatic Identification System) adapter for OMEN.
+"""AIS ship tracking adapters."""
+from .aisstream_adapter import AISStreamAdapter, get_aisstream_adapter, VesselPosition, VesselType
 
-Provides real-time vessel tracking, port congestion detection,
-and chokepoint monitoring for logistics intelligence.
-"""
-
-from .config import AISConfig
-from .schemas import Vessel, PortStatus, ChokePointStatus
-from .mapper import AISMapper
-from .source import AISSignalSource
-
-__all__ = [
-    "AISConfig",
-    "Vessel",
-    "PortStatus",
-    "ChokePointStatus",
-    "AISMapper",
-    "AISSignalSource",
-]
+__all__ = ["AISStreamAdapter", "get_aisstream_adapter", "VesselPosition", "VesselType"]

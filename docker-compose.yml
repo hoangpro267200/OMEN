@@ -4,18 +4,57 @@
 version: '3.9'
 
 services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PostgreSQL Database
+  # ─────────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: omen-postgres
+    environment:
+      POSTGRES_USER: omen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omen_dev_password}
+      POSTGRES_DB: omen_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omen -d omen_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "5432:5432"
+    networks:
+      - omen-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # OMEN API
+  # ─────────────────────────────────────────────────────────────────────────────
   omen:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: omen-api
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
+      - OMEN_ENV=development
       - OMEN_LEDGER_BASE_PATH=/data/ledger
       - OMEN_RISKCAST_URL=http://riskcast:8001
       - OMEN_SECURITY_API_KEYS=dev-key-123
       - OMEN_LOG_LEVEL=DEBUG
       - OMEN_LOG_FORMAT=pretty
+      # PostgreSQL connection
+      - DATABASE_URL=postgresql://omen:${POSTGRES_PASSWORD:-omen_dev_password}@postgres:5432/omen_db
+      - DB_POOL_MIN=5
+      - DB_POOL_MAX=20
+      # Live mode gate (disabled by default)
+      - OMEN_ALLOW_LIVE_MODE=false
+      - OMEN_MIN_REAL_SOURCE_RATIO=0.80
     volumes:
       - ./src:/app/src:ro
       - ledger_data:/data/ledger
@@ -23,10 +62,14 @@ services:
     networks:
       - omen-network
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # RiskCast Service
+  # ─────────────────────────────────────────────────────────────────────────────
   riskcast:
     build:
       context: .
       dockerfile: Dockerfile.riskcast
+    container_name: omen-riskcast
     ports:
       - "8001:8001"
     environment:
@@ -41,6 +84,7 @@ services:
       - omen-network
 
 volumes:
+  postgres_data:
   ledger_data:
   riskcast_data:
 

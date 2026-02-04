@@ -10,6 +10,7 @@ export const preloadRoutes = {
   partitions: () => import('../screens/PartitionsPage'),
   partitionDetail: () => import('../screens/PartitionDetailPage'),
   signals: () => import('../screens/SignalsPage'),
+  operations: () => import('../screens/OperationsScreen'),
   ingestDemo: () => import('../screens/IngestDemoPage'),
   ledgerProof: () => import('../screens/LedgerProofPage'),
 } as const;

@@ -1,12 +1,22 @@
 """
 Production Dependency Injection Container.
 
-Async-compatible container with support for:
+⚠️ NOTE: Consider using `omen.application.container.Container` instead.
+The main container now supports:
+- Kafka publisher (KAFKA_BOOTSTRAP_SERVERS)
+- Composite publishers (multiple destinations)
+- Full validation (12 rules)
+- All domain services
+
+This module provides async-compatible container with support for:
 - PostgreSQL signal repository
 - Redis rate limiting
 - Kafka publisher
 
 This is the production-ready container for horizontal scaling.
+
+✅ ACTIVATED: Uses FULL validator with ALL 12 validation rules.
+✅ ACTIVATED: SignalClassifier and EnhancedConfidenceCalculator.
 """
 
 from __future__ import annotations
@@ -23,12 +33,13 @@ from omen.application.pipeline import OmenPipeline, PipelineConfig
 from omen.application.ports.output_publisher import OutputPublisher
 from omen.application.ports.signal_repository import SignalRepository
 from omen.config import OmenConfig, get_config
-from omen.domain.rules.validation.anomaly_detection_rule import AnomalyDetectionRule
-from omen.domain.rules.validation.geographic_relevance_rule import GeographicRelevanceRule
-from omen.domain.rules.validation.liquidity_rule import LiquidityValidationRule
-from omen.domain.rules.validation.semantic_relevance_rule import SemanticRelevanceRule
 from omen.domain.services.signal_enricher import SignalEnricher
 from omen.domain.services.signal_validator import SignalValidator
+from omen.domain.services.signal_classifier import SignalClassifier
+from omen.domain.services.confidence_calculator import (
+    EnhancedConfidenceCalculator,
+    get_confidence_calculator,
+)
 from omen.infrastructure.dead_letter import DeadLetterQueue
 
 logger = logging.getLogger(__name__)
@@ -49,6 +60,9 @@ class ProductionContainer:
     - DATABASE_URL: PostgreSQL connection string
     - REDIS_URL: Redis connection string
     - KAFKA_BOOTSTRAP_SERVERS: Kafka servers (optional)
+    
+    ✅ ACTIVATED: Full validator with ALL 12 validation rules.
+    ✅ ACTIVATED: SignalClassifier and EnhancedConfidenceCalculator.
     """
 
     config: OmenConfig
@@ -59,6 +73,9 @@ class ProductionContainer:
     pipeline: OmenPipeline
     dlq: DeadLetterQueue
     rate_limiter: Optional[object] = None
+    # ✅ NEW: Activated domain services
+    classifier: Optional[SignalClassifier] = None
+    confidence_calculator: Optional[EnhancedConfidenceCalculator] = None
     _initialized: bool = False
 
     @classmethod
@@ -75,16 +92,17 @@ class ProductionContainer:
 
         logger.info("Creating production container (env=%s)", env)
 
-        # Validator and enricher
-        validator = SignalValidator(
-            rules=[
-                LiquidityValidationRule(min_liquidity_usd=config.min_liquidity_usd),
-                AnomalyDetectionRule(),
-                SemanticRelevanceRule(),
-                GeographicRelevanceRule(),
-            ]
-        )
+        # ✅ Use FULL validator with ALL 12 validation rules
+        validator = SignalValidator.create_full()
         enricher = SignalEnricher()
+        
+        # ✅ Initialize domain services
+        classifier = SignalClassifier()
+        confidence_calculator = get_confidence_calculator()
+        
+        logger.info("✅ Container using FULL validation (12 rules)")
+        logger.info("✅ SignalClassifier ACTIVATED")
+        logger.info("✅ EnhancedConfidenceCalculator ACTIVATED")
 
         # Repository - PostgreSQL in production, in-memory for dev
         repository: SignalRepository
@@ -164,6 +182,7 @@ class ProductionContainer:
             publisher=publisher,
             dead_letter_queue=dlq,
             config=pipeline_config,
+            enable_correlation=True,  # ✅ Ensure cross-source correlation is enabled
         )
 
         container = cls(
@@ -175,10 +194,13 @@ class ProductionContainer:
             pipeline=pipeline,
             dlq=dlq,
             rate_limiter=rate_limiter,
+            # ✅ NEW: Activated domain services
+            classifier=classifier,
+            confidence_calculator=confidence_calculator,
             _initialized=True,
         )
 
-        logger.info("Production container created successfully")
+        logger.info("✅ Production container created successfully (FULL activation)")
         return container
 
     @classmethod
@@ -186,16 +208,14 @@ class ProductionContainer:
         """Create container for development (in-memory, no external deps)."""
         config = get_config()
 
-        validator = SignalValidator(
-            rules=[
-                LiquidityValidationRule(min_liquidity_usd=config.min_liquidity_usd),
-                AnomalyDetectionRule(),
-                SemanticRelevanceRule(),
-                GeographicRelevanceRule(),
-            ]
-        )
+        # ✅ Use FULL validator with ALL 12 validation rules
+        validator = SignalValidator.create_full()
         enricher = SignalEnricher()
         repository = InMemorySignalRepository()
+        
+        # ✅ Initialize domain services
+        classifier = SignalClassifier()
+        confidence_calculator = get_confidence_calculator()
 
         if config.webhook_url:
             publisher = WebhookPublisher(
@@ -221,6 +241,7 @@ class ProductionContainer:
             publisher=publisher,
             dead_letter_queue=dlq,
             config=pipeline_config,
+            enable_correlation=True,
         )
 
         return cls(
@@ -231,6 +252,8 @@ class ProductionContainer:
             publisher=publisher,
             pipeline=pipeline,
             dlq=dlq,
+            classifier=classifier,
+            confidence_calculator=confidence_calculator,
             _initialized=True,
         )
 

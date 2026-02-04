@@ -1,6 +1,23 @@
 """
 Authentication for OMEN API.
+
+⚠️ DEPRECATED: This module is deprecated and will be removed in a future version.
+Use `omen.infrastructure.security.unified_auth` instead for all authentication needs.
+
+Migration:
+    # Old (deprecated):
+    from omen.infrastructure.security.auth import verify_api_key
+    
+    # New (recommended):
+    from omen.infrastructure.security.unified_auth import require_auth
 """
+import warnings
+warnings.warn(
+    "omen.infrastructure.security.auth is deprecated. "
+    "Use omen.infrastructure.security.unified_auth instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import hashlib
 import hmac
@@ -19,34 +36,74 @@ from omen.infrastructure.security.config import SecurityConfig, get_security_con
 _api_key_header_name = "X-API-Key"
 api_key_header = APIKeyHeader(name=_api_key_header_name, auto_error=False)
 
+# API Key from query parameter (for SSE/EventSource which doesn't support headers)
+from fastapi import Query
+from fastapi.security import APIKeyQuery
+
+api_key_query_scheme = APIKeyQuery(name="api_key", auto_error=False)
+
 
 async def verify_api_key(
     api_key: Annotated[str | None, Security(api_key_header)],
+    api_key_from_query: Annotated[str | None, Security(api_key_query_scheme)],
     config: Annotated[SecurityConfig, Depends(get_security_config)],
 ) -> str:
     """
-    Verify API key from header using secure hashed verification.
+    Verify API key from header or query parameter.
 
     Returns the validated API key ID for audit logging.
-    Uses ApiKeyManager for secure hash-based verification.
-    Keys are NEVER compared in plaintext - only hashes are compared.
+    Supports both X-API-Key header and ?api_key= query parameter (for SSE/EventSource).
     """
-    if not api_key:
+    import secrets as sec
+    import logging
+    import os
+    _logger = logging.getLogger(__name__)
+    
+    # Development bypass - requires EXPLICIT opt-in with BOTH conditions:
+    # 1. OMEN_ENV=development
+    # 2. OMEN_DEV_AUTH_BYPASS=true (explicit flag)
+    env = os.getenv("OMEN_ENV", "production").lower()
+    bypass_enabled = os.getenv("OMEN_DEV_AUTH_BYPASS", "false").lower() == "true"
+    
+    if env == "development" and bypass_enabled:
+        import warnings
+        warnings.warn(
+            "⚠️ DEVELOPMENT AUTH BYPASS IS ENABLED. "
+            "This should NEVER be used in production!",
+            RuntimeWarning,
+            stacklevel=2
+        )
+        _logger.warning("Auth bypassed in development mode - OMEN_DEV_AUTH_BYPASS=true")
+        return "dev_bypass"
+    
+    # DEBUG: Log incoming key info
+    _logger.info("verify_api_key called: header=%r, query=%r", api_key, api_key_from_query)
+    
+    # Try header first, then query parameter (for EventSource/SSE)
+    actual_key = api_key or api_key_from_query
+    if not actual_key:
+        _logger.warning("No API key provided in request")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing API key",
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    # Use ApiKeyManager for secure hash-based verification
-    from omen.infrastructure.security.api_key_manager import get_api_key_manager
+    # Direct plaintext comparison with configured keys (same as middleware)
+    valid_keys = config.get_api_keys()
+    for i, valid_key in enumerate(valid_keys):
+        if sec.compare_digest(actual_key, valid_key):
+            return f"key_{i}"  # Return key index as ID
 
-    manager = get_api_key_manager()
-    record = manager.verify_key(api_key)
-
-    if record:
-        # Return key_id for audit logging (never return the actual key)
-        return record.key_id
+    # Also try ApiKeyManager for any programmatically generated keys
+    try:
+        from omen.infrastructure.security.api_key_manager import get_api_key_manager
+        manager = get_api_key_manager()
+        record = manager.verify_key(actual_key)
+        if record:
+            return record.key_id
+    except Exception:
+        pass  # Fall through to error
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
